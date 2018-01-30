@@ -565,7 +565,14 @@ static inline void imx_uart_transmit_buffer(struct imx_port *sport)
 	}
 
 	if (sport->dma_is_enabled) {
-		u32 ucr1;
+		u32 ucr1, ucr4;
+
+		if (sport->port.rs485.flags & SER_RS485_ENABLED) {
+			ucr4 = imx_uart_readl(sport, UCR4);
+			ucr4 &= ~UCR4_TCEN;
+			imx_uart_writel(sport, ucr4, UCR4);
+		}
+
 		/*
 		 * We've just sent a X-char Ensure the TX DMA is enabled
 		 * and the TX IRQ is disabled.
