@@ -374,6 +374,15 @@ config RTC_DRV_MAX77686
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-max77686.
 
+config RTC_DRV_NR3225SA
+	tristate "NDK NR3225SA"
+	help
+	  If you say yes here you get support for RTC function in NDK
+	  NR3225SA chips.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-nr3225sa.
+
 config RTC_DRV_RK808
 	tristate "Rockchip RK805/RK808/RK809/RK817/RK818 RTC"
 	depends on MFD_RK808
