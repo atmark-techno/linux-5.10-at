@@ -441,7 +441,14 @@ static int fsl_sai_set_bclk(struct snd_soc_dai *dai, bool tx, u32 freq)
 	if (sai->slave_mode[tx])
 		return 0;
 
-	for (id = 0; id < FSL_SAI_MCLK_MAX; id++) {
+	/*
+	 * There is no point in polling MCLK0 if it is identical to MCLK1.
+	 * And given that MQS use case has to use MCLK1 though two clocks
+	 * are the same, we simply skip MCLK0 and start to find from MCLK1.
+	 */
+	id = sai->soc_data->mclk0_is_mclk1 ? 1 : 0;
+
+	for (; id < FSL_SAI_MCLK_MAX; id++) {
 		clk_rate = clk_get_rate(sai->mclk_clk[id]);
 		if (!clk_rate)
 			continue;
@@ -1350,7 +1357,6 @@ static int fsl_sai_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	sai->mclk_clk[0] = sai->bus_clk;
 	for (i = 1; i < FSL_SAI_MCLK_MAX; i++) {
 		sprintf(tmp, "mclk%d", i);
 		sai->mclk_clk[i] = devm_clk_get(&pdev->dev, tmp);
@@ -1360,6 +1366,11 @@ static int fsl_sai_probe(struct platform_device *pdev)
 			sai->mclk_clk[i] = NULL;
 		}
 	}
+
+	if (sai->soc_data->mclk0_is_mclk1)
+		sai->mclk_clk[0] = sai->mclk_clk[1];
+	else
+		sai->mclk_clk[0] = sai->bus_clk;
 
 	sai->pll8k_clk = devm_clk_get(&pdev->dev, "pll8k");
 	if (IS_ERR(sai->pll8k_clk))
@@ -1550,6 +1561,7 @@ static int fsl_sai_remove(struct platform_device *pdev)
 static const struct fsl_sai_soc_data fsl_sai_vf610_data = {
 	.use_imx_pcm = false,
 	.use_edma = false,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 32,
 	.reg_offset = 0,
 	.dataline = 0x1,
@@ -1561,6 +1573,7 @@ static const struct fsl_sai_soc_data fsl_sai_vf610_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx6sx_data = {
 	.use_imx_pcm = true,
 	.use_edma = false,
+	.mclk0_is_mclk1 = true,
 	.fifo_depth = 32,
 	.reg_offset = 0,
 	.dataline = 0x1,
@@ -1572,6 +1585,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx6sx_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx7ulp_data = {
 	.use_imx_pcm = true,
 	.use_edma = false,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 16,
 	.reg_offset = 8,
 	.dataline = 0x3,
@@ -1583,6 +1597,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx7ulp_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx8mq_data = {
 	.use_imx_pcm = true,
 	.use_edma = false,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 128,
 	.reg_offset = 8,
 	.dataline = 0xff,
@@ -1594,6 +1609,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx8mq_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx8qm_data = {
 	.use_imx_pcm = true,
 	.use_edma = true,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 64,
 	.reg_offset = 0,
 	.dataline = 0xf,
@@ -1605,6 +1621,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx8qm_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx8mm_data = {
 	.use_imx_pcm = true,
 	.use_edma = false,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 128,
 	.reg_offset = 8,
 	.dataline = 0xff,
@@ -1616,6 +1633,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx8mm_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx8mp_data = {
 	.use_imx_pcm = true,
 	.use_edma = false,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 128,
 	.reg_offset = 8,
 	.dataline = 0xff,
@@ -1627,6 +1645,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx8mp_data = {
 static const struct fsl_sai_soc_data fsl_sai_imx8ulp_data = {
 	.use_imx_pcm = true,
 	.use_edma = true,
+	.mclk0_is_mclk1 = false,
 	.fifo_depth = 16,
 	.reg_offset = 8,
 	.dataline = 0xf,
