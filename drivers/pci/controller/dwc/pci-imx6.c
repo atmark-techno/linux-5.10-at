@@ -115,8 +115,10 @@ struct imx6_pcie {
 	struct dw_pcie		*pci;
 	int			clkreq_gpio;
 	int			dis_gpio;
+	int			dis2_gpio;
+	bool			dis_gpio_active_high;
 	int			reset_gpio;
-	bool			gpio_active_high;
+	bool			reset_gpio_active_high;
 	struct clk		*pcie_bus;
 	struct clk		*pcie_phy;
 	struct clk		*pcie_phy_pclk;
@@ -1189,10 +1191,10 @@ static void imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 	/* Some boards don't have PCIe reset GPIO. */
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
 		gpio_set_value_cansleep(imx6_pcie->reset_gpio,
-					imx6_pcie->gpio_active_high);
+					imx6_pcie->reset_gpio_active_high);
 		msleep(20);
 		gpio_set_value_cansleep(imx6_pcie->reset_gpio,
-					!imx6_pcie->gpio_active_high);
+					!imx6_pcie->reset_gpio_active_high);
 	}
 
 	switch (imx6_pcie->drvdata->variant) {
@@ -1891,7 +1893,11 @@ err_reset_phy:
 		if (imx6_pcie->epdev_on != NULL)
 			regulator_disable(imx6_pcie->epdev_on);
 		if (gpio_is_valid(imx6_pcie->dis_gpio))
-			gpio_set_value_cansleep(imx6_pcie->dis_gpio, 0);
+			gpio_set_value_cansleep(imx6_pcie->dis_gpio,
+						imx6_pcie->dis_gpio_active_high);
+		if (gpio_is_valid(imx6_pcie->dis2_gpio))
+			gpio_set_value_cansleep(imx6_pcie->dis2_gpio,
+						imx6_pcie->dis_gpio_active_high);
 	}
 
 	return ret;
@@ -2474,10 +2480,15 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 		return imx6_pcie->clkreq_gpio;
 	}
 
+	imx6_pcie->dis_gpio_active_high = of_property_read_bool(node,
+						"disable-gpio-active-high");
 	imx6_pcie->dis_gpio = of_get_named_gpio(node, "disable-gpio", 0);
 	if (gpio_is_valid(imx6_pcie->dis_gpio)) {
 		ret = devm_gpio_request_one(&pdev->dev, imx6_pcie->dis_gpio,
-					    GPIOF_OUT_INIT_LOW, "PCIe DIS");
+					    imx6_pcie->dis_gpio_active_high ?
+						GPIOF_OUT_INIT_HIGH :
+						GPIOF_OUT_INIT_LOW,
+					    "PCIe DIS");
 		if (ret) {
 			dev_err(&pdev->dev, "unable to get disable gpio\n");
 			return ret;
@@ -2485,15 +2496,29 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 	} else if (imx6_pcie->dis_gpio == -EPROBE_DEFER) {
 		return imx6_pcie->dis_gpio;
 	}
+	imx6_pcie->dis2_gpio = of_get_named_gpio(node, "disable2-gpio", 0);
+	if (gpio_is_valid(imx6_pcie->dis2_gpio)) {
+		ret = devm_gpio_request_one(&pdev->dev, imx6_pcie->dis2_gpio,
+					    imx6_pcie->dis_gpio_active_high ?
+						GPIOF_OUT_INIT_HIGH :
+						GPIOF_OUT_INIT_LOW,
+					    "PCIe DIS2");
+		if (ret) {
+			dev_err(&pdev->dev, "unable to get disable gpio2\n");
+			return ret;
+		}
+	} else if (imx6_pcie->dis2_gpio == -EPROBE_DEFER) {
+		return imx6_pcie->dis2_gpio;
+	}
 	imx6_pcie->epdev_on = devm_regulator_get(&pdev->dev, "epdev_on");
 	if (IS_ERR(imx6_pcie->epdev_on))
 		return -EPROBE_DEFER;
 	imx6_pcie->reset_gpio = of_get_named_gpio(node, "reset-gpio", 0);
-	imx6_pcie->gpio_active_high = of_property_read_bool(node,
+	imx6_pcie->reset_gpio_active_high = of_property_read_bool(node,
 						"reset-gpio-active-high");
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
 		ret = devm_gpio_request_one(dev, imx6_pcie->reset_gpio,
-				imx6_pcie->gpio_active_high ?
+				imx6_pcie->reset_gpio_active_high ?
 					GPIOF_OUT_INIT_HIGH :
 					GPIOF_OUT_INIT_LOW,
 				"PCIe reset");
@@ -2710,7 +2735,11 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 		goto err_ret;
 	}
 	if (gpio_is_valid(imx6_pcie->dis_gpio))
-		gpio_set_value_cansleep(imx6_pcie->dis_gpio, 1);
+		gpio_set_value_cansleep(imx6_pcie->dis_gpio,
+					!imx6_pcie->dis_gpio_active_high);
+	if (gpio_is_valid(imx6_pcie->dis2_gpio))
+		gpio_set_value_cansleep(imx6_pcie->dis2_gpio,
+					!imx6_pcie->dis_gpio_active_high);
 
 	imx6_pcie_assert_core_reset(imx6_pcie);
 	imx6_pcie_init_phy(imx6_pcie);
