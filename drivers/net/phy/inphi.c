@@ -599,3 +599,4 @@ static struct mdio_device_id __maybe_unused inphi_tbl[] = {
 };
 
 MODULE_DEVICE_TABLE(mdio, inphi_tbl);
+MODULE_LICENSE("Dual BSD/GPL");
