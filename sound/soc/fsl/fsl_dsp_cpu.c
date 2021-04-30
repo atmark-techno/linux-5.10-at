@@ -95,3 +95,5 @@ static struct platform_driver dsp_audio_driver = {
 	.remove = dsp_audio_remove,
 };
 module_platform_driver(dsp_audio_driver);
+
+MODULE_LICENSE("Dual BSD/GPL");
