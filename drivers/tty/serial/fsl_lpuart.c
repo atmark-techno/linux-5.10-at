@@ -924,7 +924,7 @@ static void lpuart_rxint(struct lpuart_port *sport)
 		sr = readb(sport->port.membase + UARTSR1);
 		rx = readb(sport->port.membase + UARTDR);
 
-		if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
+		if (uart_prepare_sysrq_char(&sport->port, rx))
 			continue;
 
 		if (sr & (UARTSR1_PE | UARTSR1_OR | UARTSR1_FE)) {
@@ -970,7 +970,7 @@ out:
 		writeb(UARTSFIFO_RXOF, sport->port.membase + UARTSFIFO);
 	}
 
-	spin_unlock_irqrestore(&sport->port.lock, flags);
+	uart_unlock_and_check_sysrq(&sport->port, flags);
 
 	tty_flip_buffer_push(port);
 }
@@ -1004,7 +1004,7 @@ static void lpuart32_rxint(struct lpuart_port *sport)
 		rx = lpuart32_read(&sport->port, UARTDATA);
 		rx &= UARTDATA_MASK;
 
-		if (uart_handle_sysrq_char(&sport->port, rx))
+		if (uart_prepare_sysrq_char(&sport->port, rx))
 			continue;
 
 		if (sr & (UARTSTAT_PE | UARTSTAT_OR | UARTSTAT_FE)) {
@@ -1039,7 +1039,7 @@ static void lpuart32_rxint(struct lpuart_port *sport)
 	}
 
 out:
-	spin_unlock_irqrestore(&sport->port.lock, flags);
+	uart_unlock_and_check_sysrq(&sport->port, flags);
 
 	tty_flip_buffer_push(port);
 }
@@ -2514,7 +2514,7 @@ lpuart_console_write(struct console *co, const char *s, unsigned int count)
 	unsigned long flags;
 	int locked = 1;
 
-	if (sport->port.sysrq || oops_in_progress)
+	if (oops_in_progress)
 		locked = spin_trylock_irqsave(&sport->port.lock, flags);
 	else
 		spin_lock_irqsave(&sport->port.lock, flags);
@@ -2544,7 +2544,7 @@ lpuart32_console_write(struct console *co, const char *s, unsigned int count)
 	unsigned long flags;
 	int locked = 1;
 
-	if (sport->port.sysrq || oops_in_progress)
+	if (oops_in_progress)
 		locked = spin_trylock_irqsave(&sport->port.lock, flags);
 	else
 		spin_lock_irqsave(&sport->port.lock, flags);
