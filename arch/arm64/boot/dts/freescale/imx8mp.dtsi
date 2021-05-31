@@ -1876,6 +1876,8 @@
 
 				#clock-cells = <1>;
 				#reset-cells = <1>;
+
+				status = "disabled";
 			};
 
 			irqsteer_hdmi: irqsteer@32fc2000 {
