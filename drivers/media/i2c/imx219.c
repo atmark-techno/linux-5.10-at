@@ -1169,6 +1169,22 @@ static int imx219_power_off(struct device *dev)
 	return 0;
 }
 
+static int imx219_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct imx219 *imx219 = to_imx219(sd);
+	int ret = 0;
+
+	mutex_lock(&imx219->mutex);
+	if (on)
+		ret = imx219_power_on(&client->dev);
+	else
+		ret = imx219_power_off(&client->dev);
+	mutex_unlock(&imx219->mutex);
+
+	return ret;
+}
+
 static int __maybe_unused imx219_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -1241,6 +1257,7 @@ static int imx219_identify_module(struct imx219 *imx219)
 }
 
 static const struct v4l2_subdev_core_ops imx219_core_ops = {
+	.s_power = imx219_s_power,
 	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
