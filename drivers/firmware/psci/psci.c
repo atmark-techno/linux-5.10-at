@@ -418,6 +418,17 @@ static void __init psci_init_smccc(void)
 
 }
 
+static int psci_restart_notifier(struct notifier_block *nb,
+                unsigned long action, void *data) {
+	pr_emerg("Resetting through psci\n");
+	psci_sys_reset(REBOOT_COLD, NULL);
+	return NOTIFY_OK;
+}
+static struct notifier_block psci_restart_nb = {
+	.notifier_call = psci_restart_notifier,
+	.priority = 200,
+};
+
 static void __init psci_0_2_set_functions(void)
 {
 	pr_info("Using standard PSCI v0.2 function IDs\n");
@@ -440,7 +451,9 @@ static void __init psci_0_2_set_functions(void)
 
 	psci_ops.migrate_info_type = psci_migrate_info_type;
 
-	arm_pm_restart = psci_sys_reset;
+	if (register_restart_handler(&psci_restart_nb)) {
+		pr_warn("Could not register psci restart handler\n");
+	}
 
 	pm_power_off = psci_sys_poweroff;
 }
