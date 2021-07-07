@@ -1,0 +1,16 @@
+FXL6408 I2C to GPIO expander bindings
+
+Example:
+/* Connect the GPIO expander to I2C1 */
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_gpio44>;
+
+	gpio_expander: gpio@43 {
+		gpio-controller;
+		#gpio-cells = <2>;
+		reg = <0x43>;
+		compatible = "fcs,fxl6408";
+	};
+};
+
