@@ -197,7 +197,7 @@ static int fxl6408_probe(struct i2c_client *client,
 	gc->parent = dev;
 	gc->owner = THIS_MODULE;
 
-	ret = gpiochip_add_data(gc, chip);
+	ret = devm_gpiochip_add_data(dev, gc, chip);
 	if (ret)
 		return ret;
 
