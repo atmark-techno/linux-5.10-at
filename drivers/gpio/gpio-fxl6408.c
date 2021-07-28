@@ -125,7 +125,7 @@ static void fxl6408_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 	if (val)
 		chip->reg_output |= BIT(off);
 	else
-		chip->reg_output &= BIT(off);
+		chip->reg_output &= ~BIT(off);
 
 	i2c_smbus_write_byte_data(chip->client, FXL6408_OUTPUT,
 				  chip->reg_output);
