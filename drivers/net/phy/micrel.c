@@ -90,6 +90,11 @@ struct kszphy_type {
 	bool has_broadcast_disable;
 	bool has_nand_tree_disable;
 	bool has_rmii_ref_clk_sel;
+
+	/* for KSZ9131 */
+	u32 ksz9031_led_mode_reg;
+	u32 led_mode_select_reg;
+	u32 led_behavior_reg;
 };
 
 struct kszphy_priv {
@@ -98,6 +103,10 @@ struct kszphy_priv {
 	bool rmii_ref_clk_sel;
 	bool rmii_ref_clk_sel_val;
 	u64 stats[ARRAY_SIZE(kszphy_hw_stats)];
+
+	/* for KSZ9131 */
+	int ksz9031_led1_mode;
+	int ksz9031_led2_mode;
 };
 
 static const struct kszphy_type ksz8021_type = {
@@ -129,6 +138,25 @@ static const struct kszphy_type ks8737_type = {
 
 static const struct kszphy_type ksz9021_type = {
 	.interrupt_level_mask	= BIT(14),
+};
+
+#define MII_KSZ9031_LED_MODE		0x1A
+#define KSZ9031_LED_MODE_KSZ9031	BIT(14)
+#define MII_KSZPHY_LED_MODE_SELECT	0x16
+#define KSZPHY_LED_MODE_SELECT_LED1	GENMASK(3, 0)
+#define KSZPHY_LED_MODE_SELECT_LED2	GENMASK(7, 4)
+#define MII_KSZPHY_LED_BEHAVIOR		0x17
+#define KSZPHY_LED_BEHAVIOR_LED_COMBINATION_DISABLES	GENMASK(1, 0)
+#define KSZPHY_LED_BEHAVIOR_LED1_COMBINATION_DISABLES	BIT(0)
+#define KSZPHY_LED_BEHAVIOR_LED2_COMBINATION_DISABLES	BIT(1)
+#define KSZPHY_LED_BEHAVIOR_PULSING	BIT(12)
+#define KSZPHY_LED_BEHAVIOR_ENHANCED_LED_MODE	BIT(15)
+
+static const struct kszphy_type ksz9131_type = {
+	.interrupt_level_mask	= BIT(14),
+	.ksz9031_led_mode_reg	= MII_KSZ9031_LED_MODE,
+	.led_mode_select_reg	= MII_KSZPHY_LED_MODE_SELECT,
+	.led_behavior_reg	= MII_KSZPHY_LED_BEHAVIOR,
 };
 
 static int kszphy_extended_write(struct phy_device *phydev,
@@ -229,6 +257,53 @@ out:
 	return rc;
 }
 
+static int ksz9031_setup_led(struct phy_device *phydev,
+			     const struct kszphy_type *type, int led1, int led2)
+{
+	int rc, temp;
+
+	/* Extended LED mode */
+	temp = phy_read(phydev, type->ksz9031_led_mode_reg);
+	if (temp < 0) {
+		rc = temp;
+		goto out;
+	}
+	temp &= ~KSZ9031_LED_MODE_KSZ9031;
+	rc = phy_write(phydev, type->ksz9031_led_mode_reg, temp);
+	if (rc < 0)
+		goto out;
+
+	/* LED mode select */
+	temp = 0;
+	if (led1 >= 0)
+		temp |= FIELD_PREP(KSZPHY_LED_MODE_SELECT_LED1, led1);
+	if (led2 >= 0)
+		temp |= FIELD_PREP(KSZPHY_LED_MODE_SELECT_LED2, led2);
+	rc = phy_write(phydev, type->led_mode_select_reg, temp);
+	if (rc < 0)
+		goto out;
+
+	/* LED behavior settings */
+	temp = phy_read(phydev, type->led_behavior_reg);
+	if (temp < 0) {
+		rc = temp;
+		goto out;
+	}
+	temp |= KSZPHY_LED_BEHAVIOR_ENHANCED_LED_MODE;
+	temp &= ~KSZPHY_LED_BEHAVIOR_PULSING;
+	temp &= ~KSZPHY_LED_BEHAVIOR_LED_COMBINATION_DISABLES;
+	if (led1 > FIELD_MAX(KSZPHY_LED_MODE_SELECT_LED1))
+		temp |= KSZPHY_LED_BEHAVIOR_LED1_COMBINATION_DISABLES;
+	if (led2 > FIELD_MAX(KSZPHY_LED_MODE_SELECT_LED2))
+		temp |= KSZPHY_LED_BEHAVIOR_LED2_COMBINATION_DISABLES;
+	rc = phy_write(phydev, type->led_behavior_reg, temp);
+out:
+	if (rc < 0)
+		phydev_err(phydev, "failed to set led mode\n");
+
+	return rc;
+}
+
 /* Disable PHY address 0 as the broadcast address, so that it can be used as a
  * unique (non-broadcast) address on a shared bus.
  */
@@ -285,6 +360,11 @@ static int kszphy_config_reset(struct phy_device *phydev)
 
 	if (priv->led_mode >= 0)
 		kszphy_setup_led(phydev, priv->type->led_mode_reg, priv->led_mode);
+
+	if (priv->ksz9031_led1_mode >= 0 || priv->ksz9031_led2_mode >= 0) {
+		ksz9031_setup_led(phydev, priv->type, priv->ksz9031_led1_mode,
+				  priv->ksz9031_led2_mode);
+	}
 
 	return 0;
 }
@@ -1127,6 +1207,21 @@ static int kszphy_probe(struct phy_device *phydev)
 		priv->led_mode = -1;
 	}
 
+	if (type->ksz9031_led_mode_reg) {
+		ret = of_property_read_u32(np, "micrel,ksz9031-led1-mode",
+				&priv->ksz9031_led1_mode);
+		if (ret)
+			priv->ksz9031_led1_mode = -1;
+
+		ret = of_property_read_u32(np, "micrel,ksz9031-led2-mode",
+				&priv->ksz9031_led2_mode);
+		if (ret)
+			priv->ksz9031_led2_mode = -1;
+	} else {
+		priv->ksz9031_led1_mode = -1;
+		priv->ksz9031_led2_mode = -1;
+	}
+
 	clk = devm_clk_get(&phydev->mdio.dev, "rmii-ref");
 	/* NOTE: clk may be NULL if building without CONFIG_HAVE_CLK */
 	if (!IS_ERR_OR_NULL(clk)) {
@@ -1340,7 +1435,7 @@ static struct phy_driver ksphy_driver[] = {
 	.phy_id_mask	= MICREL_PHY_ID_MASK,
 	.name		= "Microchip KSZ9131 Gigabit PHY",
 	/* PHY_GBIT_FEATURES */
-	.driver_data	= &ksz9021_type,
+	.driver_data	= &ksz9131_type,
 	.probe		= kszphy_probe,
 	.config_init	= ksz9131_config_init,
 	.read_status	= genphy_read_status,
