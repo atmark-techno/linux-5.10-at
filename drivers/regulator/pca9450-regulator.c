@@ -718,15 +718,18 @@ static int p9450_i2c_restart(struct notifier_block *nb,
 
 	dev_dbg(pca9450->dev, "Resetting through PMIC i2c\n");
 
-	ret = pm_runtime_resume(pca9450->i2c_dev);
-	if (ret)
+	ret = pm_runtime_resume_and_get(pca9450->i2c_dev);
+	if (ret) {
 		dev_warn(pca9450->i2c_dev, "could not resume i2c dev for PMIC reset: %d\n", ret);
+		return NOTIFY_DONE;
+	}
 
 	ret = regmap_set_bits(pca9450->regmap, PCA9450_REG_SWRST, 0x14);
 	if (ret) {
 		dev_warn(pca9450->dev, "regmap set bits failed: %d\n", ret);
 		return NOTIFY_DONE;
 	}
+	pm_runtime_put(pca9450->i2c_dev);
 
 	mdelay(500);
 	return NOTIFY_OK;
