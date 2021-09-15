@@ -476,6 +476,18 @@ static const struct csis_pix_format mipi_csis_formats[] = {
 		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
 		.data_alignment = 8,
 	}, {
+		.code = MEDIA_BUS_FMT_SGBRG8_1X8,
+		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+		.data_alignment = 8,
+	}, {
+		.code = MEDIA_BUS_FMT_SGRBG8_1X8,
+		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+		.data_alignment = 8,
+	}, {
+		.code = MEDIA_BUS_FMT_SRGGB8_1X8,
+		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+		.data_alignment = 8,
+	}, {
 		.code = MEDIA_BUS_FMT_SBGGR10_1X10,
 		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
 		.data_alignment = 16,
@@ -956,6 +968,15 @@ static void disp_mix_gasket_config(struct csi_state *state)
 	case MEDIA_BUS_FMT_SBGGR8_1X8:
 		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW8;
 		break;
+	case MEDIA_BUS_FMT_SGBRG8_1X8:
+		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW8;
+		break;
+	case MEDIA_BUS_FMT_SGRBG8_1X8:
+		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW8;
+		break;
+	case MEDIA_BUS_FMT_SRGGB8_1X8:
+		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW8;
+		break;
 	case MEDIA_BUS_FMT_SBGGR10_1X10:
 		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW10;
 		break;
@@ -1138,7 +1159,6 @@ static int mipi_csis_set_fmt(struct v4l2_subdev *mipi_sd,
 	}
 
 	format->pad = source_pad->index;
-	mf->code = MEDIA_BUS_FMT_UYVY8_2X8;
 	ret = v4l2_subdev_call(sen_sd, pad, set_fmt, NULL, format);
 	if (ret < 0) {
 		v4l2_err(&state->sd, "%s, set sensor format fail\n", __func__);
@@ -1162,6 +1182,7 @@ static int mipi_csis_get_fmt(struct v4l2_subdev *mipi_sd,
 	struct v4l2_mbus_framefmt *mf = &state->format;
 	struct media_pad *source_pad;
 	struct v4l2_subdev *sen_sd;
+	struct csis_pix_format const *csis_fmt;
 	int ret;
 
 	/* Get remote source pad */
@@ -1186,6 +1207,14 @@ static int mipi_csis_get_fmt(struct v4l2_subdev *mipi_sd,
 	}
 
 	memcpy(mf, &format->format, sizeof(struct v4l2_mbus_framefmt));
+
+	csis_fmt = find_csis_format(mf->code);
+	if (!csis_fmt) {
+		csis_fmt = &mipi_csis_formats[0];
+		mf->code = csis_fmt->code;
+	}
+	state->csis_fmt = csis_fmt;
+
 	return 0;
 }
 
@@ -1292,6 +1321,18 @@ static int csis_s_fmt(struct v4l2_subdev *sd, struct csi_sam_format *fmt)
 	struct csi_state *state = container_of(sd, struct csi_state, sd);
 
 	switch (fmt->format) {
+	case V4L2_PIX_FMT_SBGGR8:
+	    code = MEDIA_BUS_FMT_SBGGR8_1X8;
+	    break;
+	case V4L2_PIX_FMT_SGBRG8:
+	    code = MEDIA_BUS_FMT_SGBRG8_1X8;
+	    break;
+	case V4L2_PIX_FMT_SGRBG8:
+	    code = MEDIA_BUS_FMT_SGRBG8_1X8;
+	    break;
+	case V4L2_PIX_FMT_SRGGB8:
+	    code = MEDIA_BUS_FMT_SRGGB8_1X8;
+	    break;
 	case V4L2_PIX_FMT_SBGGR10:
 	    code = MEDIA_BUS_FMT_SBGGR10_1X10;
 	    break;
