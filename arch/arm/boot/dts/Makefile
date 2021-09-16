@@ -1,4 +1,10 @@
 # SPDX-License-Identifier: GPL-2.0
+
+# required for overlay support
+DTC_FLAGS_armadillo-iotg-a6 := -@
+DTC_FLAGS_armadillo-iotg-a6-at-dtweb := -@
+DTC_FLAGS_armadillo-iotg-a6-extboard := -@
+
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
 dtb-$(CONFIG_MACH_ARTPEC6) += \
