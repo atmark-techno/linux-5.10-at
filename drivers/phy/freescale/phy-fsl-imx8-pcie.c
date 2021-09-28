@@ -43,6 +43,16 @@
 #define  LN0_OVRD_TX_DRV_PST_LVL_G3	0xA
 #define IMX8MP_PCIE_PHY_TRSV_REG009	0x424
 #define  LN0_OVRD_TX_DRV_PRE_LVL_G1	0x10
+#define IMX8MP_PCIE_PHY_TRSV_REG00B	0x42C
+#define  LN0_TX_DRV_PRE_LVL_CTRL_G4	((0x0 & 0xf) << 3)
+#define  LN0_ANA_TX_DRV_BEACON_LFPS_SYNC_EN BIT(2)
+#define  LN0_OVRD_TX_DRV_IDRV_EN	((0x0 & 0x1) << 1)
+#define  LN0_TX_DRV_IDRV_EN		BIT(0)
+#define IMX8MP_PCIE_PHY_TRSV_REG00C	0x430
+#define  LN0_ANA_TX_DRV_IDRV_IDN_CTRL	((0x4 & 0x7) << 5)
+#define  LN0_ANA_TX_DRV_IDRV_IUP_CTRL	((0x4 & 0x7) << 2)
+#define  LN0_ANA_TX_DRV_IDRV_VREF_SEL	((0x0 & 0x1) << 1)
+#define  LN0_ANA_TX_DRV_ACCDRV_EN	BIT(0)
 #define IMX8MP_PCIE_PHY_TRSV_REG059	0x4EC
 #define  LN0_OVRD_RX_CTLE_RS1_G1	0x13
 #define IMX8MP_PCIE_PHY_TRSV_REG060	0x4F0
@@ -130,6 +140,34 @@ static int imx8_pcie_phy_cal(struct phy *phy)
 		       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG064);
 		writel(ANA_AUX_RX_TERM | ANA_AUX_TX_LVL,
 		       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG065);
+	}
+
+	/*
+	 * For Armadillo-IoT G4
+	 */
+	if (1) {
+		dev_info(&phy->dev, "Tuning i.MX PCIe PHY for Armadillo G4.\n");
+
+		if ((imx8_phy->flags & IMX8MP_PCIE_PHY_FLAG_EXT_OSC) == 0) {
+			value = ANA_AUX_RX_TX_SEL_TX | 0x2;
+			writel(value | ANA_AUX_RX_TERM_GND_EN,
+			       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG064);
+			writel(ANA_AUX_RX_TERM | 0xf,
+			       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG065);
+		}
+
+		value = LN0_TX_DRV_PRE_LVL_CTRL_G4;
+		value |= LN0_ANA_TX_DRV_BEACON_LFPS_SYNC_EN;
+		writel(value | LN0_OVRD_TX_DRV_IDRV_EN | LN0_TX_DRV_IDRV_EN,
+		       imx8_phy->base + IMX8MP_PCIE_PHY_TRSV_REG00B);
+
+		value = LN0_ANA_TX_DRV_IDRV_IDN_CTRL;
+		value |= LN0_ANA_TX_DRV_IDRV_IUP_CTRL;
+		value |= LN0_ANA_TX_DRV_IDRV_VREF_SEL;
+		writel(value | LN0_ANA_TX_DRV_ACCDRV_EN,
+		       imx8_phy->base + IMX8MP_PCIE_PHY_TRSV_REG00C);
+
+		imx8_pcie_phy_tuned = 1;
 	}
 
 	/*
