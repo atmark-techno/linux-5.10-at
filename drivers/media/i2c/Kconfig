@@ -1060,6 +1060,18 @@ config VIDEO_OV13858
 	  This is a Video4Linux2 sensor driver for the OmniVision
 	  OV13858 camera.
 
+config VIDEO_OX01F10
+	tristate "OX01F10 camera sensor support"
+	depends on I2C && VIDEO_V4L2
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a flag to enable support for Video4Linux2 sensor-level
+	  driver for the OX01F10 camera sensor.
+
+	  To enable OX01F10 camera sensor support, choose Y here:
+	  the module will be called OX01F10 camera sensor name.
+
 config VIDEO_VS6624
 	tristate "ST VS6624 sensor support"
 	depends on VIDEO_V4L2 && I2C
