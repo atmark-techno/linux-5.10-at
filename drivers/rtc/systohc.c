@@ -53,6 +53,17 @@ int rtc_set_ntp_time(struct timespec64 now, unsigned long *target_nsec)
 	rtc_time64_to_tm(to_set.tv_sec, &tm);
 
 	err = rtc_set_time(rtc, &tm);
+#ifdef CONFIG_RTC_SYSTOHC2
+	if (!err) {
+		struct rtc_device *rtc2;
+		rtc2 = rtc_class_open(CONFIG_RTC_SYSTOHC_DEVICE2);
+		if (!rtc2)
+			goto out_close;
+		/* ignore error */
+		rtc_set_time(rtc2, &tm);
+		rtc_class_close(rtc2);
+	}
+#endif
 
 out_close:
 	rtc_class_close(rtc);

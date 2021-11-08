@@ -69,6 +69,22 @@ config RTC_SYSTOHC_DEVICE
 	  one can sleep when setting time, because it runs in the workqueue
 	  context.
 
+config RTC_SYSTOHC2
+	bool "Set the RTC time based on NTP synchronization"
+	depends on RTC_SYSTOHC
+	default n
+	help
+	  If you say yes here, the system time (wall clock) will be stored
+	  in the RTC specified by RTC_HCTOSYS_DEVICE approximately every 11
+	  minutes if userspace reports synchronized NTP status.
+
+config RTC_SYSTOHC_DEVICE2
+	string "second RTC used to synchronize NTP adjustment"
+	depends on RTC_SYSTOHC2
+	default "rtc1"
+	help
+	  Like RTC_SYSTOHC_DEVICE, only update if first one succeeded
+
 config RTC_DEBUG
 	bool "RTC debug support"
 	help
