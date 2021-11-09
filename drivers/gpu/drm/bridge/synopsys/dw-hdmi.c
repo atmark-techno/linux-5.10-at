@@ -435,10 +435,9 @@ static int dw_hdmi_i2c_xfer(struct i2c_adapter *adap,
 {
 	struct dw_hdmi *hdmi = i2c_get_adapdata(adap);
 	struct dw_hdmi_i2c *i2c = hdmi->i2c;
-	u8 addr = msgs[0].addr;
 	int i, ret = 0;
 
-	if (addr == DDC_CI_ADDR)
+	if (msgs[0].addr == DDC_CI_ADDR)
 		/*
 		 * The internal I2C controller does not support the multi-byte
 		 * read and write operations needed for DDC/CI.
@@ -446,8 +445,6 @@ static int dw_hdmi_i2c_xfer(struct i2c_adapter *adap,
 		 * unsupported I2C operations.
 		 */
 		return -EOPNOTSUPP;
-
-	dev_dbg(hdmi->dev, "xfer: num: %d, addr: %#x\n", num, addr);
 
 	for (i = 0; i < num; i++) {
 		if (msgs[i].len == 0) {
@@ -463,9 +460,6 @@ static int dw_hdmi_i2c_xfer(struct i2c_adapter *adap,
 	/* Unmute DONE and ERROR interrupts */
 	hdmi_writeb(hdmi, 0x00, HDMI_IH_MUTE_I2CM_STAT0);
 
-	/* Set slave device address taken from the first I2C message */
-	hdmi_writeb(hdmi, addr, HDMI_I2CM_SLAVE);
-
 	/* Set slave device register address on transfer */
 	i2c->is_regaddr = false;
 
@@ -473,8 +467,13 @@ static int dw_hdmi_i2c_xfer(struct i2c_adapter *adap,
 	i2c->is_segment = false;
 
 	for (i = 0; i < num; i++) {
-		dev_dbg(hdmi->dev, "xfer: num: %d/%d, len: %d, flags: %#x\n",
-			i + 1, num, msgs[i].len, msgs[i].flags);
+		dev_dbg(hdmi->dev,
+			"xfer: num: %d/%d, addr: %#x, len: %d, flags: %#x\n",
+			i + 1, num, msgs[i].addr, msgs[i].len, msgs[i].flags);
+
+		/* Set slave device address taken from the I2C message */
+		hdmi_writeb(hdmi, msgs[i].addr, HDMI_I2CM_SLAVE);
+
 		if (msgs[i].addr == DDC_SEGMENT_ADDR && msgs[i].len == 1) {
 			i2c->is_segment = true;
 			hdmi_writeb(hdmi, DDC_SEGMENT_ADDR, HDMI_I2CM_SEGADDR);
