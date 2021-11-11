@@ -2218,9 +2218,11 @@ static int fsl_micfil_probe(struct platform_device *pdev)
 	 */
 	micfil->mclk = devm_clk_get(&pdev->dev, "ipg_clk_app");
 	if (IS_ERR(micfil->mclk)) {
-		dev_err(&pdev->dev, "failed to get core clock: %ld\n",
-			PTR_ERR(micfil->mclk));
-		return PTR_ERR(micfil->mclk);
+		ret = PTR_ERR(micfil->mclk);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "failed to get core clock: %d\n",
+				ret);
+		return ret;
 	}
 
 	micfil->busclk = devm_clk_get(&pdev->dev, "ipg_clk");
