@@ -719,12 +719,23 @@ static int p9450_i2c_restart(struct notifier_block *nb,
 	dev_dbg(pca9450->dev, "Resetting through PMIC i2c\n");
 
 	ret = pm_runtime_resume_and_get(pca9450->i2c_dev);
-	if (ret) {
+	if (ret < 0) {
 		dev_warn(pca9450->i2c_dev, "could not resume i2c dev for PMIC reset: %d\n", ret);
 		return NOTIFY_DONE;
 	}
 
-	ret = regmap_set_bits(pca9450->regmap, PCA9450_REG_SWRST, 0x14);
+	/* If the handler is called in emergency reboot context
+	 * (e.g. sysrq 'b'), we cannot use normal i2c functions.
+	 *
+	 * Unfortunately there is no way of knowing if we are safe,
+	 * and we can't cleanly request atomic i2c either, so we have
+	 * to please i2c_in_atomic_xfer_mode:
+	 * set system_state to RESTART (it is normally set after these
+	 * restart handlers run...)
+	 */
+	if (system_state < SYSTEM_RESTART)
+	        system_state = SYSTEM_RESTART;
+	ret = regmap_write(pca9450->regmap, PCA9450_REG_SWRST, 0x14);
 	if (ret) {
 		dev_warn(pca9450->dev, "regmap set bits failed: %d\n", ret);
 		return NOTIFY_DONE;
