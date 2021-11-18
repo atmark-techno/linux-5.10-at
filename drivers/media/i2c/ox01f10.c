@@ -18,77 +18,75 @@
  *             along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/errno.h>
+#include <linux/kernel.h>
+#include <linux/i2c.h>
+#include <linux/regmap.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/gpio.h>
-#include <linux/module.h>
-
 #include <linux/seq_file.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 
-#include <media/camera_common.h>
-#include "./../../../nvidia/drivers/media/platform/tegra/camera/camera_gpio.h"
+#include <media/v4l2-device.h>
+#include <media/v4l2-ctrls.h>
+
 #include "ox01f10_mode_tbls.h"
 
-#define DEBUG_PRINTK
-#ifndef DEBUG_PRINTK
-#define debug_printk(s , ... )
-#else
-#define debug_printk printk
-#endif
+#define CAMERA_CID_BASE			(V4L2_CTRL_CLASS_CAMERA | 0x2000)
+#define CAMERA_CID_USER_HDR_EN		(CAMERA_CID_BASE + 81)
+#define CAMERA_CID_AECAGC_EN		(CAMERA_CID_BASE + 82)
+#define CAMERA_CID_AECAGC_TARGET	(CAMERA_CID_BASE + 83)
+#define CAMERA_CID_EXP_LONG		(CAMERA_CID_BASE + 84)
+#define CAMERA_CID_EXP_SHORT		(CAMERA_CID_BASE + 85)
+#define CAMERA_CID_EXP_VERY_SHORT	(CAMERA_CID_BASE + 86)
+#define CAMERA_CID_USER_GAIN		(CAMERA_CID_BASE + 87)
+#define CAMERA_CID_AWB_EN		(CAMERA_CID_BASE + 88)
+#define CAMERA_CID_AWB_GAIN_R		(CAMERA_CID_BASE + 89)
+#define CAMERA_CID_AWB_GAIN_B		(CAMERA_CID_BASE + 90)
+#define CAMERA_CID_Y_OFFSET		(CAMERA_CID_BASE + 91)
+#define CAMERA_CID_Y_GAIN		(CAMERA_CID_BASE + 92)
+#define CAMERA_CID_USER_SATURATION	(CAMERA_CID_BASE + 93)
+#define CAMERA_CID_BAND_CONTROL		(CAMERA_CID_BASE + 94)
+#define CAMERA_CID_USER_MIRROR		(CAMERA_CID_BASE + 95)
+#define CAMERA_CID_USER_FLIP		(CAMERA_CID_BASE + 96)
 
-#define CAMERA_CID_BASE	(V4L2_CTRL_CLASS_CAMERA | 0x2000)
-#define CAMERA_CID_USER_HDR_EN (CAMERA_CID_BASE + 81)
-#define CAMERA_CID_AECAGC_EN (CAMERA_CID_BASE + 82)
-#define CAMERA_CID_AECAGC_TARGET (CAMERA_CID_BASE + 83)
-#define CAMERA_CID_EXP_LONG (CAMERA_CID_BASE + 84)
-#define CAMERA_CID_EXP_SHORT (CAMERA_CID_BASE + 85)
-#define CAMERA_CID_EXP_VERY_SHORT (CAMERA_CID_BASE + 86)
-#define CAMERA_CID_USER_GAIN (CAMERA_CID_BASE + 87)
-#define CAMERA_CID_AWB_EN (CAMERA_CID_BASE + 88)
-#define CAMERA_CID_AWB_GAIN_R (CAMERA_CID_BASE + 89)
-#define CAMERA_CID_AWB_GAIN_B (CAMERA_CID_BASE + 90)
-#define CAMERA_CID_Y_OFFSET (CAMERA_CID_BASE + 91)
-#define CAMERA_CID_Y_GAIN (CAMERA_CID_BASE + 92)
-#define CAMERA_CID_USER_SATURATION (CAMERA_CID_BASE + 93)
-#define CAMERA_CID_BAND_CONTROL (CAMERA_CID_BASE + 94)
-#define CAMERA_CID_USER_MIRROR (CAMERA_CID_BASE + 95)
-#define CAMERA_CID_USER_FLIP (CAMERA_CID_BASE + 96)
-
-#define OX01F10_MIN_AEAGC_TARGET		0
-#define OX01F10_MAX_AEAGC_TARGET		64
+#define OX01F10_MIN_AEAGC_TARGET	0
+#define OX01F10_MAX_AEAGC_TARGET	64
 #define OX01F10_DEFAULT_AEAGC_TARGET	24
 
-#define OX01F10_MIN_EXP					1
-#define OX01F10_MAX_EXP					1069
-#define OX01F10_DEFAULT_EXP_L			184
-#define OX01F10_DEFAULT_EXP_S			156
-#define OX01F10_DEFAULT_EXP_VS			7
+#define OX01F10_MIN_EXP			1
+#define OX01F10_MAX_EXP			1069
+#define OX01F10_DEFAULT_EXP_L		184
+#define OX01F10_DEFAULT_EXP_S		156
+#define OX01F10_DEFAULT_EXP_VS		7
 
-#define OX01F10_MIN_GAIN				16
-#define OX01F10_MAX_GAIN				248
-#define OX01F10_DEFAULT_GAIN			16
+#define OX01F10_MIN_GAIN		16
+#define OX01F10_MAX_GAIN		248
+#define OX01F10_DEFAULT_GAIN		16
 
-#define OX01F10_MIN_WB_GAIN				0
-#define OX01F10_MAX_WB_GAIN				4095
-#define OX01F10_DEFAULT_WB_GAIN_R		612
-#define OX01F10_DEFAULT_WB_GAIN_B		374
+#define OX01F10_MIN_WB_GAIN		0
+#define OX01F10_MAX_WB_GAIN		4095
+#define OX01F10_DEFAULT_WB_GAIN_R	612
+#define OX01F10_DEFAULT_WB_GAIN_B	374
 
-#define OX01F10_MIN_Y_OFFSET			0
-#define OX01F10_MAX_Y_OFFSET			255
-#define OX01F10_CENTER_Y_OFFSET			128
-#define OX01F10_DEFAULT_Y_OFFSET		OX01F10_CENTER_Y_OFFSET
+#define OX01F10_MIN_Y_OFFSET		0
+#define OX01F10_MAX_Y_OFFSET		255
+#define OX01F10_CENTER_Y_OFFSET		128
+#define OX01F10_DEFAULT_Y_OFFSET	OX01F10_CENTER_Y_OFFSET
 
-#define OX01F10_MIN_Y_GAIN				0
-#define OX01F10_MAX_Y_GAIN				511
-#define OX01F10_CENTER_Y_GAIN			256
-#define OX01F10_DEFAULT_Y_GAIN			OX01F10_CENTER_Y_GAIN
+#define OX01F10_MIN_Y_GAIN		0
+#define OX01F10_MAX_Y_GAIN		511
+#define OX01F10_CENTER_Y_GAIN		256
+#define OX01F10_DEFAULT_Y_GAIN		OX01F10_CENTER_Y_GAIN
 
-#define OX01F10_MIN_SATURATION			0
-#define OX01F10_MAX_SATURATION			255
-#define OX01F10_DEFAULT_SATURATION		48
+#define OX01F10_MIN_SATURATION		0
+#define OX01F10_MAX_SATURATION		255
+#define OX01F10_DEFAULT_SATURATION	48
 
 #define REG_ADDR_AEAGC_L_TARGET		0xB219
 #define REG_ADDR_AEAGC_S_TARGET		0xB21A
@@ -121,8 +119,8 @@
 #define REG_ADDR_WB_M_GAIN_B_LO	 	0xB279
 #define REG_ADDR_WB_S_GAIN_B_HI	 	0xB27E
 #define REG_ADDR_WB_S_GAIN_B_LO	 	0xB27F
-#define REG_ADDR_Y_GAIN_HI			0xA800
-#define REG_ADDR_Y_GAIN_LO			0xA801
+#define REG_ADDR_Y_GAIN_HI		0xA800
+#define REG_ADDR_Y_GAIN_LO		0xA801
 #define REG_ADDR_SATURATION_1		0xB6D4
 #define REG_ADDR_SATURATION_2		0xB6D5
 #define REG_ADDR_SATURATION_3		0xB6D6
@@ -134,42 +132,53 @@
 #define REG_ADDR_Y_OFFSET_HI		0xA808
 #define REG_ADDR_Y_OFFSET_LO		0xA809
 #define REG_ADDR_BAND_ENABLE		0xB210
-#define REG_ADDR_BAND_MODE			0xB211
+#define REG_ADDR_BAND_MODE		0xB211
 #define REG_ADDR_RAW_TARGET_L		0xB218
 #define REG_ADDR_TIMING_CTRL		0x3820
 
-#define MIRROR_ENABLE_BIT			0x02
-#define FLIP_ENABLE_BIT				0x0C
-#define HDR_MODE_LSVS				0x00
-#define HDR_MODE_LS					0x01
-#define HDR_MODE_OFF				0x05
-#define BAND_60						0x01
-#define DISABLE_AEAGC				0x01
-#define ENABLE_AEAGC				0x00
-#define DISABLE_MANUAL_GAIN			0x00
-#define ENABLE_MANUAL_GAIN			0x01
-#define DISABLE_MANUAL_WB			0x00
-#define ENABLE_MANUAL_WB			0x01
-#define BAND_DISABLE				0x00
-#define BAND_ENABLE					0x03
-#define BAND_AUTO_DISABLE			0x00
-#define BAND_AUTO_ENABLE			0x01
-#define BAND_50						0x02
-#define BAND_60						0x01
+#define MIRROR_ENABLE_BIT		0x02
+#define FLIP_ENABLE_BIT			0x0C
+#define HDR_MODE_LSVS			0x00
+#define HDR_MODE_LS			0x01
+#define HDR_MODE_OFF			0x05
+#define BAND_60				0x01
+#define DISABLE_AEAGC			0x01
+#define ENABLE_AEAGC			0x00
+#define DISABLE_MANUAL_GAIN		0x00
+#define ENABLE_MANUAL_GAIN		0x01
+#define DISABLE_MANUAL_WB		0x00
+#define ENABLE_MANUAL_WB		0x01
+#define BAND_DISABLE			0x00
+#define BAND_ENABLE			0x03
+#define BAND_AUTO_DISABLE		0x00
+#define BAND_AUTO_ENABLE		0x01
+#define BAND_50				0x02
+#define BAND_60				0x01
+
+enum switch_state {
+	SWITCH_OFF,
+	SWITCH_ON,
+};
+
+static const s64 switch_ctrl_qmenu[] = {
+	SWITCH_OFF, SWITCH_ON
+};
+
+struct ox01f10_power_rail {
+	unsigned pwdn_gpio;
+	bool state;
+};
 
 struct ox01f10 {
-	struct camera_common_power_rail power;
+	struct v4l2_subdev subdev;
+
+	struct ox01f10_power_rail *power;
 	int numctrls;
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct i2c_client *i2c_client;
-	struct v4l2_subdev *subdev;
 	struct media_pad pad;
 
 	struct regmap *regmap;
-
-	struct camera_common_data *s_data;
-	struct camera_common_pdata *pdata;
-	struct camera_common_frmfmt *cam_frmfmt;
 
 	struct v4l2_ctrl *ctrls[];
 };
@@ -224,9 +233,9 @@ static inline int ox01f10_read_reg(struct ox01f10 *priv, u16 addr, u8 *val);
 static int ox01f10_write_reg(struct ox01f10 *priv, u16 addr, u8 val);
 static int ox01f10_write_table(struct ox01f10 *priv, const ox01f10_reg table[]);
 static int ox01f10_regmap_util_write_table_8(struct regmap *regmap,
-											 const struct reg_8 table[],
-											 const struct reg_8 override_list[],
-											 int num_override_regs, u16 wait_ms_addr, u16 end_addr);
+					     const struct reg_8 table[],
+					     const struct reg_8 override_list[],
+					     int num_override_regs, u16 wait_ms_addr, u16 end_addr);
 
 
 static const struct v4l2_ctrl_ops ox01f10_ctrl_ops = {
@@ -239,7 +248,7 @@ static const struct regmap_config sensor_regmap_config = {
 	.val_bits = 8,
 };
 
-static struct v4l2_ctrl_config ctrl_config_list[] = {
+static struct v4l2_ctrl_config ox01f10_configs[] = {
 /* Do not change the name field for the controls! */
 	{
 		.ops = &ox01f10_ctrl_ops,
@@ -421,15 +430,15 @@ static struct v4l2_ctrl_config ctrl_config_list[] = {
 
 /**
  * @brief       Set AE/AGC target
- * @param[in]   *priv    : ox01f10ドライバ情報
- * @param[in]   val      : 設定値
- * @return      err      : エラーコード
+ * @param[in]   *priv    : ox01f10 driver info
+ * @param[in]   val      : Set value
+ * @return      err      : Error code
  */
 static int ox01f10_set_aeagc_target(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned char w_val = (unsigned char)val + 32;
+	int err;
 	
 	err = ox01f10_write_reg(priv, REG_ADDR_AEAGC_L_TARGET, w_val);
 	if (err)
@@ -438,7 +447,7 @@ static int ox01f10_set_aeagc_target(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_aeagc_target w_val=0x%02X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_aeagc_target w_val=0x%02X\n", w_val);
 	return 0;
 	
 fail:
@@ -455,13 +464,13 @@ fail:
 static int ox01f10_set_exp_long(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned short w_val = (unsigned short)val;
 	static ox01f10_reg exp_long_reg[3] = {
 		{REG_ADDR_AEC_L_EXP_HI, 0x00},
 		{REG_ADDR_AEC_L_EXP_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	exp_long_reg[0].val = (unsigned char)((w_val >> 8) & 0x00FF);
 	exp_long_reg[1].val = (unsigned char)(w_val & 0x00FF);
@@ -469,7 +478,7 @@ static int ox01f10_set_exp_long(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_exp_long w_val=0x%04X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_exp_long w_val=0x%04X\n", w_val);
 	return 0;
 	
 fail:
@@ -486,13 +495,13 @@ fail:
 static int ox01f10_set_exp_short(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned short w_val = (unsigned short)val;
 	static ox01f10_reg exp_short_reg[3] = {
 		{REG_ADDR_AEC_S_EXP_HI, 0x00},
 		{REG_ADDR_AEC_S_EXP_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	exp_short_reg[0].val = (unsigned char)((w_val >> 8) & 0x00FF);
 	exp_short_reg[1].val = (unsigned char)(w_val & 0x00FF);
@@ -500,7 +509,7 @@ static int ox01f10_set_exp_short(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_exp_short w_val=0x%04X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_exp_short w_val=0x%04X\n", w_val);
 	return 0;
 	
 fail:
@@ -517,13 +526,13 @@ fail:
 static int ox01f10_set_exp_very_short(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned short w_val = (unsigned short)val;
 	static ox01f10_reg exp_very_short_reg[3] = {
 		{REG_ADDR_AEC_VS_EXP_HI, 0x00},
 		{REG_ADDR_AEC_VS_EXP_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	exp_very_short_reg[0].val = (unsigned char)((w_val >> 8) & 0x00FF);
 	exp_very_short_reg[1].val = (unsigned char)(w_val & 0x00FF);
@@ -531,7 +540,7 @@ static int ox01f10_set_exp_very_short(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_exp_very_short w_val=0x%04X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_exp_very_short w_val=0x%04X\n", w_val);
 	return 0;
 	
 fail:
@@ -548,7 +557,6 @@ fail:
 static int ox01f10_set_gain(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned char w_val = (unsigned char)val;
 	static ox01f10_reg gain_reg[7] = {
 		{REG_ADDR_AEC_L_GAIN_HI, 0x00},
@@ -559,6 +567,7 @@ static int ox01f10_set_gain(struct ox01f10 *priv, s32 val)
 		{REG_ADDR_AEC_VS_GAIN_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	gain_reg[1].val = w_val;
 	gain_reg[3].val = w_val;
@@ -567,7 +576,7 @@ static int ox01f10_set_gain(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_gain w_val=%02X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_gain w_val=%02X\n", w_val);
 	return 0;
 	
 fail:
@@ -584,17 +593,14 @@ fail:
 static int ox01f10_set_aeagc(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
-	unsigned char w_val1 = 0;
-	unsigned char w_val2 = 0;
+	unsigned char w_val1;
+	unsigned char w_val2;
+	int err;
 	
-	if(val == SWITCH_ON)
-	{
+	if (val == SWITCH_ON) {
 		w_val1 = ENABLE_AEAGC;
 		w_val2 = DISABLE_MANUAL_GAIN;
-	}
-	else
-	{
+	} else {
 		w_val1 = DISABLE_AEAGC;
 		w_val2 = ENABLE_MANUAL_GAIN;
 	}
@@ -606,7 +612,7 @@ static int ox01f10_set_aeagc(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_aeagc \n");
+	dev_dbg(dev, "ox01f10_set_aeagc \n");
 	return 0;
 	
 fail:
@@ -623,27 +629,21 @@ fail:
 static int ox01f10_set_hdr(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
-	unsigned char w_val = 0;
+	unsigned char w_val;
+	int err;
 	
-	if(val == HDR_ON_2)
-	{
+	if (val == HDR_ON_2)
 		w_val = HDR_MODE_LSVS;
-	}
-	else if(val == HDR_ON_1)
-	{
+	else if (val == HDR_ON_1)
 		w_val = HDR_MODE_LS;
-	}
 	else
-	{
 		w_val = HDR_MODE_OFF;
-	}
 	
 	err = ox01f10_write_reg(priv, REG_ADDR_ISP_SETTING_9, w_val);
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_hdr \n");
+	dev_dbg(dev, "ox01f10_set_hdr \n");
 	return 0;
 	
 fail:
@@ -660,23 +660,19 @@ fail:
 static int ox01f10_set_awb_en(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
-	unsigned char w_val = 0;
+	unsigned char w_val;
+	int err;
 	
-	if(val == SWITCH_ON)
-	{
+	if (val == SWITCH_ON)
 		w_val = DISABLE_MANUAL_WB;
-	}
 	else
-	{
 		w_val = ENABLE_MANUAL_WB;
-	}
 	
 	err = ox01f10_write_reg(priv, REG_ADDR_ENABLE_MANUAL_WB, w_val);
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_awb_en \n");
+	dev_dbg(dev, "ox01f10_set_awb_en \n");
 	return 0;
 	
 fail:
@@ -693,7 +689,6 @@ fail:
 static int ox01f10_set_awb_gain_r(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned short w_val = (unsigned short)val;
 	static ox01f10_reg awb_gain_r_reg[7] = {
 		{REG_ADDR_WB_L_GAIN_R_HI, 0x00},
@@ -704,6 +699,7 @@ static int ox01f10_set_awb_gain_r(struct ox01f10 *priv, s32 val)
 		{REG_ADDR_WB_S_GAIN_R_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	awb_gain_r_reg[0].val = (unsigned char)((w_val >> 8) & 0x00FF);
 	awb_gain_r_reg[1].val = (unsigned char)(w_val & 0x00FF);
@@ -715,7 +711,7 @@ static int ox01f10_set_awb_gain_r(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_awb_gain_r w_val=%04X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_awb_gain_r w_val=%04X\n", w_val);
 	return 0;
 	
 fail:
@@ -732,7 +728,6 @@ fail:
 static int ox01f10_set_awb_gain_b(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned short w_val = (unsigned short)val;
 	static ox01f10_reg awb_gain_b_reg[7] = {
 		{REG_ADDR_WB_L_GAIN_B_HI, 0x00},
@@ -743,6 +738,7 @@ static int ox01f10_set_awb_gain_b(struct ox01f10 *priv, s32 val)
 		{REG_ADDR_WB_S_GAIN_B_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	awb_gain_b_reg[0].val = (unsigned char)((w_val >> 8) & 0x00FF);
 	awb_gain_b_reg[1].val = (unsigned char)(w_val & 0x00FF);
@@ -754,7 +750,7 @@ static int ox01f10_set_awb_gain_b(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_awb_gain_b w_val=%04X\n", w_val);
+	dev_dbg(dev, "ox01f10_set_awb_gain_b w_val=%04X\n", w_val);
 	return 0;
 	
 fail:
@@ -771,12 +767,12 @@ fail:
 static int ox01f10_set_y_gain(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	static ox01f10_reg y_gain_reg[3] = {
 		{REG_ADDR_Y_GAIN_HI, 0x00},
 		{REG_ADDR_Y_GAIN_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	y_gain_reg[0].val = (unsigned char)((val >> 8) & 0x0001);
 	y_gain_reg[1].val = (unsigned char)(val & 0x00FF);
@@ -784,7 +780,7 @@ static int ox01f10_set_y_gain(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_y_gain val=%d\n", val);
+	dev_dbg(dev, "ox01f10_set_y_gain val=%d\n", val);
 	return 0;
 	
 fail:
@@ -801,8 +797,7 @@ fail:
 static int ox01f10_set_saturation(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
-	short w_val = 0;
+	short w_val;
 	static ox01f10_reg saturation_reg[9] = {
 		{REG_ADDR_SATURATION_1, 0x00},
 		{REG_ADDR_SATURATION_2, 0x00},
@@ -814,27 +809,31 @@ static int ox01f10_set_saturation(struct ox01f10 *priv, s32 val)
 		{REG_ADDR_SATURATION_8, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 	
 	w_val = (short)(val & 0xFF);
 	saturation_reg[0].val = (unsigned char)(w_val & 0x00FF);
 	saturation_reg[1].val = (unsigned char)(w_val & 0x00FF);
 	w_val = (short)(val & 0xFF) - 8;
-	if (w_val < 0) w_val = 0;
+	if (w_val < 0)
+		w_val = 0;
 	saturation_reg[2].val = (unsigned char)(w_val & 0x00FF);
 	saturation_reg[3].val = (unsigned char)(w_val & 0x00FF);
 	w_val = (short)(val & 0xFF) - 22;
-	if (w_val < 0) w_val = 0;
+	if (w_val < 0)
+		w_val = 0;
 	saturation_reg[4].val = (unsigned char)(w_val & 0x00FF);
 	saturation_reg[5].val = (unsigned char)(w_val & 0x00FF);
 	w_val = (short)(val & 0xFF) - 32;
-	if (w_val < 0) w_val = 0;
+	if (w_val < 0)
+		w_val = 0;
 	saturation_reg[6].val = (unsigned char)(w_val & 0x00FF);
 	saturation_reg[7].val = (unsigned char)(w_val & 0x00FF);
 	err = ox01f10_write_table(priv, saturation_reg);
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_saturation val=%d\n", val);
+	dev_dbg(dev, "ox01f10_set_saturation val=%d\n", val);
 	return 0;
 	
 fail:
@@ -851,21 +850,17 @@ fail:
 static int ox01f10_set_y_offset(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	static ox01f10_reg y_offset_reg[3] = {
 		{REG_ADDR_Y_OFFSET_HI, 0x00},
 		{REG_ADDR_Y_OFFSET_LO, 0x00},
 		{OX01F10_TABLE_END, 0x00}
 	};
+	int err;
 
-	if(val >= OX01F10_CENTER_Y_OFFSET)
-	{
+	if (val >= OX01F10_CENTER_Y_OFFSET)
 		val -= OX01F10_CENTER_Y_OFFSET;
-	}
 	else
-	{
 		val += OX01F10_CENTER_Y_OFFSET;
-	}
 	
 	y_offset_reg[0].val = (unsigned char)((val >> 4) & 0x0F);
 	y_offset_reg[1].val = (unsigned char)((val << 4) & 0xF0);
@@ -873,7 +868,7 @@ static int ox01f10_set_y_offset(struct ox01f10 *priv, s32 val)
 	if (err)
 		goto fail;
 	
-	dev_info(dev, "ox01f10_set_y_offset val=%d\n", val);
+	dev_dbg(dev, "ox01f10_set_y_offset val=%d\n", val);
 	return 0;
 	
 fail:
@@ -890,10 +885,9 @@ fail:
 static int ox01f10_set_band(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
+	int err;
 	
-	if(val == BAND_ON_50)
-	{
+	if (val == BAND_ON_50) {
 		err = ox01f10_write_reg(priv, REG_ADDR_RAW_TARGET_L, BAND_AUTO_DISABLE);
 		if (err)
 			goto fail;
@@ -903,9 +897,7 @@ static int ox01f10_set_band(struct ox01f10 *priv, s32 val)
 		err = ox01f10_write_reg(priv, REG_ADDR_BAND_MODE, BAND_50);
 		if (err)
 			goto fail;
-	}
-	else if(val == BAND_ON_60)
-	{
+	} else if (val == BAND_ON_60) {
 		err = ox01f10_write_reg(priv, REG_ADDR_RAW_TARGET_L, BAND_AUTO_DISABLE);
 		if (err)
 			goto fail;
@@ -915,24 +907,20 @@ static int ox01f10_set_band(struct ox01f10 *priv, s32 val)
 		err = ox01f10_write_reg(priv, REG_ADDR_BAND_MODE, BAND_60);
 		if (err)
 			goto fail;
-	}
-	else if(val == BAND_ON_AUTO)
-	{
+	} else if (val == BAND_ON_AUTO) {
 		err = ox01f10_write_reg(priv, REG_ADDR_RAW_TARGET_L, BAND_AUTO_ENABLE);
 		if (err)
 			goto fail;
 		err = ox01f10_write_reg(priv, REG_ADDR_BAND_ENABLE, BAND_ENABLE);
 		if (err)
 			goto fail;
-	}
-	else
-	{
+	} else {
 		err = ox01f10_write_reg(priv, REG_ADDR_BAND_ENABLE, BAND_DISABLE);
 		if (err)
 			goto fail;
 	}
 	
-	dev_info(dev, "ox01f10_set_band \n");
+	dev_dbg(dev, "ox01f10_set_band \n");
 	return 0;
 	
 fail:
@@ -949,25 +937,22 @@ fail:
 static int ox01f10_set_mirror(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned char w_val = 0;
+	int err;
 	
 	ox01f10_read_reg(priv, REG_ADDR_TIMING_CTRL, &w_val);
 	
-	if(val == SWITCH_ON)
-	{
+	if (val == SWITCH_ON) {
 		err = ox01f10_write_reg(priv, REG_ADDR_TIMING_CTRL, (w_val | MIRROR_ENABLE_BIT));
 		if (err)
 			goto fail;
-	}
-	else
-	{
+	} else {
 		err = ox01f10_write_reg(priv, REG_ADDR_TIMING_CTRL, (w_val & ~(MIRROR_ENABLE_BIT)));
 		if (err)
 			goto fail;
 	}
 	
-	dev_info(dev, "ox01f10_set_mirror \n");
+	dev_dbg(dev, "ox01f10_set_mirror \n");
 	return 0;
 	
 fail:
@@ -984,25 +969,22 @@ fail:
 static int ox01f10_set_flip(struct ox01f10 *priv, s32 val)
 {
 	struct device *dev = &priv->i2c_client->dev;
-	int err = 0;
 	unsigned char w_val = 0;
+	int err;
 	
 	ox01f10_read_reg(priv, REG_ADDR_TIMING_CTRL, &w_val);
 	
-	if(val == SWITCH_ON)
-	{
+	if (val == SWITCH_ON) {
 		err = ox01f10_write_reg(priv, REG_ADDR_TIMING_CTRL, (w_val | FLIP_ENABLE_BIT));
 		if (err)
 			goto fail;
-	}
-	else
-	{
+	} else {
 		err = ox01f10_write_reg(priv, REG_ADDR_TIMING_CTRL, (w_val & ~(FLIP_ENABLE_BIT)));
 		if (err)
 			goto fail;
 	}
 	
-	dev_info(dev, "ox01f10_set_flip \n");
+	dev_dbg(dev, "ox01f10_set_flip \n");
 	return 0;
 	
 fail:
@@ -1017,14 +999,7 @@ fail:
  */
 static int ox01f10_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
-	struct ox01f10 *priv =
-		container_of(ctrl->handler, struct ox01f10, ctrl_handler);
-	int err = 0;
-
-	if (priv->power.state == SWITCH_OFF)
-		return 0;
-
-	return err;
+	return 0;
 }
 
 /**
@@ -1039,7 +1014,7 @@ static int ox01f10_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct device *dev = &priv->i2c_client->dev;
 	int err = 0;
 
-	if (priv->power.state == SWITCH_OFF)
+	if (priv->power->state == SWITCH_OFF)
 		return 0;
 
 	switch (ctrl->id) {
@@ -1099,6 +1074,11 @@ static int ox01f10_s_ctrl(struct v4l2_ctrl *ctrl)
 	return err;
 }
 
+static inline struct ox01f10 *to_ox01f10(struct v4l2_subdev *sd)
+{
+	return container_of(sd, struct ox01f10, subdev);
+}
+
 /**
  * @brief       Read register
  * @param[in]   *priv    : ox01f10 driver info
@@ -1108,8 +1088,8 @@ static int ox01f10_s_ctrl(struct v4l2_ctrl *ctrl)
  */
 static inline int ox01f10_read_reg(struct ox01f10 *priv, u16 addr, u8 *val)
 {
-	int err = 0;
 	u32 reg_val = 0;
+	int err;
 
 	err = regmap_read(priv->regmap, addr, &reg_val);
 	*val = reg_val & 0xFF;
@@ -1126,8 +1106,8 @@ static inline int ox01f10_read_reg(struct ox01f10 *priv, u16 addr, u8 *val)
  */
 static int ox01f10_write_reg(struct ox01f10 *priv, u16 addr, u8 val)
 {
-	int err;
 	struct device *dev = &priv->i2c_client->dev;
+	int err;
 
 	err = regmap_write(priv->regmap, addr, val);
 	if (err)
@@ -1138,7 +1118,7 @@ static int ox01f10_write_reg(struct ox01f10 *priv, u16 addr, u8 val)
 }
 
 /**
-* @brief        Write register(for Register table)
+ * @brief        Write register(for Register table)
  * @param[in]   *priv    : ox01f10 driver info
  * @param[in]   table[]  : Register table
  * @return      err      : Error code
@@ -1146,15 +1126,15 @@ static int ox01f10_write_reg(struct ox01f10 *priv, u16 addr, u8 val)
 static int ox01f10_write_table(struct ox01f10 *priv, const ox01f10_reg table[])
 {
 	return ox01f10_regmap_util_write_table_8(priv->regmap,
-											 table,
-											 NULL, 0,
-											 OX01F10_TABLE_WAIT_MS,
-											 OX01F10_TABLE_END);
+						 table,
+						 NULL, 0,
+						 OX01F10_TABLE_WAIT_MS,
+						 OX01F10_TABLE_END);
 }
 
 
 /**
-* @brief        Write register table
+ * @brief        Write register table
  * @param[in]   *regmap              : Register map info
  * @param[in]   table[]              : Register table
  * @param[in]   override_list[]      : Register table over write list
@@ -1164,14 +1144,14 @@ static int ox01f10_write_table(struct ox01f10 *priv, const ox01f10_reg table[])
  * @return      err                  : Error code
  */
 static int ox01f10_regmap_util_write_table_8(struct regmap *regmap,
-									  const struct reg_8 table[],
-									  const struct reg_8 override_list[],
-									  int num_override_regs, u16 wait_ms_addr, u16 end_addr)
+					     const struct reg_8 table[],
+					     const struct reg_8 override_list[],
+					     int num_override_regs, u16 wait_ms_addr, u16 end_addr)
 {
-	int err = 0;
 	const struct reg_8 *next;
-	int i;
 	u8 val;
+	int i;
+	int err;
 
 	int range_start = -1;
 	int range_count = 0;
@@ -1185,27 +1165,25 @@ static int ox01f10_regmap_util_write_table_8(struct regmap *regmap,
 		/* If we have a range open and */
 		/* either the address doesn't match */
 		/* or the temporary storage is full, flush */
-		if  ((next->addr != range_start + range_count) ||
-			 (next->addr == end_addr) ||
-			 (next->addr == wait_ms_addr) ||
-			 (range_count == max_range_vals)) {
+		if ((next->addr != range_start + range_count) ||
+		     (next->addr == end_addr) ||
+		     (next->addr == wait_ms_addr) ||
+		     (range_count == max_range_vals)) {
 
 			if (range_count == 1) {
-				err =
-					regmap_write(regmap, range_start,
-						 range_vals[0]);
+				err = regmap_write(regmap, range_start,
+						   range_vals[0]);
 			} else if (range_count > 1) {
-				err =
-					regmap_bulk_write(regmap, range_start,
-							  &range_vals[0],
-							  range_count);
+				err = regmap_bulk_write(regmap, range_start,
+							&range_vals[0],
+							range_count);
 			} else {
 				err = 0;
 			}
 
 			if (err) {
 				pr_err("%s:regmap_util_write_table:%d",
-					   __func__, err);
+				       __func__, err);
 				return err;
 			}
 
@@ -1245,99 +1223,36 @@ static int ox01f10_regmap_util_write_table_8(struct regmap *regmap,
 
 /**
  * @brief       Power On
- * @param[in]   *s_data  : Camera control info
- * @return      err      : Error code
+ * @param[in]   *priv    : ox01f10 driver info
+ * @return      void
  */
-static int ox01f10_power_on(struct camera_common_data *s_data)
+static void ox01f10_power_on(struct ox01f10 *priv)
 {
-	int err = 0;
-	struct ox01f10 *priv = (struct ox01f10 *)s_data->priv;
-	struct camera_common_power_rail *pw = &priv->power;
+	struct ox01f10_power_rail *pw = priv->power;
 
-	if (!priv || !priv->pdata)
-		return -EINVAL;
 	dev_dbg(&priv->i2c_client->dev, "%s: power on\n", __func__);
 
-	if (priv->pdata && priv->pdata->power_on) {
-		err = priv->pdata->power_on(pw);
-		if (err)
-			dev_err(&priv->i2c_client->dev,"%s failed.\n", __func__);
-		else
-			pw->state = SWITCH_ON;
-		return err;
-	}
-	
 	/* XSHUTDOWN HI */
-	ox01f10_reset_gpio(priv->pdata->pwdn_gpio, 1);	
+	ox01f10_reset_gpio(priv->power->pwdn_gpio, 1);
 
 	pw->state = SWITCH_ON;
-	return 0;
 }
 
 /**
  * @brief       Power Off
  * @param[in]   *priv    : ox01f10 driver info
- * @return      err      : Error code
+ * @return      void
  */
-static int ox01f10_power_off(struct ox01f10 *priv)
+static void ox01f10_power_off(struct ox01f10 *priv)
 {
-	struct camera_common_power_rail *pw = &priv->power;
-	if (!priv || !priv->pdata)
-		return -EINVAL;
-	
-	if (!pw)
-		return -EFAULT;
-	
-	if (unlikely(!pw))
-		return -EFAULT;
+	struct ox01f10_power_rail *pw = priv->power;
 
-	if (priv->pdata->use_cam_gpio)
-		cam_gpio_deregister(&priv->i2c_client->dev, pw->pwdn_gpio);
-	else {
-		gpio_free(pw->pwdn_gpio);
-	}
+	dev_dbg(&priv->i2c_client->dev, "%s: power on\n", __func__);
 
-	return 0;
-}
+	/* XSHUTDOWN LO */
+	ox01f10_reset_gpio(priv->power->pwdn_gpio, 0);
 
-/**
- * @brief       Get power info
- * @param[in]   *priv    : ox01f10 driver info
- * @return      err      : Error code
- */
-static int ox01f10_power_get(struct ox01f10 *priv)
-{
-	struct camera_common_power_rail *pw = &priv->power;
-	const char *mclk_name = NULL;
-	const char *parentclk_name = NULL;
-	struct clk *parent;
-	int err = 0;
-
-	if (!priv || !priv->pdata)
-		return -EINVAL;
-
-	if(priv->pdata->mclk_name) {
-		pw->mclk = devm_clk_get(&priv->i2c_client->dev, mclk_name);
-		if (IS_ERR(pw->mclk)) {
-			dev_err(&priv->i2c_client->dev, "unable to get clock %s\n",
-				mclk_name);
-			return PTR_ERR(pw->mclk);
-		}
-
-		parentclk_name = priv->pdata->parentclk_name;
-			if (parentclk_name) {
-			parent = devm_clk_get(&priv->i2c_client->dev, parentclk_name);
-			if (IS_ERR(parent))
-				dev_err(&priv->i2c_client->dev,
-					"unable to get parent clock %s",
-					parentclk_name);
-			else
-				clk_set_parent(pw->mclk, parent);
-		}
-	}
-	
 	pw->state = SWITCH_OFF;
-	return err;
 }
 
 /**
@@ -1348,27 +1263,16 @@ static int ox01f10_power_get(struct ox01f10 *priv)
  */
 static int ox01f10_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct camera_common_data *s_data = to_camera_common_data(&client->dev);
-	struct ox01f10 *priv = (struct ox01f10 *)s_data->priv;
+	struct ox01f10 *priv = to_ox01f10(sd);
 	struct v4l2_control control;
-	int err = 0;
+	int err;
 
-	if (!priv || !priv->pdata)
+	if (!priv)
 		return -EINVAL;
 
-	// Increment the refs count when streaming and decrement when streaming is disabled
+	dev_dbg(&priv->i2c_client->dev, "ox01f10_s_stream enable=%d\n", enable);
+	
 	if (enable) {
-		if (!try_module_get(s_data->owner))
-			return -ENODEV;
-	} else {
-		module_put(s_data->owner);
-	}
-	
-	printk("ox01f10_s_stream enable=%d\n", enable);
-	
-	if(enable)
-	{
 		control.id = CAMERA_CID_USER_HDR_EN;
 		err = v4l2_g_ctrl(&priv->ctrl_handler, &control);
 		if (err)
@@ -1381,8 +1285,7 @@ static int ox01f10_s_stream(struct v4l2_subdev *sd, int enable)
 			return err;
 		ox01f10_set_aeagc(priv, control.value);
 		
-		if(control.value == 0)
-		{
+		if (control.value == 0) {
 			control.id = CAMERA_CID_EXP_LONG;
 			err = v4l2_g_ctrl(&priv->ctrl_handler, &control);
 			if (err)
@@ -1414,8 +1317,7 @@ static int ox01f10_s_stream(struct v4l2_subdev *sd, int enable)
 			return err;
 		ox01f10_set_awb_en(priv, control.value);
 		
-		if(control.value == 0)
-		{
+		if (control.value == 0) {
 			control.id = CAMERA_CID_AWB_GAIN_R;
 			err = v4l2_g_ctrl(&priv->ctrl_handler, &control);
 			if (err)
@@ -1468,9 +1370,7 @@ static int ox01f10_s_stream(struct v4l2_subdev *sd, int enable)
 		err = ox01f10_write_table(priv, ox01f10_start);
 		if (err)
 			return err;
-	}
-	else
-	{
+	} else {
 		err = ox01f10_write_table(priv, ox01f10_stop);
 		if (err)
 			return err;
@@ -1487,13 +1387,10 @@ static int ox01f10_s_stream(struct v4l2_subdev *sd, int enable)
  */
 static int ox01f10_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct camera_common_data *s_data = to_camera_common_data(&client->dev);
-	struct ox01f10 *priv = (struct ox01f10 *)s_data->priv;
+	struct ox01f10 *priv = to_ox01f10(sd);
 
-	if (!priv || !priv->pdata) {
+	if (!priv)
 		return -ENOTTY;
-	}
 
 	return 0;
 }
@@ -1506,26 +1403,40 @@ static int ox01f10_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
  */
 static int ox01f10_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct camera_common_data *s_data = to_camera_common_data(&client->dev);
-	struct ox01f10 *priv = (struct ox01f10 *)s_data->priv;
+	struct ox01f10 *priv = to_ox01f10(sd);
 
-	if (!priv || !priv->pdata) {
+	if (!priv)
 		return -EINVAL;
-	}
 
 	return 0;
 }
 
 static struct v4l2_subdev_video_ops ox01f10_subdev_video_ops = {
 	.s_stream = ox01f10_s_stream,
-	.g_mbus_config = camera_common_g_mbus_config,
 	.g_parm = ox01f10_g_parm,
 	.s_parm = ox01f10_s_parm,
 };
 
+/**
+ * @brief       Set power
+ * @param[in]   *sd     : V4L2 sub device info
+ * @param[in]   on      : Power state
+ * @return      err     : Error code
+ */
+static int ox01f10_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ox01f10 *priv = to_ox01f10(sd);
+
+	if (on)
+		ox01f10_power_on(priv);
+	else
+		ox01f10_power_off(priv);
+
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops ox01f10_subdev_core_ops = {
-	.s_power = camera_common_s_power,
+	.s_power = ox01f10_s_power,
 };
 
 /**
@@ -1536,39 +1447,159 @@ static struct v4l2_subdev_core_ops ox01f10_subdev_core_ops = {
  * @return      err     : Error code
  */
 static int ox01f10_get_fmt(struct v4l2_subdev *sd,
-		struct v4l2_subdev_pad_config *cfg,
-		struct v4l2_subdev_format *format)
+			   struct v4l2_subdev_pad_config *cfg,
+			   struct v4l2_subdev_format *format)
 {
-	return camera_common_g_fmt(sd, &format->format);
+	struct v4l2_mbus_framefmt *mf = &format->format;
+
+	if (format->pad)
+		return -EINVAL;
+
+	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
+		mf = v4l2_subdev_get_try_format(sd, cfg, 0);
+		format->format = *mf;
+		return 0;
+	}
+
+	mf->code = OX01F10_DEFAULT_DATAFMT;
+	mf->width = OX01F10_DEFAULT_WIDTH;
+	mf->height = OX01F10_DEFAULT_HEIGHT;
+	mf->field = V4L2_FIELD_NONE;
+	mf->colorspace = V4L2_COLORSPACE_SRGB;
+
+	return 0;
+}
+
+/**
+ * @brief       Enum Mbus Code
+ * @param[in]   *sd     : V4L2 sub device info
+ * @param[in]   *cfg    : V4L2 sub device pad config info
+ * @param[out]  *code   : V4L2 sub device media bus format enumeration
+ * @return      err     : Error code
+ */
+static int ox01f10_enum_mbus_code(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_pad_config *cfg,
+				  struct v4l2_subdev_mbus_code_enum *code)
+{
+	if (code->pad || code->index > 0)
+		return -EINVAL;
+
+	code->code = OX01F10_DEFAULT_DATAFMT;
+
+	return 0;
 }
 
 /**
  * @brief       Set format
  * @param[in]   *sd     : V4L2 sub device info
  * @param[in]   *cfg    : V4L2 sub device pad config info
- * @param[in]   *format : V4L2 sub device format info
+ * @param[out]  *format : V4L2 sub device format info
  * @return      err     : Error code
  */
 static int ox01f10_set_fmt(struct v4l2_subdev *sd,
-		struct v4l2_subdev_pad_config *cfg,
-		struct v4l2_subdev_format *format)
+			   struct v4l2_subdev_pad_config *cfg,
+			   struct v4l2_subdev_format *format)
 {
-	int ret;
+	struct v4l2_mbus_framefmt *mf = &format->format;
+
+	if (format->pad)
+		return -EINVAL;
+
+	mf->code = OX01F10_DEFAULT_DATAFMT;
+	mf->width = OX01F10_DEFAULT_WIDTH;
+	mf->height = OX01F10_DEFAULT_HEIGHT;
+	mf->field = V4L2_FIELD_NONE;
+	mf->colorspace = V4L2_COLORSPACE_SRGB;
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
-		ret = camera_common_try_fmt(sd, &format->format);
-	else
-		ret = camera_common_s_fmt(sd, &format->format);
+		cfg->try_fmt = *mf;
 
-	return ret;
+	return 0;
+}
+
+/**
+ * @brief       Enum Frame Size
+ * @param[in]   *sd     : V4L2 sub device info
+ * @param[in]   *cfg    : V4L2 sub device pad config info
+ * @param[out]  *fse    : V4L2 sub device media bus format enumeration
+ * @return      err     : Error code
+ */
+static int ox01f10_enum_frame_size(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_pad_config *cfg,
+				   struct v4l2_subdev_frame_size_enum *fse)
+{
+	if (fse->index >= 1)
+		return -EINVAL;
+
+	fse->min_width = fse->max_width = OX01F10_DEFAULT_WIDTH;
+	fse->min_height = fse->max_height = OX01F10_DEFAULT_HEIGHT;
+
+	return 0;
+}
+
+/**
+ * @brief       Enum Frame Interval
+ * @param[in]   *sd     : V4L2 sub device info
+ * @param[in]   *cfg    : V4L2 sub device pad config info
+ * @param[out]  *fie    : V4L2 sub device frame interval enumeration
+ * @return      err     : Error code
+ */
+static int ox01f10_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= 1)
+		return -EINVAL;
+
+	fie->code = OX01F10_DEFAULT_DATAFMT;
+	fie->width = OX01F10_DEFAULT_WIDTH;
+	fie->height = OX01F10_DEFAULT_HEIGHT;
+
+	fie->interval.numerator = 1;
+	fie->interval.denominator = ox01f10_30fps[MODE_1344x1020];
+
+	return 0;
+}
+
+static int ox01f10_get_mbus_config(struct v4l2_subdev *sd,
+				   unsigned int pad,
+				   struct v4l2_mbus_config *cfg)
+{
+	cfg->flags = V4L2_MBUS_CSI2_4_LANE |
+		V4L2_MBUS_CSI2_CHANNEL_0 |
+		V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
+	cfg->type = V4L2_MBUS_CSI2_DPHY;
+
+	return 0;
+}
+
+static int ox01f10_get_selection(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_pad_config *cfg,
+				 struct v4l2_subdev_selection *sel)
+{
+	sel->r.left = 0;
+	sel->r.top = 0;
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_NATIVE_SIZE:
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		sel->r.width = OX01F10_DEFAULT_WIDTH;
+		sel->r.height = OX01F10_DEFAULT_HEIGHT;
+		return 0;
+	}
+
+	return -EINVAL;
 }
 
 static struct v4l2_subdev_pad_ops ox01f10_subdev_pad_ops = {
-	.enum_mbus_code = camera_common_enum_mbus_code,
+	.enum_mbus_code = ox01f10_enum_mbus_code,
 	.set_fmt = ox01f10_set_fmt,
 	.get_fmt = ox01f10_get_fmt,
-	.enum_frame_size = camera_common_enum_framesizes,
-	.enum_frame_interval = camera_common_enum_frameintervals,
+	.enum_frame_size = ox01f10_enum_frame_size,
+	.enum_frame_interval = ox01f10_enum_frame_interval,
+	.get_mbus_config = ox01f10_get_mbus_config,
+	.get_selection = ox01f10_get_selection,
 };
 
 static struct v4l2_subdev_ops ox01f10_subdev_ops = {
@@ -1598,32 +1629,32 @@ static int ox01f10_ctrls_init(struct ox01f10 *priv)
 
 	dev_dbg(dev, "%s++\n", __func__);
 
-	numctrls = ARRAY_SIZE(ctrl_config_list);
+	numctrls = ARRAY_SIZE(ox01f10_configs);
 	v4l2_ctrl_handler_init(&priv->ctrl_handler, numctrls);
 
 	for (i = 0; i < numctrls; i++) {
 		ctrl = v4l2_ctrl_new_custom(&priv->ctrl_handler,
-			&ctrl_config_list[i], NULL);
+					    &ox01f10_configs[i], NULL);
 		if (ctrl == NULL) {
-			dev_err(&client->dev, "Failed to init %s ctrl\n",
-				ctrl_config_list[i].name);
+			dev_err(dev, "Failed to init %s ctrl\n",
+				ox01f10_configs[i].name);
 			continue;
 		}
 
-		if (ctrl_config_list[i].type == V4L2_CTRL_TYPE_STRING &&
-			ctrl_config_list[i].flags & V4L2_CTRL_FLAG_READ_ONLY) {
-			ctrl->p_new.p_char = devm_kzalloc(&client->dev,
-				ctrl_config_list[i].max + 1, GFP_KERNEL);
+		if (ox01f10_configs[i].type == V4L2_CTRL_TYPE_STRING &&
+		    ox01f10_configs[i].flags & V4L2_CTRL_FLAG_READ_ONLY) {
+			ctrl->p_new.p_char = devm_kzalloc(dev,
+							  ox01f10_configs[i].max + 1, GFP_KERNEL);
 		}
-				printk("%d. Initialized Custom Ctrl %s \n",
-				 i, ctrl_config_list[i].name);
+		dev_dbg(dev, "%d. Initialized Custom Ctrl %s \n",
+			i, ox01f10_configs[i].name);
 		priv->ctrls[i] = ctrl;
 	}
 
 	priv->numctrls = numctrls;
-	priv->subdev->ctrl_handler = &priv->ctrl_handler;
+	priv->subdev.ctrl_handler = &priv->ctrl_handler;
 	if (priv->ctrl_handler.error) {
-		dev_err(&client->dev, "Error %d adding controls\n",
+		dev_err(dev, "Error %d adding controls\n",
 			priv->ctrl_handler.error);
 		err = priv->ctrl_handler.error;
 		goto error;
@@ -1631,8 +1662,7 @@ static int ox01f10_ctrls_init(struct ox01f10 *priv)
 
 	err = v4l2_ctrl_handler_setup(&priv->ctrl_handler);
 	if (err) {
-		dev_err(&client->dev,
-			"Error %d setting default controls\n", err);
+		dev_err(dev, "Error %d setting default controls\n", err);
 		goto error;
 	}
 
@@ -1650,12 +1680,13 @@ MODULE_DEVICE_TABLE(of, ox01f10_of_match);
  * @param[in]   *client  : I2C client info
  * @return      err      : Error code
  */
-static struct camera_common_pdata *ox01f10_parse_dt(struct i2c_client *client)
+static struct ox01f10_power_rail *ox01f10_parse_dt(struct i2c_client *client)
 {
 	struct device_node *node = client->dev.of_node;
-	struct camera_common_pdata *board_priv_pdata;
+	struct ox01f10_power_rail *power;
 	const struct of_device_id *match;
 	int gpio;
+	int err;
 
 	if (!node)
 		return NULL;
@@ -1666,26 +1697,40 @@ static struct camera_common_pdata *ox01f10_parse_dt(struct i2c_client *client)
 		return NULL;
 	}
 
-	board_priv_pdata =
-		devm_kzalloc(&client->dev, sizeof(*board_priv_pdata), GFP_KERNEL);
-	if (!board_priv_pdata)
+	power = devm_kzalloc(&client->dev, sizeof(*power), GFP_KERNEL);
+	if (!power)
 		return NULL;
 
 	gpio = of_get_named_gpio(node, "pwdn-gpios", 0);
-	if (gpio < 0) {
+	if (!gpio_is_valid(gpio)) {
 		dev_err(&client->dev, "pwdn gpios not in DT\n");
 		goto error;
 	}
-	board_priv_pdata->pwdn_gpio = (unsigned int)gpio;
+	err = devm_gpio_request_one(&client->dev, gpio,
+				    GPIOF_DIR_OUT, "pwdn");
+	if (err < 0) {
+		dev_err(&client->dev, "Failed to request gpio\n");
+		goto error;
+	}
 
-	return board_priv_pdata;
+	power->pwdn_gpio = (unsigned)gpio;
+
+	return power;
 
 error:
-	devm_kfree(&client->dev, board_priv_pdata);
+	devm_kfree(&client->dev, power);
 	return NULL;
 }
 
+static int ox01f10_link_setup(struct media_entity *entity,
+			      const struct media_pad *local,
+			      const struct media_pad *remote, u32 flags)
+{
+	return 0;
+}
+
 static const struct media_entity_operations ox01f10_media_ops = {
+	.link_setup = ox01f10_link_setup,
 	.link_validate = v4l2_subdev_link_validate,
 };
 
@@ -1697,15 +1742,16 @@ static const struct media_entity_operations ox01f10_media_ops = {
  */
 static void ox01f10_reset_gpio(unsigned int gpio, int val)
 {
-	if (gpio_cansleep(gpio)){
+	if (gpio_cansleep(gpio)) {
 		gpio_direction_output(gpio,val);
 		gpio_set_value_cansleep(gpio, val);
-	} else{
+	} else {
 		gpio_direction_output(gpio,val);
 		gpio_set_value(gpio, val);
 	}
 	
-	if(1 == val) msleep(31);
+	if (1 == val)
+		msleep(31);
 }
 
 /**
@@ -1715,33 +1761,23 @@ static void ox01f10_reset_gpio(unsigned int gpio, int val)
  * @return      err      : Error code
  */
 static int ox01f10_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+			 const struct i2c_device_id *id)
 {
-	struct camera_common_data *common_data;
+	/* struct camera_common_data *common_data; */
 	struct device_node *node = client->dev.of_node;
 	struct ox01f10 *priv;
-
 	unsigned char read_reg;
+	int err;
 
-	int err = 0;
 	if (!IS_ENABLED(CONFIG_OF) || !node) {
 		dev_err(&client->dev, "not enable CONFIG_OF or node ptr null\n");
 		return -EINVAL;
 	}
 
-	common_data =
-		devm_kzalloc(&client->dev,
-			 sizeof(struct camera_common_data), GFP_KERNEL);
-	if (!common_data) {
-		dev_err(&client->dev, "memory alloc failed(struct camera_common_data)\n");
-		return -ENOMEM;
-	}
-
-	priv =
-		devm_kzalloc(&client->dev,
-			 sizeof(struct ox01f10) +
-			 sizeof(struct v4l2_ctrl *) * ARRAY_SIZE(ctrl_config_list),
-			 GFP_KERNEL);
+	priv = devm_kzalloc(&client->dev,
+			    sizeof(struct ox01f10) +
+			    sizeof(struct v4l2_ctrl *) * ARRAY_SIZE(ox01f10_configs),
+			    GFP_KERNEL);
 	if (!priv) {
 		dev_err(&client->dev, "memory alloc failed(struct ox01f10)\n");
 		return -ENOMEM;
@@ -1754,29 +1790,15 @@ static int ox01f10_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	priv->pdata = ox01f10_parse_dt(client);
-	if (!priv->pdata) {
+	priv->power = ox01f10_parse_dt(client);
+	if (!priv->power) {
 		dev_err(&client->dev, "unable to get platform data\n");
 		return -EFAULT;
 	}
 	priv->i2c_client = client;
-	priv->s_data = common_data;
-	priv->subdev = &common_data->subdev;
-	priv->subdev->dev = &client->dev;
-	priv->s_data->dev = &client->dev;
-	common_data->priv = (void *)priv;
+	priv->subdev.dev = &client->dev;
 
-	err = ox01f10_power_get(priv);
-	if (err) {
-		dev_err(&client->dev, "power get failed\n");
-		return err;
-	}
-
-	err = ox01f10_power_on(common_data);
-	if (err) {
-		dev_err(&client->dev, "power on failed\n");
-		return err;
-	}
+	ox01f10_power_on(priv);
 	
 	/* Check I2C connection */
 	err = ox01f10_read_reg(priv, 0x0100, &read_reg);
@@ -1785,79 +1807,46 @@ static int ox01f10_probe(struct i2c_client *client,
 		return -EFAULT;
 	}
 	
-	common_data->ops = NULL;
-	common_data->ctrl_handler = &priv->ctrl_handler;
-	common_data->frmfmt = ox01f10_frmfmt;
-	common_data->colorfmt = camera_common_find_datafmt(OX01F10_DEFAULT_DATAFMT);
-	common_data->power = &priv->power;
-	common_data->ctrls = priv->ctrls;
-	common_data->priv = (void *)priv;
-	common_data->numctrls = ARRAY_SIZE(ctrl_config_list);
-	common_data->numfmts = ARRAY_SIZE(ox01f10_frmfmt);
-	common_data->def_mode = OX01F10_DEFAULT_MODE;
-	common_data->def_width = OX01F10_DEFAULT_WIDTH;
-	common_data->def_height = OX01F10_DEFAULT_HEIGHT;
-	common_data->fmt_width = common_data->def_width;
-	common_data->fmt_height = common_data->def_height;
-	common_data->def_clk_freq = 24000000;
-
 	priv->i2c_client = client;
-	priv->s_data = common_data;
-	priv->subdev = &common_data->subdev;
-	priv->subdev->dev = &client->dev;
-	priv->s_data->dev = &client->dev;
+	priv->subdev.dev = &client->dev;
 
-	err = camera_common_initialize(common_data, "ox01f10");
-	if (err) {
-		dev_err(&client->dev, "Failed to initialize ox01f10.\n");
-		return err;
-	}
-
-	v4l2_i2c_subdev_init(priv->subdev, client, &ox01f10_subdev_ops);
+	v4l2_i2c_subdev_init(&priv->subdev, client, &ox01f10_subdev_ops);
 
 	/* Enumerate Ctrls */
 	err = ox01f10_ctrls_init(priv);
-	if (err)
-	{
+	if (err) {
 		dev_err(&client->dev, "ctrls init failed\n");
 		return err;
 	}
 
-	priv->subdev->flags |=
+	priv->subdev.flags |=
 		V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 
-	if (priv->subdev->owner == THIS_MODULE) {
-		common_data->owner = priv->subdev->owner;
-		priv->subdev->owner = NULL;
-	} else {
-		// It shouldn't come here in probe();
-		;
-	}
-
 	priv->pad.flags = MEDIA_PAD_FL_SOURCE;
-	priv->subdev->entity.ops = &ox01f10_media_ops;
-	err = tegra_media_entity_init(&priv->subdev->entity, 1, &priv->pad, true, true);
+	priv->subdev.entity.ops = &ox01f10_media_ops;
+
+	priv->subdev.entity.obj_type = MEDIA_ENTITY_TYPE_V4L2_SUBDEV;
+	priv->subdev.entity.function = MEDIA_ENT_F_CAM_SENSOR;
+	err = media_entity_pads_init(&priv->subdev.entity, 1, &priv->pad);
 	if (err < 0) {
 		dev_err(&client->dev, "unable to init media entity\n");
 		goto  err_ctrls;
 	}
 
-	err = v4l2_async_register_subdev(priv->subdev);
-	if (err)
-	{
+	err = v4l2_async_register_subdev(&priv->subdev);
+	if (err) {
 		dev_err(&client->dev, "v4l2_async_register_subdev failed\n");
 		goto err_me;
 	}
 	
-	err = ox01f10_write_table(priv, mode_table[priv->s_data->mode]);
+	err = ox01f10_write_table(priv, ox01f10_mode_table[OX01F10_DEFAULT_MODE]);
 	if (err)
-		return err;
-		
+		goto err_me;
 	
 	return 0;
 	
 err_me:
-	media_entity_cleanup(&priv->subdev->entity);
+	media_entity_cleanup(&priv->subdev.entity);
 	
 err_ctrls:
 	v4l2_ctrl_handler_free(&priv->ctrl_handler);
@@ -1865,9 +1854,9 @@ err_ctrls:
 	return err;
 }
 
-#define FREE_SAFE(dev, ptr) \
-	if(ptr) { \
-		devm_kfree(dev, ptr); \
+#define FREE_SAFE(dev, ptr)			\
+	if (ptr) {				\
+		devm_kfree(dev, ptr);		\
 	}
 
 
@@ -1878,38 +1867,18 @@ err_ctrls:
  */
 static int ox01f10_remove(struct i2c_client *client)
 {
-	struct camera_common_data *s_data = to_camera_common_data(&client->dev);
-	struct ox01f10 *priv = (struct ox01f10 *)s_data->priv;
-	struct device_node *node = client->dev.of_node;
-	int loop = 0;
-	uint16_t pwdn_gpio = 0;
+	struct v4l2_subdev *subdev = i2c_get_clientdata(client);
+	struct ox01f10 *priv = to_ox01f10(subdev);
 		
-	if (!priv || !priv->pdata)
+	if (!priv)
 		return -1;
 
-	/* pwdn the Gpios */
-	pwdn_gpio = of_get_named_gpio(node, "pwdn-gpios", 0);
-	if(pwdn_gpio < 0) {
-		dev_err(&client->dev, "Unable to get power GPIO\n");
-		return -EINVAL;
-	}
-	gpio_free(pwdn_gpio);
-	
-	v4l2_async_unregister_subdev(priv->subdev);
-	media_entity_cleanup(&priv->subdev->entity);
+	v4l2_async_unregister_subdev(&priv->subdev);
+	media_entity_cleanup(&priv->subdev.entity);
 
 	v4l2_ctrl_handler_free(&priv->ctrl_handler);
 	ox01f10_power_off(priv);
-	camera_common_remove_debugfs(s_data);
 
-	for(loop = 0; loop < s_data->numfmts; loop++ ) {
-		FREE_SAFE(&client->dev, (void *)priv->cam_frmfmt[loop].framerates);
-	}
-
-	FREE_SAFE(&client->dev, priv->cam_frmfmt);
-
-	FREE_SAFE(&client->dev, priv->pdata);
-	FREE_SAFE(&client->dev, priv->s_data);
 	FREE_SAFE(&client->dev, priv);
 	return 0;
 }
@@ -1923,10 +1892,9 @@ MODULE_DEVICE_TABLE(i2c, ox01f10_id);
 
 static struct i2c_driver ox01f10_i2c_driver = {
 	.driver = {
-		   .name = "ox01f10",
-		   .owner = THIS_MODULE,
-		   .of_match_table = of_match_ptr(ox01f10_of_match),
-		   },
+		.name = "ox01f10",
+		.of_match_table = of_match_ptr(ox01f10_of_match),
+	},
 	.probe = ox01f10_probe,
 	.remove = ox01f10_remove,
 	.id_table = ox01f10_id,

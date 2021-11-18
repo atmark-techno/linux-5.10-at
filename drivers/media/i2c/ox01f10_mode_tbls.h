@@ -19,10 +19,8 @@
  */
 
 
-#ifndef __OX01F10_TABLES__
-#define __OX01F10_TABLES__
-
-#include <media/camera_common.h>
+#ifndef __OX01F10_MODE_TBLS__
+#define __OX01F10_MODE_TBLS__
 
 #define OX01F10_TABLE_WAIT_MS	0
 #define OX01F10_TABLE_END	1
@@ -33,6 +31,10 @@
 #define OX01F10_DEFAULT_HEIGHT	1020
 #define OX01F10_DEFAULT_DATAFMT	MEDIA_BUS_FMT_UYVY8_1X16
 
+struct reg_8 {
+	u16 addr;
+	u8 val;
+};
 #define ox01f10_reg struct reg_8
 
 enum {
@@ -42,10 +44,6 @@ enum {
 
 static const int ox01f10_30fps[] = {
 	30,
-};
-
-static const struct camera_common_frmfmt ox01f10_frmfmt[] = {
-	{{1344, 1020},	ox01f10_30fps,	1, 0,	MODE_1344x1020}
 };
 
 static const ox01f10_reg ox01f10_start[] = {
@@ -58,7 +56,7 @@ static const ox01f10_reg ox01f10_stop[] = {
 	{OX01F10_TABLE_END, 0x00}
 };
 
-static const ox01f10_reg mode_1340x1020[] = {
+static const ox01f10_reg ox01f10_mode_1340x1020[] = {
 	{OX01F10_TABLE_WAIT_MS, OX01F10_WAIT_MS},
 	{ 0x0100, 0x01 },
 	{ 0x3d84, 0x40 },
@@ -10677,9 +10675,9 @@ static const ox01f10_reg mode_1340x1020[] = {
 	{OX01F10_TABLE_END, 0x0000}
 };
 
-static const ox01f10_reg *mode_table[] = {
-	[MODE_1344x1020]	= mode_1340x1020
+static const ox01f10_reg *ox01f10_mode_table[] = {
+	[MODE_1344x1020]	= ox01f10_mode_1340x1020
 };
 
-#endif  /* __OX01F10_TABLES__ */
+#endif  /* __OX01F10_MODE_TBLS__ */
 
