@@ -3296,7 +3296,7 @@ static u8 *drm_find_displayid_extension(const struct edid *edid,
 	return displayid;
 }
 
-static u8 *drm_find_cea_extension(const struct edid *edid)
+static u8 *drm_find_cea_extension_by_index(const struct edid *edid, int index)
 {
 	int length, idx;
 	struct displayid_block *block;
@@ -3306,13 +3306,13 @@ static u8 *drm_find_cea_extension(const struct edid *edid)
 
 	/* Look for a top level CEA extension block */
 	/* FIXME: make callers iterate through multiple CEA ext blocks? */
-	ext_index = 0;
+	ext_index = index;
 	cea = drm_find_edid_extension(edid, CEA_EXT, &ext_index);
 	if (cea)
 		return cea;
 
 	/* CEA blocks can also be found embedded in a DisplayID block */
-	ext_index = 0;
+	ext_index = index;
 	for (;;) {
 		displayid = drm_find_displayid_extension(edid, &length, &idx,
 							 &ext_index);
@@ -3327,6 +3327,11 @@ static u8 *drm_find_cea_extension(const struct edid *edid)
 	}
 
 	return NULL;
+}
+
+static inline u8 *drm_find_cea_extension(const struct edid *edid)
+{
+	return drm_find_cea_extension_by_index(edid, 0);
 }
 
 static __always_inline const struct drm_display_mode *cea_mode_for_vic(u8 vic)
@@ -4272,7 +4277,9 @@ add_cea_modes(struct drm_connector *connector, struct edid *edid)
 	const u8 *db, *hdmi = NULL, *video = NULL;
 	u8 dbl, hdmi_len, video_len = 0;
 	int modes = 0;
+	int index = 0;
 
+repeat:
 	if (cea && cea_revision(cea) >= 3) {
 		int i, start, end;
 
@@ -4299,6 +4306,9 @@ add_cea_modes(struct drm_connector *connector, struct edid *edid)
 							  dbl - 1);
 			}
 		}
+
+		cea = drm_find_cea_extension_by_index(edid, ++index);
+		goto repeat;
 	}
 
 	/*
