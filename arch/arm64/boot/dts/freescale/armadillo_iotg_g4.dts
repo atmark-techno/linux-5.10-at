@@ -130,7 +130,7 @@
 		status = "okay";
 	};
 
-	lvds_panel {
+	lvds_panel: lvds-panel {
                 compatible = "panel-lvds";
 
                 data-mapping = "vesa-24";
