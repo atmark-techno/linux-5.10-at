@@ -1,0 +1,305 @@
+/*
+ * Copyright (C) 2021 Atmark Techno, Inc. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: (GPL-2.0 OR MIT)
+ */
+
+#include <dt-bindings/pwm/pwm.h>
+
+&iomuxc {
+	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
+		fsl,pins = <
+			/* CON11 */
+									   // CON11_1   VIN
+									   // CON11_2   VIN
+									   // CON11_3   GND
+									   // CON11_4   GND
+									   // CON11_5   I2C4_SCL
+			MX8MP_IOMUXC_ECSPI1_MISO__GPIO5_IO08	0x40000000 // CON11_6   {{external-gpio-6}}
+									   // CON11_7   I2C4_SDA
+			MX8MP_IOMUXC_ECSPI1_MOSI__GPIO5_IO07	0x40000000 // CON11_8   {{external-gpio-8}}
+			MX8MP_IOMUXC_ECSPI2_MISO__GPIO5_IO12	0x40000000 // CON11_9   {{external-gpio-9}}
+			MX8MP_IOMUXC_ECSPI1_SCLK__GPIO5_IO06	0x40000000 // CON11_10  {{external-gpio-10}}
+			MX8MP_IOMUXC_ECSPI2_MOSI__GPIO5_IO11	0x40000000 // CON11_11  {{external-gpio-11}}
+			MX8MP_IOMUXC_ECSPI1_SS0__GPIO5_IO09	0x40000000 // CON11_12  {{external-gpio-12}}
+			MX8MP_IOMUXC_ECSPI2_SCLK__GPIO5_IO10	0x40000000 // CON11_13  {{external-gpio-13}}
+			MX8MP_IOMUXC_SAI3_TXFS__GPIO4_IO31	0x40000000 // CON11_14  {{external-gpio-14}}
+			MX8MP_IOMUXC_ECSPI2_SS0__GPIO5_IO13 	0x40000000 // CON11_15  {{external-gpio-15}}
+			MX8MP_IOMUXC_SAI3_TXC__GPIO5_IO00	0x40000000 // CON11_16  {{external-gpio-16}}
+			MX8MP_IOMUXC_SAI5_RXC__GPIO3_IO20	0x40000000 // CON11_17  {{external-gpio-17}}
+			MX8MP_IOMUXC_SAI3_TXD__GPIO5_IO01	0x40000000 // CON11_18  {{external-gpio-18}}
+			MX8MP_IOMUXC_SAI5_RXD0__GPIO3_IO21	0x40000000 // CON11_19  {{external-gpio-19}}
+			MX8MP_IOMUXC_SAI3_RXD__GPIO4_IO30	0x40000000 // CON11_20  {{external-gpio-20}}
+			MX8MP_IOMUXC_SAI5_RXD1__GPIO3_IO22	0x40000000 // CON11_21  {{external-gpio-21}}
+			MX8MP_IOMUXC_SAI3_MCLK__GPIO5_IO02	0x40000000 // CON11_22  {{external-gpio-22}}
+			MX8MP_IOMUXC_SAI5_RXD2__GPIO3_IO23	0x40000000 // CON11_23  {{external-gpio-23}}
+			MX8MP_IOMUXC_GPIO1_IO15__GPIO1_IO15	0x40000000 // CON11_24  {{external-gpio-24}}
+			MX8MP_IOMUXC_SAI5_RXD3__GPIO3_IO24	0x40000000 // CON11_25  {{external-gpio-25}}
+									   // CON11_26  USBDM_DN2
+			MX8MP_IOMUXC_SAI5_MCLK__GPIO3_IO25	0x40000000 // CON11_27  {{external-gpio-27}}
+									   // CON11_28  USBDP_DN2
+			MX8MP_IOMUXC_SAI5_RXFS__GPIO3_IO19	0x40000000 // CON11_29  {{external-gpio-29}}
+									   // CON11_30  VDD_1V8
+									   // CON11_31  VDD_5V
+									   // CON11_32  VDD_5V
+									   // CON11_33  GND
+									   // CON11_34  GND
+
+			/* CON12 */
+									   // CON12_1   PWROFF
+			MX8MP_IOMUXC_SD1_STROBE__GPIO2_IO11	0x40000000 // CON12_2   {{external-gpio-36}}
+									   // CON12_3   RECOVERY
+			MX8MP_IOMUXC_SAI2_MCLK__GPIO4_IO27	0x40000000 // CON12_4   {{external-gpio-38}}
+									   // CON12_5   ONOFF
+			MX8MP_IOMUXC_SAI3_RXFS__GPIO4_IO28	0x40000000 // CON12_6   {{external-gpio-40}}
+									   // CON12_7   FW_UPDATE_IND
+			MX8MP_IOMUXC_SAI3_RXC__GPIO4_IO29	0x40000000 // CON12_8   {{external-gpio-42}}
+									   // CON12_9   STDWN_IND
+			MX8MP_IOMUXC_NAND_DATA02__GPIO3_IO08	0x40000000 // CON12_10  {{external-gpio-44}}
+									   // CON12_11  PWR_IND
+			MX8MP_IOMUXC_NAND_DATA03__GPIO3_IO09	0x40000000 // CON12_12  {{external-gpio-46}}
+			MX8MP_IOMUXC_SD1_DATA6__GPIO2_IO08	0x40000000 // CON12_13  {{external-gpio-47}}
+			MX8MP_IOMUXC_NAND_DQS__GPIO3_IO14	0x40000000 // CON12_14  {{external-gpio-48}}
+									   // CON12_15  GND
+									   // CON12_16  GND
+		>;
+	};
+
+//	pinctrl_can1: can1grp {		// {{required-by-can1}}
+//		fsl,pins = <		// {{required-by-can1}}
+//			MX8MP_IOMUXC_SAI5_RXD1__CAN1_TX		0x0146  // CON11_21 {{required-by-can1}}
+//			MX8MP_IOMUXC_SAI5_RXD2__CAN1_RX		0x0146  // CON11_23 {{required-by-can1}}
+//		>;			// {{required-by-can1}}
+//	};				// {{required-by-can1}}
+
+//	pinctrl_can2: can2grp {		// {{required-by-can2}}
+//		fsl,pins = <		// {{required-by-can2}}
+//			MX8MP_IOMUXC_SAI5_RXD3__CAN2_TX		0x0146  // CON11_25 {{required-by-can2}}
+//			MX8MP_IOMUXC_SAI5_MCLK__CAN2_RX		0x0146  // CON11_27 {{required-by-can2}}
+//		>;			// {{required-by-can2}}
+//	};				// {{required-by-can2}}
+
+//	pinctrl_ecspi1: ecspi1grp {	// {{required-by-ecspi1}}
+//		fsl,pins = <		// {{required-by-ecspi1}}
+//			MX8MP_IOMUXC_ECSPI1_MISO__ECSPI1_MISO	0x01c6  // CON11_6  {{required-by-ecspi1}}
+//			MX8MP_IOMUXC_ECSPI1_MOSI__ECSPI1_MOSI	0x01c6  // CON11_8  {{required-by-ecspi1}}
+//			MX8MP_IOMUXC_ECSPI1_SCLK__ECSPI1_SCLK	0x01c6  // CON11_10 {{required-by-ecspi1}}
+//			MX8MP_IOMUXC_ECSPI1_SS0__GPIO5_IO09	0x01c6  // CON11_12 {{required-by-ecspi1}}
+//		>;			// {{required-by-ecspi1}}
+//	};				// {{required-by-ecspi1}}
+
+//	pinctrl_ecspi2: ecspi2grp {	// {{required-by-ecspi2}}
+//		fsl,pins = <		// {{required-by-ecspi2}}
+//			MX8MP_IOMUXC_ECSPI2_MISO__ECSPI2_MISO	0x01c6  // CON11_9  {{required-by-ecspi2}}
+//			MX8MP_IOMUXC_ECSPI2_MOSI__ECSPI2_MOSI	0x01c6  // CON11_11 {{required-by-ecspi2}}
+//			MX8MP_IOMUXC_ECSPI2_SCLK__ECSPI2_SCLK	0x01c6  // CON11_13 {{required-by-ecspi2}}
+//			MX8MP_IOMUXC_ECSPI2_SS0__GPIO5_IO13	0x01c6  // CON11_15 {{required-by-ecspi2}} 
+//		>;			// {{required-by-ecspi2}}
+//	};				// {{required-by-ecspi2}}
+
+//	pinctrl_i2c5: i2c5grp {		// {{required-by-i2c5}}
+//		fsl,pins = <		// {{required-by-i2c5}}
+//			MX8MP_IOMUXC_SAI5_RXD0__I2C5_SCL	0x400001c3 // CON11_19 {{required-by-i2c5}}
+//			MX8MP_IOMUXC_SAI5_MCLK__I2C5_SDA	0x400001c3 // CON11_27 {{required-by-i2c5}}
+//		>;			// {{required-by-i2c5}}
+//	};				// {{required-by-i2c5}}
+
+//	pinctrl_i2c6: i2c6grp {		// {{required-by-i2c6}}
+//		fsl,pins = <		// {{required-by-i2c6}}
+//			MX8MP_IOMUXC_SAI5_RXFS__I2C6_SCL	0x400001c3 // CON11_29 {{required-by-i2c6}}
+//			MX8MP_IOMUXC_SAI5_RXC__I2C6_SDA		0x400001c3 // CON11_17 {{required-by-i2c6}}
+//		>;			// {{required-by-i2c6}}
+//	};				// {{required-by-i2c6}}
+
+//	pinctrl_pwm1: pwm1grp {		// {{required-by-pwm1}}
+//		fsl,pins = <		// {{required-by-pwm1}}
+//			MX8MP_IOMUXC_SAI5_MCLK__PWM1_OUT	0x0186 // CON11_27 {{required-by-pwm1}}
+//		>;			// {{required-by-pwm1}}
+//	};				// {{required-by-pwm1}}
+
+//	pinctrl_pwm2: pwm2grp {		// {{required-by-pwm2}}
+//		fsl,pins = <		// {{required-by-pwm2}}
+//			MX8MP_IOMUXC_SAI5_RXD0__PWM2_OUT	0x0186 // CON11_19 {{required-by-pwm2}}
+//		>;			// {{required-by-pwm2}}
+//	};				// {{required-by-pwm2}}
+
+//	pinctrl_pwm3: pwm3grp {		// {{required-by-pwm3}}
+//		fsl,pins = <		// {{required-by-pwm3}}
+//			MX8MP_IOMUXC_SAI5_RXC__PWM3_OUT		0x0186 // CON11_17 {{required-by-pwm3}}
+//		>;			// {{required-by-pwm3}}
+//	};				// {{required-by-pwm3}}
+
+//	pinctrl_pwm4: pwm4grp {		// {{required-by-pwm4}}
+//		fsl,pins = <		// {{required-by-pwm4}}
+//			MX8MP_IOMUXC_SAI5_RXFS__PWM4_OUT	0x0186 // CON11_29 {{required-by-pwm4}}
+//		>;			// {{required-by-pwm4}}
+//	};				// {{required-by-pwm4}}
+
+//	pinctrl_uart3: uart3grp {	// {{required-by-uart3}}
+//		fsl,pins = <		// {{required-by-uart3}}
+//			MX8MP_IOMUXC_ECSPI1_MOSI__UART3_DCE_TX	0x0140 // CON11_8  {{required-by-uart3}}
+//			MX8MP_IOMUXC_ECSPI1_SCLK__UART3_DCE_RX	0x0140 // CON11_10 {{required-by-uart3}}
+//			MX8MP_IOMUXC_ECSPI1_MISO__UART3_DCE_CTS	0x0140 // CON11_6  {{external-uart3-hf-6}}
+//			MX8MP_IOMUXC_ECSPI1_SS0__UART3_DCE_RTS	0x0140 // CON11_12 {{external-uart3-hf-12}}
+//		>;			// {{required-by-uart3}}
+//	};				// {{required-by-uart3}}
+
+//	pinctrl_uart4: uart4grp {	// {{required-by-uart4}}
+//		fsl,pins = <		// {{required-by-uart4}}
+//			MX8MP_IOMUXC_ECSPI2_MOSI__UART4_DCE_TX	0x0140 // CON11_11 {{required-by-uart4}}
+//			MX8MP_IOMUXC_ECSPI2_SCLK__UART4_DCE_RX	0x0140 // CON11_13 {{required-by-uart4}}
+//			MX8MP_IOMUXC_ECSPI2_MISO__UART4_DCE_CTS	0x0140 // CON11_9  {{external-uart4-hf-9}}
+//			MX8MP_IOMUXC_ECSPI2_SS0__UART4_DCE_RTS	0x0140 // CON11_15 {{external-uart4-hf-15}}
+//			MX8MP_IOMUXC_NAND_DATA02__UART4_DCE_CTS	0x0140 // CON12_10 {{external-uart4-hf-44}}
+//			MX8MP_IOMUXC_NAND_DATA03__UART4_DCE_RTS	0x0140 // CON12_12 {{external-uart4-hf-46}}
+//		>;			// {{required-by-uart4}}
+//	};				// {{required-by-uart4}}
+};
+
+//&flexcan1 {					// {{required-by-can1}}
+//	pinctrl-names = "default";		// {{required-by-can1}} {{can1/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_can1>;		// {{required-by-can1}} {{can1/pinctrl-0 = <val>}}
+//	status = "okay";			// {{required-by-can1}} {{can1/status = "val"}}
+//};						// {{required-by-can1}}
+
+//&flexcan2 {					// {{required-by-can2}}
+//	pinctrl-names = "default";		// {{required-by-can2}} {{can2/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_can2>;		// {{required-by-can2}} {{can2/pinctrl-0 = <val>}}
+//	status = "okay";			// {{required-by-can2}} {{can2/status = "val"}}
+//};						// {{required-by-can2}}
+
+//&ecspi1 {					// {{required-by-ecspi1}}
+//	pinctrl-names = "default";		// {{required-by-ecspi1}} {{ecspi1/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_ecspi1>;		// {{required-by-ecspi1}} {{ecspi1/pinctrl-0 = <val>}}
+//	cs-gpios = <&gpio5 9 GPIO_ACTIVE_LOW>;	// CS0 {{required-by-ecspi1}}
+//	status = "okay";			// {{required-by-ecspi1}} {{ecspi1/status = "val"}}
+//	spidev1_0: spi@0 {			// {{required-by-ecspi1}}
+//		compatible = "spidev";		// {{required-by-ecspi1}} {{ecspi1/spi@0/compatible = "val"}}
+//		reg = <0>;			// {{required-by-ecspi1}} {{ecspi1/spi@0/reg = <val>}}
+//		spi-max-frequency = <5000000>;	// {{required-by-ecspi1}} {{ecspi1/spi@0/spi-max-frequency = <val>}}
+//	};					// {{required-by-ecspi1}}
+//};						// {{required-by-ecspi1}}
+
+//&ecspi2 {					// {{required-by-ecspi2}}
+//	pinctrl-names = "default";		// {{required-by-ecspi2}} {{ecspi2/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_ecspi2>;		// {{required-by-ecspi2}} {{ecspi2/pinctrl-0 = <val>}}
+//	cs-gpios = <&gpio5 13 GPIO_ACTIVE_LOW>;	// CS0 {{required-by-ecspi2}}
+//	status = "okay";			// {{required-by-ecspi2}} {{ecspi2/status = "val"}}
+//	spidev2_0: spi@0 {			// {{required-by-ecspi2}}
+//		compatible = "spidev";		// {{required-by-ecspi2}} {{ecspi2/spi@0/compatible = "val"}}
+//		reg = <0>;			// {{required-by-ecspi2}} {{ecspi2/spi@0/reg = <val>}}
+//		spi-max-frequency = <5000000>;	// {{required-by-ecspi2}} {{ecspi2/spi@0/spi-max-frequency = <val>}}
+//	};					// {{required-by-ecspi2}}
+//};						// {{required-by-ecspi2}}
+
+//&i2c5 {				// {{required-by-i2c5}}
+//	pinctrl-names = "default";	// {{required-by-i2c5}} {{i2c5/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_i2c5>;	// {{required-by-i2c5}} {{i2c5/pinctrl-0 = <val>}}
+//	clock-frequency = <100000>;	// {{required-by-i2c5}} {{i2c5/clock-frequency = <val>}}
+//	status = "okay";		// {{required-by-i2c5}} {{i2c5/status = "val"}}
+//};					// {{required-by-i2c5}}
+
+//&i2c6 {				// {{required-by-i2c6}}
+//	pinctrl-names = "default";	// {{required-by-i2c6}} {{i2c6/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_i2c6>;	// {{required-by-i2c6}} {{i2c6/pinctrl-0 = <val>}}
+//	clock-frequency = <100000>;	// {{required-by-i2c6}} {{i2c6/clock-frequency = <val>}}
+//	status = "okay";		// {{required-by-i2c6}} {{i2c6/status = "val"}}
+//};					// {{required-by-i2c6}}
+
+//&pwm1 {				// {{required-by-pwm1}}
+//	pinctrl-names = "default";	// {{required-by-pwm1}} {{pwm1/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_pwm1>;	// {{required-by-pwm1}} {{pwm1/pinctrl-0 = <val>}}
+//	status = "okay";		// {{required-by-pwm1}} {{pwm1/status = "val"}}
+//};					// {{required-by-pwm1}}
+
+//&pwm2 {				// {{required-by-pwm2}}
+//	pinctrl-names = "default";	// {{required-by-pwm2}} {{pwm2/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_pwm2>;	// {{required-by-pwm2}} {{pwm2/pinctrl-0 = <val>}}
+//	status = "okay";		// {{required-by-pwm2}} {{pwm2/status = "val"}}
+//};					// {{required-by-pwm2}}
+
+//&pwm3 {				// {{required-by-pwm3}}
+//	pinctrl-names = "default";	// {{required-by-pwm3}} {{pwm3/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_pwm3>;	// {{required-by-pwm3}} {{pwm3/pinctrl-0 = <val>}}
+//	status = "okay";		// {{required-by-pwm3}} {{pwm3/status = "val"}}
+//};					// {{required-by-pwm3}}
+
+//&pwm4 {				// {{required-by-pwm4}}
+//	pinctrl-names = "default";	// {{required-by-pwm4}} {{pwm4/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_pwm4>;	// {{required-by-pwm4}} {{pwm4/pinctrl-0 = <val>}}
+//	status = "okay";		// {{required-by-pwm4}} {{pwm4/status = "val"}}
+//};					// {{required-by-pwm4}}
+
+//&uart3 {				// {{required-by-uart3}}
+//	pinctrl-names = "default";	// {{required-by-uart3}} {{uart3/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_uart3>;	// {{required-by-uart3}} {{uart3/pinctrl-0 = <val>}}
+//	uart-has-rtscts;		// {{required-by-uart3-hf}}
+//	status = "okay";		// {{required-by-uart3}} {{uart3/status = "val"}}
+//};					// {{required-by-uart3}}
+
+//&uart4 {				// {{required-by-uart4}}
+//	pinctrl-names = "default";	// {{required-by-uart4}} {{uart4/pinctrl-names = "val"}}
+//	pinctrl-0 = <&pinctrl_uart4>;	// {{required-by-uart4}} {{uart4/pinctrl-0 = <val>}}
+//	uart-has-rtscts;		// {{required-by-uart4-hf}}
+//	status = "okay";		// {{required-by-uart4}} {{uart4/status = "val"}}
+//};					// {{required-by-uart4}}
+
+/ {
+	/* DUMMY_NODES_START */
+	can1 {
+		status = "disabled";
+	};
+
+	can2 {
+		status = "disabled";
+	};
+
+	ecspi1 {
+		status = "disabled";
+	};
+
+	ecspi2 {
+		status = "disabled";
+	};
+
+	i2c5 {
+		status = "disabled";
+	};
+
+	i2c6 {
+		status = "disabled";
+	};
+
+	pwm1 {
+		status = "disabled";
+	};
+
+	pwm2 {
+		status = "disabled";
+	};
+
+	pwm3 {
+		status = "disabled";
+	};
+
+	pwm4 {
+		status = "disabled";
+	};
+
+	uart3 {
+		status = "disabled";
+	};
+
+	uart3-hf {
+		status = "disabled";
+	};
+
+	uart4 {
+		status = "disabled";
+	};
+
+	uart4-hf {
+		status = "disabled";
+	};
+	/* DUMMY_NODES_END */
+};
