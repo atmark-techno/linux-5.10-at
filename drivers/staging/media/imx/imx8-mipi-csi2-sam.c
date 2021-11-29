@@ -965,6 +965,12 @@ static void disp_mix_gasket_config(struct csi_state *state)
 	case MEDIA_BUS_FMT_VYUY8_2X8:
 		fmt_val = GASKET_0_CTRL_DATA_TYPE_YUV422_8;
 		break;
+	case MEDIA_BUS_FMT_YUYV8_1X16:
+	case MEDIA_BUS_FMT_YVYU8_1X16:
+	case MEDIA_BUS_FMT_UYVY8_1X16:
+	case MEDIA_BUS_FMT_VYUY8_1X16:
+		fmt_val = GASKET_0_CTRL_DATA_TYPE_YUV422_8;
+		break;
 	case MEDIA_BUS_FMT_SBGGR8_1X8:
 		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW8;
 		break;
