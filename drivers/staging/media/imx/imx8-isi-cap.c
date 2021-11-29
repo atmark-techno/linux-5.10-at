@@ -246,7 +246,9 @@ struct mxc_isi_fmt *mxc_isi_get_src_fmt(struct v4l2_subdev_format *sd_fmt)
 	    sd_fmt->format.code == MEDIA_BUS_FMT_YVYU8_2X8 ||
 	    sd_fmt->format.code == MEDIA_BUS_FMT_AYUV8_1X32 ||
 	    sd_fmt->format.code == MEDIA_BUS_FMT_UYVY8_2X8 ||
-	    sd_fmt->format.code == MEDIA_BUS_FMT_YUYV8_2X8)
+	    sd_fmt->format.code == MEDIA_BUS_FMT_YUYV8_2X8 ||
+	    sd_fmt->format.code == MEDIA_BUS_FMT_YVYU8_1X16 ||
+	    sd_fmt->format.code == MEDIA_BUS_FMT_UYVY8_1X16)
 		index = 1;
 	else if(sd_fmt->format.code == MEDIA_BUS_FMT_SBGGR8_1X8 ||
 		sd_fmt->format.code == MEDIA_BUS_FMT_SGBRG8_1X8 ||
