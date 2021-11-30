@@ -1,0 +1,107 @@
+/*
+ * Copyright (C) 2021 Atmark Techno, Inc. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: (GPL-2.0 OR MIT)
+ */
+
+/ {
+	reg_1p2v: regulator-1p2v {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_imx219_pwn>;
+		regulator-name = "1P2V";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		gpio = <&gpio3 6 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
+&i2c2 {
+	raspi_camera_module_v2: imx219_mipi@10 {
+		compatible = "sony,imx219";
+
+		reg = <0x10>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&raspi_camera_module_v2_clk>;
+		clock-names = "csi_mclk";
+
+		/* reset-gpios = <&gpio3 6 GPIO_ACTIVE_HIGH>; */
+
+		/* dummy regulator for raspi camera module v2 */
+		VDIG-supply = <&reg_1p8v>; /* 1.8v */
+		VANA-supply = <&reg_2p8v>; /* 2.8v */
+		VDDL-supply = <&reg_1p2v>; /* 1.2v */
+
+		csi_id = <0>;
+		mclk = <24000000>; /* mipi_clk = 24MHz / 3 * 90 = 720 MHz */
+		mclk_source = <0>;
+		mipi_csi;
+		status = "okay";
+
+		raspi_camera_module_v2_clk: camera-clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <24000000>;
+		};
+
+		port {
+			imx219_mipi_0_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+				link-frequencies = /bits/ 64 <456000000>;
+			};
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl_imx219_pwn: imx219_pwn_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_NAND_DATA00__GPIO3_IO06	0x40000100
+		>;
+	};
+};
+
+&mipi_csi_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&imx219_mipi_0_ep>;
+			data-lanes = <2>;
+			csis-hs-settle = <13>;
+			csis-clk-settle = <2>;
+			csis-wclk;
+		};
+	};
+};
+
+&cameradev {
+	status = "okay";
+};
+
+&isi_0 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+
+	m2m_device {
+		status = "okay";
+	};
+};
+
+&isp_0 {
+	status = "okay";
+};
+
+&dewarp {
+	status = "okay";
+};
