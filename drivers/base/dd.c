@@ -669,6 +669,8 @@ static int really_probe_debug(struct device *dev, struct device_driver *drv)
 	ktime_t calltime, rettime;
 	int ret;
 
+	pr_debug("probing %s...\n",
+		 dev_name(dev));
 	calltime = ktime_get();
 	ret = really_probe(dev, drv);
 	rettime = ktime_get();
