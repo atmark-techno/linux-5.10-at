@@ -1042,3 +1042,19 @@
 &A53_3 {
         cpu-supply = <&buck2>;
 };
+
+&cpu_alert0 {
+	temperature = <95000>;
+};
+
+&cpu_crit0 {
+	temperature = <105000>;
+};
+
+&soc_alert0 {
+	temperature = <95000>;
+};
+
+&soc_crit0 {
+	temperature = <105000>;
+};
