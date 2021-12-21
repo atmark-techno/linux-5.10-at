@@ -17,7 +17,6 @@
  *             You should have received a copy of the GNU General Public License
  *             along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/errno.h>
@@ -1247,7 +1246,7 @@ static void ox01f10_power_off(struct ox01f10 *priv)
 {
 	struct ox01f10_power_rail *pw = priv->power;
 
-	dev_dbg(&priv->i2c_client->dev, "%s: power on\n", __func__);
+	dev_dbg(&priv->i2c_client->dev, "%s: power off\n", __func__);
 
 	/* XSHUTDOWN LO */
 	ox01f10_reset_gpio(priv->power->pwdn_gpio, 0);
