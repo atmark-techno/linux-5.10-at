@@ -1225,19 +1225,32 @@ static int ox01f10_regmap_util_write_table_8(struct regmap *regmap,
  * @param[in]   *priv    : ox01f10 driver info
  * @return      void
  */
-static void ox01f10_power_on(struct ox01f10 *priv)
+static int ox01f10_power_on(struct ox01f10 *priv)
 {
 	struct ox01f10_power_rail *pw = priv->power;
+	int err;
 
 	if (pw->state == SWITCH_ON)
-		return;
+		return 0;
 
 	dev_dbg(&priv->i2c_client->dev, "%s: power on\n", __func__);
 
 	/* XSHUTDOWN HI */
 	ox01f10_reset_gpio(priv->power->pwdn_gpio, 1);
 
+	err = ox01f10_write_table(priv, ox01f10_mode_table[OX01F10_DEFAULT_MODE]);
+	if (err)
+		goto error;
+
 	pw->state = SWITCH_ON;
+
+	return 0;
+
+error:
+	/* XSHUTDOWN LO */
+	ox01f10_reset_gpio(priv->power->pwdn_gpio, 0);
+
+	return err;
 }
 
 /**
@@ -1245,12 +1258,12 @@ static void ox01f10_power_on(struct ox01f10 *priv)
  * @param[in]   *priv    : ox01f10 driver info
  * @return      void
  */
-static void ox01f10_power_off(struct ox01f10 *priv)
+static int ox01f10_power_off(struct ox01f10 *priv)
 {
 	struct ox01f10_power_rail *pw = priv->power;
 
 	if (pw->state == SWITCH_OFF)
-		return;
+		return 0;
 
 	dev_dbg(&priv->i2c_client->dev, "%s: power off\n", __func__);
 
@@ -1258,6 +1271,8 @@ static void ox01f10_power_off(struct ox01f10 *priv)
 	ox01f10_reset_gpio(priv->power->pwdn_gpio, 0);
 
 	pw->state = SWITCH_OFF;
+
+	return 0;
 }
 
 /**
@@ -1431,13 +1446,14 @@ static struct v4l2_subdev_video_ops ox01f10_subdev_video_ops = {
 static int ox01f10_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct ox01f10 *priv = to_ox01f10(sd);
+	int err;
 
 	if (on)
-		ox01f10_power_on(priv);
+		err = ox01f10_power_on(priv);
 	else
-		ox01f10_power_off(priv);
+		err = ox01f10_power_off(priv);
 
-	return 0;
+	return err;
 }
 
 static struct v4l2_subdev_core_ops ox01f10_subdev_core_ops = {
@@ -1843,10 +1859,6 @@ static int ox01f10_probe(struct i2c_client *client,
 		dev_err(&client->dev, "v4l2_async_register_subdev failed\n");
 		goto err_me;
 	}
-	
-	err = ox01f10_write_table(priv, ox01f10_mode_table[OX01F10_DEFAULT_MODE]);
-	if (err)
-		goto err_me;
 	
 	return 0;
 	
