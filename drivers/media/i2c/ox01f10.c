@@ -1229,6 +1229,9 @@ static void ox01f10_power_on(struct ox01f10 *priv)
 {
 	struct ox01f10_power_rail *pw = priv->power;
 
+	if (pw->state == SWITCH_ON)
+		return;
+
 	dev_dbg(&priv->i2c_client->dev, "%s: power on\n", __func__);
 
 	/* XSHUTDOWN HI */
@@ -1245,6 +1248,9 @@ static void ox01f10_power_on(struct ox01f10 *priv)
 static void ox01f10_power_off(struct ox01f10 *priv)
 {
 	struct ox01f10_power_rail *pw = priv->power;
+
+	if (pw->state == SWITCH_OFF)
+		return;
 
 	dev_dbg(&priv->i2c_client->dev, "%s: power off\n", __func__);
 
