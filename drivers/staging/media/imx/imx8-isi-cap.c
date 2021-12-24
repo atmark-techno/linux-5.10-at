@@ -787,6 +787,7 @@ static bool is_entity_link_setup(struct mxc_isi_cap_dev *isi_cap)
 {
 	struct video_device *vdev = &isi_cap->vdev;
 	struct v4l2_subdev *csi_sd, *sen_sd;
+	int ret;
 
 	if (!vdev->entity.num_links || !isi_cap->sd.entity.num_links)
 		return false;
@@ -802,6 +803,14 @@ static bool is_entity_link_setup(struct mxc_isi_cap_dev *isi_cap)
 	sen_sd = mxc_get_remote_subdev(csi_sd, __func__);
 	if (!sen_sd || !sen_sd->entity.num_links)
 		return false;
+
+	/* Add all controls from sensor subdev */
+	ret = v4l2_ctrl_add_handler(&isi_cap->ctrls.handler, sen_sd->ctrl_handler,
+				    NULL, true);
+	if (ret < 0) {
+		dev_err(&isi_cap->pdev->dev, "add sensor ctrl handler failed\n");
+		return false;
+	}
 
 	return true;
 }
