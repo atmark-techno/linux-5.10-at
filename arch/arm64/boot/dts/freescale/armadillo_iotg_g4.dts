@@ -44,6 +44,7 @@
 		gpio = <&gpio2 19 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-always-on;
+		off-on-delay-us = <100000>;
 	};
 
 	reg_enet_ldo_en: regulator-enet-ldo-en {
