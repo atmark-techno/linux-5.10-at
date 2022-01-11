@@ -2528,6 +2528,32 @@ DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b42, quirk_disable_all_msi
 DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b43, quirk_disable_all_msi);
 DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b44, quirk_disable_all_msi);
 
+/*
+ * Suspend/Resume fails when connecting some PCIe devices to i.MX8 DWC
+ * PCIe RC.
+ */
+static void quirk_imx8_disable_all_msi(struct pci_dev *dev)
+{
+	struct pci_dev *host_bridge;
+
+	host_bridge = pci_get_domain_bus_and_slot(pci_domain_nr(dev->bus), 0,
+						  PCI_DEVFN(0, 0));
+	if (host_bridge) {
+		if (host_bridge->vendor == PCI_VENDOR_ID_SYNOPSYS &&
+		    host_bridge->device == 0xabcd) {
+			pci_no_msi();
+			pci_warn(dev, "i.MX8 quirk detected; MSI disabled\n");
+		}
+		pci_dev_put(host_bridge);
+	}
+}
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_ATHEROS, 0x0030, quirk_imx8_disable_all_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_ATHEROS, 0x0032, quirk_imx8_disable_all_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_ATHEROS, 0x003c, quirk_imx8_disable_all_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_ATHEROS, 0x0033, quirk_imx8_disable_all_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_ATHEROS, 0x0034, quirk_imx8_disable_all_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_ATHEROS, 0x003e, quirk_imx8_disable_all_msi);
+
 /* Disable MSI on chipsets that are known to not support it */
 static void quirk_disable_msi(struct pci_dev *dev)
 {
