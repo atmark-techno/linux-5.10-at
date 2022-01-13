@@ -3283,10 +3283,13 @@ gckOS_AllocatePagedMemory(
     status = gcvSTATUS_OK;
 
 OnError:
-    if (gcmIS_ERROR(status) && mdl)
+    if (gcmIS_ERROR(status))
     {
+        pr_warn_ratelimited("%s: allocation attempts failed (Os=%p, Flag=%x, bytes=%zx)\n",
+                            __func__, Os, Flag, bytes);
         /* Free the memory. */
-        _DestroyMdl(mdl);
+        if (mdl)
+                _DestroyMdl(mdl);
     }
 
     /* Return the status. */
