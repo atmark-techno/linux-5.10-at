@@ -538,7 +538,12 @@
 
 &iomuxc {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_hog>;
+	pinctrl-0 = <
+		&pinctrl_hog
+#ifdef ARMADILLO_IOTG_G4_AT_DTWEB
+		&pinctrl_expansion_interfacehog
+#endif
+	>;
 
 	pinctrl_hog: hoggrp {
 		fsl,pins = <
