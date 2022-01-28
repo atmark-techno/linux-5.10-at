@@ -14,6 +14,17 @@
 
 #include "card.h"
 
+static void quirk_disable_cqe(struct mmc_card *card, int data)
+{
+	dev_info(&card->dev, "quirk: disabling CQE usage\n");
+	card->host->caps2 &= ~MMC_CAP2_CQE;
+	if (card->host->cqe_ops && card->host->cqe_enabled) {
+		card->host->cqe_ops->cqe_disable(card->host);
+		card->host->cqe_enabled = false;
+	}
+	card->host->cqe_ops = NULL;
+}
+
 static const struct mmc_fixup __maybe_unused mmc_blk_fixups[] = {
 #define INAND_CMD38_ARG_EXT_CSD  113
 #define INAND_CMD38_ARG_ERASE    0x00
@@ -98,6 +109,9 @@ static const struct mmc_fixup __maybe_unused mmc_blk_fixups[] = {
 		  MMC_QUIRK_TRIM_BROKEN),
 	MMC_FIXUP("V10016", CID_MANFID_KINGSTON, CID_OEMID_ANY, add_quirk_mmc,
 		  MMC_QUIRK_TRIM_BROKEN),
+
+	/* CQHCI misbehaves with this card */
+	MMC_FIXUP("S0J56X", CID_MANFID_MICRON, 0x14e, quirk_disable_cqe, 0),
 
 	END_FIXUP
 };
