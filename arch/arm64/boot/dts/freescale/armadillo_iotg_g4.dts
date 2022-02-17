@@ -173,7 +173,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_gpio_keys>;
 
-		sw1 {
+		gpio_keys_sw1: sw1 {
 			label = "SW1";
 			gpios = <&gpio1 13 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_PROG1>;

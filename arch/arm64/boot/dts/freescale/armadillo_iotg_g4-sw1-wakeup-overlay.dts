@@ -1,0 +1,10 @@
+/dts-v1/;
+/plugin/;
+/ {
+	fragment@0 {
+		target = <&gpio_keys_sw1>;
+		__overlay__ {
+			wakeup-source;
+		};
+	};
+};
