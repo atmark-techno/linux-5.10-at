@@ -89,6 +89,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_DA732X
 	imply SND_SOC_DA9055
 	imply SND_SOC_DMIC
+	imply SND_SOC_EC25
 	imply SND_SOC_ES8316
 	imply SND_SOC_ES8328_SPI
 	imply SND_SOC_ES8328_I2C
@@ -769,6 +770,14 @@ config SND_SOC_HDMI_CODEC
 	select SND_PCM_ELD
 	select SND_PCM_IEC958
 	select HDMI
+
+config SND_SOC_EC25
+	tristate "Quectel EC25 CODEC"
+	depends on OF
+	help
+	  Enable support for EC25 PCM Interface. Only the EC25 default
+	  settings are applicable. It does not work if the
+	  configuration is changed by executing AT + QDAI command.
 
 config SND_SOC_ES7134
        tristate "Everest Semi ES7134 CODEC"
