@@ -519,6 +519,10 @@ static const struct csis_pix_format mipi_csis_formats[] = {
 		.code = MEDIA_BUS_FMT_SRGGB12_1X12,
 		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
 		.data_alignment = 16,
+	}, {
+		.code = MEDIA_BUS_FMT_Y8_1X8,
+		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+		.data_alignment = 8,
 	},
 };
 
@@ -1007,6 +1011,9 @@ static void disp_mix_gasket_config(struct csi_state *state)
 	case MEDIA_BUS_FMT_SRGGB12_1X12:
 		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW12;
 		break;
+	case MEDIA_BUS_FMT_Y8_1X8:
+		fmt_val = GASKET_0_CTRL_DATA_TYPE_RAW8;
+		break;
 	default:
 		pr_err("gasket not support format %d\n", fmt->code);
 		return;
@@ -1362,6 +1369,9 @@ static int csis_s_fmt(struct v4l2_subdev *sd, struct csi_sam_format *fmt)
 	    break;
 	case V4L2_PIX_FMT_SRGGB12:
 	    code = MEDIA_BUS_FMT_SRGGB12_1X12;
+	    break;
+	case V4L2_PIX_FMT_GREY:
+	    code = MEDIA_BUS_FMT_Y8_1X8;
 	    break;
 	default:
 		return -EINVAL;

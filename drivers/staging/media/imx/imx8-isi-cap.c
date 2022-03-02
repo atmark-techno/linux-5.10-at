@@ -172,6 +172,14 @@ struct mxc_isi_fmt mxc_isi_out_formats[] = {
 		.memplanes	= 1,
 		.colplanes	= 1,
 		.mbus_code	= MEDIA_BUS_FMT_SRGGB10_1X10,
+	}, {
+		.name		= "GREY8",
+		.fourcc		= V4L2_PIX_FMT_GREY,
+		.depth		= { 8 },
+		.color		= MXC_ISI_OUT_FMT_RAW8,
+		.memplanes	= 1,
+		.colplanes	= 1,
+		.mbus_code	= MEDIA_BUS_FMT_Y8_1X8,
 	}
 };
 
@@ -201,6 +209,12 @@ struct mxc_isi_fmt mxc_isi_src_formats[] = {
 		.name		= "BGGR10",
 		.fourcc		= V4L2_PIX_FMT_SBGGR10,
 		.depth		= { 16 },
+		.memplanes	= 1,
+		.colplanes	= 1,
+	}, {
+		.name		= "GREY8",
+		.fourcc		= V4L2_PIX_FMT_GREY,
+		.depth		= { 8 },
 		.memplanes	= 1,
 		.colplanes	= 1,
 	}
@@ -260,6 +274,8 @@ struct mxc_isi_fmt *mxc_isi_get_src_fmt(struct v4l2_subdev_format *sd_fmt)
 		sd_fmt->format.code == MEDIA_BUS_FMT_SGRBG10_1X10 ||
 		sd_fmt->format.code == MEDIA_BUS_FMT_SRGGB10_1X10)
 		index = 3;
+	else if(sd_fmt->format.code == MEDIA_BUS_FMT_Y8_1X8)
+		index = 4;
 	else
 		index = 0;
 	return &mxc_isi_src_formats[index];
@@ -1079,6 +1095,7 @@ static int mxc_isi_source_fmt_init(struct mxc_isi_cap_dev *isi_cap)
 	case MEDIA_BUS_FMT_SGBRG10_1X10:
 	case MEDIA_BUS_FMT_SGRBG10_1X10:
 	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_Y8_1X8:
 		src_fmt.format.code = dst_f->fmt->mbus_code;
 		break;
 	default:
