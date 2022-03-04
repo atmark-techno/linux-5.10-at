@@ -178,6 +178,18 @@
 			gpios = <&gpio1 13 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_PROG1>;
 		};
+
+		pwroff {
+			label = "PWROFF";
+			gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_POWER>;
+		};
+
+		reboot {
+			label = "REBOOT";
+			gpios = <&gpio1 5 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
 	};
 
 	leds {
@@ -199,6 +211,22 @@
 			label = "enet1_led3";
 			gpios = <&gpio4 20 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "30be0000.ethernet-1:03:1Gbps";
+		};
+
+		fw_update_ind {
+			label = "FW_UPDATE_IND";
+			gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>;
+		};
+
+		pwr_ind {
+			label = "PWR_IND";
+			gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		stdwn_ind {
+			label = "STDWN_IND";
+			gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
@@ -558,7 +586,11 @@
 	 * 0x2/6 = stronger driving field
 	 *  0x10 = fast slew rate
 	 *  0x40 = pull up
+	 *  0x80 = schmitt trigger input
 	 * 0x100 = pull enable
+	 * 0x40000000 = SION enable
+         *
+         * SION = able to get input value of gpio regardless its mux setting
 	 */
 	pinctrl_eqos: eqosgrp {
 		fsl,pins = <
@@ -691,6 +723,8 @@
 	pinctrl_gpio_keys: gpio_keys {
 		fsl,pins = <
                         MX8MP_IOMUXC_GPIO1_IO13__GPIO1_IO13     0x400001c0 /* SW1 */
+                        MX8MP_IOMUXC_GPIO1_IO01__GPIO1_IO01     0x400001c0 /* PWROFF */
+                        MX8MP_IOMUXC_GPIO1_IO05__GPIO1_IO05     0x400001c0 /* REBOOT */
                 >;
 	};
 
