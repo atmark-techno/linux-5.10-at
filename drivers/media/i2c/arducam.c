@@ -534,7 +534,7 @@ static int arducam_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	return 0;
 }
 
-static int arducam_set_ctrl(struct v4l2_ctrl *ctrl)
+static int __maybe_unused arducam_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct arducam *arducam =
 		container_of(ctrl->handler, struct arducam, ctrl_handler);
@@ -605,7 +605,7 @@ static const struct v4l2_ctrl_ops arducam_ctrl_ops = {
 };
 
 
-static int arducam_enum_mbus_code(struct v4l2_subdev *sd,
+static int __maybe_unused arducam_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
@@ -633,7 +633,7 @@ static int arducam_csi2_enum_mbus_code(
 	return 0;
 }
 
-static int arducam_enum_frame_size(struct v4l2_subdev *sd,
+static int __maybe_unused arducam_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
@@ -687,7 +687,6 @@ static int arducam_csi2_enum_frame_interval(
 	struct v4l2_subdev_frame_interval_enum *fie)
 {
 	int i;
-	int resolution_index = 0;
 	struct arducam *priv = to_arducam(sd);
 	struct arducam_format *supported_formats = priv->supported_formats;
 	int num_supported_formats = priv->num_supported_formats;
@@ -727,10 +726,10 @@ static int arducam_csi2_get_fmt(struct v4l2_subdev *sd,
 								struct v4l2_subdev_format *format)
 {
 	struct arducam *priv = to_arducam(sd);
-	
+	struct arducam_format *current_format;
 	
 	mutex_lock(&priv->mutex);
-	struct arducam_format *current_format = 
+	current_format =
 		&priv->supported_formats[priv->current_format_idx];
 	format->format.width =
 		current_format->resolution_set[priv->current_resolution_idx].width;
@@ -747,7 +746,7 @@ static int arducam_csi2_get_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int arducam_set_pad_format(struct v4l2_subdev *sd,
+static int __maybe_unused arducam_set_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_format *fmt)
 {
@@ -842,8 +841,6 @@ static int arducam_csi2_set_fmt(struct v4l2_subdev *sd,
 /* Start streaming */
 static int arducam_start_streaming(struct arducam *arducam)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(&arducam->sd);
-	const struct arducam_reg_list *reg_list;
 	int ret;
 	/* Apply customized values from user */
 	ret =  __v4l2_ctrl_handler_setup(arducam->sd.ctrl_handler);
@@ -1027,7 +1024,7 @@ static const struct v4l2_subdev_internal_ops arducam_internal_ops = {
 };
 
 /* Initialize control handlers */
-static int arducam_init_controls(struct arducam *arducam)
+static int __maybe_unused arducam_init_controls(struct arducam *arducam)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&arducam->sd);
 	struct v4l2_ctrl_handler *ctrl_hdlr;
@@ -1430,7 +1427,6 @@ static int arducam_enum_controls(struct arducam *priv)
 {
 	int ret;
 	int index = 0;
-	int i = 0;
 	int num_ctrls = 0;
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	u32 id, min, max, def, step;
@@ -1446,7 +1442,7 @@ static int arducam_enum_controls(struct arducam *priv)
 	ret = v4l2_ctrl_handler_init(ctrl_hdlr, num_ctrls);
 	if(ret)
 		return ret;
-	  v4l2_dbg(1, debug, priv->client, "v4l2_ctrl_handler_init successfully\n",
+	  v4l2_dbg(1, debug, priv->client, "%s: v4l2_ctrl_handler_init successfully\n",
 				__func__);
 	index = 0;
 	while (1) {
