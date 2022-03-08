@@ -111,8 +111,8 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4.dtb
 DTC_FLAGS_armadillo_iotg_g4 := -@
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-at-dtweb.dtb
 DTC_FLAGS_armadillo_iotg_g4-at-dtweb := -@
-dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-nousb-overlay.dtb
-dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-sw1-wakeup-overlay.dtb
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-nousb.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-sw1-wakeup.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-arducam.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb imx8mq-evk-rpmsg.dtb imx8mq-evk-pcie1-m2.dtb imx8mq-evk-usd-wifi.dtb \
 			  imx8mq-evk-usdhc2-m2.dtb
