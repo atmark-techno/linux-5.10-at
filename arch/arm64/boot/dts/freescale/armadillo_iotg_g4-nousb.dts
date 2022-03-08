@@ -1,10 +1,6 @@
 /dts-v1/;
 /plugin/;
-/ {
-	fragment@0 {
-		target = <&reg_usb1_host_vbus>;
-		__overlay__ {
-			status = "broken";
-		};
-	};
+
+&reg_usb1_host_vbus {
+	status = "broken";
 };
