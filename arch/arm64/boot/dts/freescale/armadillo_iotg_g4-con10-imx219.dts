@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: (GPL-2.0 OR MIT)
  */
 
-/ {
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx8mp-pinfunc.h"
+
+&{/} {
 	reg_1p2v: regulator-1p2v {
 		compatible = "regulator-fixed";
 		pinctrl-names = "default";
@@ -18,6 +24,9 @@
 };
 
 &i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
 	raspi_camera_module_v2: imx219_mipi@10 {
 		compatible = "sony,imx219";
 

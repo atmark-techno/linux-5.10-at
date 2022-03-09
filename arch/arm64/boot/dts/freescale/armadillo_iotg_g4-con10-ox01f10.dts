@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: (GPL-2.0 OR MIT)
  */
 
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+#include "imx8mp-pinfunc.h"
+
 &i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
 	ox01f10_cam0: rbpcv2_ox01f10@36 {
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ox01f10_pwn>;
