@@ -1,0 +1,139 @@
+/*
+ * Copyright (C) 2022 Atmark Techno, Inc. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: (GPL-2.0 OR MIT)
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/input/input.h>
+
+#include "imx8mp-pinfunc.h"
+
+&{/} {
+	reg_ec25_vbat: regulator-ec25-vbat {
+		compatible = "regulator-fixed";
+		regulator-name = "ec25_vbat";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ec25_vbat>;
+		regulator-min-microvolt = <3800000>;
+		regulator-max-microvolt = <3800000>;
+		gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		off-on-delay = <100000>;
+		startup-delay-us = <500>;
+	};
+
+	ec25_reset: ec25-reset {
+		compatible = "ec25-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ec25_reset>;
+		pwrkey-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio3 20 GPIO_ACTIVE_HIGH>;
+		status-gpios = <&gpio5 2 GPIO_ACTIVE_HIGH>;
+		vbus-gpios = <&gpio3 19 GPIO_ACTIVE_HIGH>;
+		vbat-supply = <&reg_ec25_vbat>;
+		vbus-active-low;
+	};
+
+	codec: ec25 {
+		#sound-dai-cells = <0>;
+		compatible = "quectel,ec25";
+	};
+
+	sound-ec25 {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "Quectel EC25";
+		simple-audio-card,format = "dsp_a";
+		simple-audio-card,frame-master = <&ec25codec>;
+		simple-audio-card,bitclock-master = <&ec25codec>;
+
+		ec25cpu: simple-audio-card,cpu {
+			sound-dai = <&sai3>;
+		};
+
+		ec25codec: simple-audio-card,codec {
+			sound-dai = <&codec>;
+			system-clock-frequency = <2048000>;
+			system-clock-direction-out;
+		};
+	};
+
+	gpio_keys_ec25: gpio-keys-ec25 {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_keys_ec25>;
+
+		ec25-ri {
+			label = "EC25-RI";
+			gpios = <&gpio3 23 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_PROG2>;
+			gpio-key,wakeup;
+		};
+	};
+};
+
+&uart4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart4>;
+	status = "okay";
+};
+
+&sai3 {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai3>;
+	assigned-clocks = <&clk IMX8MP_CLK_SAI3>;
+	assigned-clock-parents = <&clk IMX8MP_AUDIO_PLL1_OUT>;
+	assigned-clock-rates = <12288000>;
+	clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_IPG>, <&clk IMX8MP_CLK_DUMMY>,
+		 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_MCLK1>, <&clk IMX8MP_CLK_DUMMY>,
+		 <&clk IMX8MP_CLK_DUMMY>;
+	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3";
+	status = "okay";
+};
+
+&iomuxc {
+	pinctrl_uart4: uart4grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_ECSPI2_MISO__UART4_DCE_CTS	0x140 /* CON11_9 */
+			MX8MP_IOMUXC_ECSPI2_MOSI__UART4_DCE_TX	0x140 /* CON11_11 */
+			MX8MP_IOMUXC_ECSPI2_SCLK__UART4_DCE_RX	0x140 /* CON11_13 */
+			MX8MP_IOMUXC_ECSPI2_SS0__UART4_DCE_RTS	0x140 /* CON11_15 */
+		>;
+	};
+
+	pinctrl_ec25_vbat: ec25_vbat_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI5_RXD3__GPIO3_IO24	0x40000000 /* CON11_25 */
+		>;
+	};
+
+	pinctrl_ec25_reset: ec25_reset_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_GPIO1_IO15__GPIO1_IO15	0x40000000 /* CON11_24 pwerkey */
+			MX8MP_IOMUXC_SAI5_RXC__GPIO3_IO20	0x40000000 /* CON11_17 reset */
+			MX8MP_IOMUXC_SAI3_MCLK__GPIO5_IO02	0x140	   /* CON11_22 status */
+			MX8MP_IOMUXC_SAI5_RXFS__GPIO3_IO19	0x40000000 /* CON11_29 vbus */
+		>;
+	};
+
+
+	pinctrl_sai3: sai3grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_TXFS__AUDIOMIX_SAI3_TX_SYNC	0xd6 /* CON11_14 */
+			MX8MP_IOMUXC_SAI3_TXC__AUDIOMIX_SAI3_TX_BCLK	0xd6 /* CON11_16 */
+			MX8MP_IOMUXC_SAI3_TXD__AUDIOMIX_SAI3_TX_DATA00	0xd6 /* CON11_18 */
+			MX8MP_IOMUXC_SAI3_RXD__AUDIOMIX_SAI3_RX_DATA00	0xd6 /* CON11_20 */
+		>;
+	};
+
+	pinctrl_gpio_keys_ec25: gpio_keys_ec25 {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI5_RXD2__GPIO3_IO23	0x400001c0 /* CON11 23 */
+		>;
+	};
+};
