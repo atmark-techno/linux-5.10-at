@@ -541,6 +541,10 @@
 	cd-gpios = <&gpio2 12 GPIO_ACTIVE_LOW>;
 	vmmc-supply = <&reg_usdhc2_vmmc>;
 	bus-width = <4>;
+	/* SDR50/104 is not supported in order to comply with the VCCI
+	 * Class B Compliance (RF leakage at 1GHz when used in some case)
+	 */
+	sdhci-caps-mask = <0x3 0x0>;
 	status = "okay";
 };
 
