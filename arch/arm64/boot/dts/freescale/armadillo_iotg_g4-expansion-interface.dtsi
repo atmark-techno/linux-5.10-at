@@ -5,6 +5,9 @@
  */
 
 #include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/gpio/gpio.h>
+
+#include "imx8mp-pinfunc.h"
 
 &iomuxc {
 	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
@@ -99,39 +102,39 @@
 
 //	pinctrl_i2c5: i2c5grp {		// {{required-by-i2c5}}
 //		fsl,pins = <		// {{required-by-i2c5}}
-//			MX8MP_IOMUXC_SAI5_RXD0__I2C5_SCL	0x400001c3 // CON11_19 {{required-by-i2c5}}
-//			MX8MP_IOMUXC_SAI5_MCLK__I2C5_SDA	0x400001c3 // CON11_27 {{required-by-i2c5}}
+//			MX8MP_IOMUXC_SAI5_RXD0__I2C5_SCL	0x400000e2 // CON11_19 {{required-by-i2c5}}
+//			MX8MP_IOMUXC_SAI5_MCLK__I2C5_SDA	0x400000e2 // CON11_27 {{required-by-i2c5}}
 //		>;			// {{required-by-i2c5}}
 //	};				// {{required-by-i2c5}}
 
 //	pinctrl_i2c6: i2c6grp {		// {{required-by-i2c6}}
 //		fsl,pins = <		// {{required-by-i2c6}}
-//			MX8MP_IOMUXC_SAI5_RXFS__I2C6_SCL	0x400001c3 // CON11_29 {{required-by-i2c6}}
-//			MX8MP_IOMUXC_SAI5_RXC__I2C6_SDA		0x400001c3 // CON11_17 {{required-by-i2c6}}
+//			MX8MP_IOMUXC_SAI5_RXFS__I2C6_SCL	0x400000e2 // CON11_29 {{required-by-i2c6}}
+//			MX8MP_IOMUXC_SAI5_RXC__I2C6_SDA		0x400000e2 // CON11_17 {{required-by-i2c6}}
 //		>;			// {{required-by-i2c6}}
 //	};				// {{required-by-i2c6}}
 
 //	pinctrl_pwm1: pwm1grp {		// {{required-by-pwm1}}
 //		fsl,pins = <		// {{required-by-pwm1}}
-//			MX8MP_IOMUXC_SAI5_MCLK__PWM1_OUT	0x0186 // CON11_27 {{required-by-pwm1}}
+//			MX8MP_IOMUXC_SAI5_MCLK__PWM1_OUT	0x0116 // CON11_27 {{required-by-pwm1}}
 //		>;			// {{required-by-pwm1}}
 //	};				// {{required-by-pwm1}}
 
 //	pinctrl_pwm2: pwm2grp {		// {{required-by-pwm2}}
 //		fsl,pins = <		// {{required-by-pwm2}}
-//			MX8MP_IOMUXC_SAI5_RXD0__PWM2_OUT	0x0186 // CON11_19 {{required-by-pwm2}}
+//			MX8MP_IOMUXC_SAI5_RXD0__PWM2_OUT	0x0116 // CON11_19 {{required-by-pwm2}}
 //		>;			// {{required-by-pwm2}}
 //	};				// {{required-by-pwm2}}
 
 //	pinctrl_pwm3: pwm3grp {		// {{required-by-pwm3}}
 //		fsl,pins = <		// {{required-by-pwm3}}
-//			MX8MP_IOMUXC_SAI5_RXC__PWM3_OUT		0x0186 // CON11_17 {{required-by-pwm3}}
+//			MX8MP_IOMUXC_SAI5_RXC__PWM3_OUT		0x0116 // CON11_17 {{required-by-pwm3}}
 //		>;			// {{required-by-pwm3}}
 //	};				// {{required-by-pwm3}}
 
 //	pinctrl_pwm4: pwm4grp {		// {{required-by-pwm4}}
 //		fsl,pins = <		// {{required-by-pwm4}}
-//			MX8MP_IOMUXC_SAI5_RXFS__PWM4_OUT	0x0186 // CON11_29 {{required-by-pwm4}}
+//			MX8MP_IOMUXC_SAI5_RXFS__PWM4_OUT	0x0116 // CON11_29 {{required-by-pwm4}}
 //		>;			// {{required-by-pwm4}}
 //	};				// {{required-by-pwm4}}
 
@@ -169,6 +172,8 @@
 //};						// {{required-by-can2}}
 
 //&ecspi1 {					// {{required-by-ecspi1}}
+//	#address-cells = <1>;			// {{required-by-ecspi1}}
+//	#size-cells = <0>;			// {{required-by-ecspi1}}
 //	pinctrl-names = "default";		// {{required-by-ecspi1}} {{ecspi1/pinctrl-names = "val"}}
 //	pinctrl-0 = <&pinctrl_ecspi1>;		// {{required-by-ecspi1}} {{ecspi1/pinctrl-0 = <val>}}
 //	cs-gpios = <&gpio5 9 GPIO_ACTIVE_LOW>;	// CS0 {{required-by-ecspi1}}
@@ -181,6 +186,8 @@
 //};						// {{required-by-ecspi1}}
 
 //&ecspi2 {					// {{required-by-ecspi2}}
+//	#address-cells = <1>;			// {{required-by-ecspi2}}
+//	#size-cells = <0>;			// {{required-by-ecspi2}}
 //	pinctrl-names = "default";		// {{required-by-ecspi2}} {{ecspi2/pinctrl-names = "val"}}
 //	pinctrl-0 = <&pinctrl_ecspi2>;		// {{required-by-ecspi2}} {{ecspi2/pinctrl-0 = <val>}}
 //	cs-gpios = <&gpio5 13 GPIO_ACTIVE_LOW>;	// CS0 {{required-by-ecspi2}}

@@ -5,7 +5,6 @@
  */
 
 /dts-v1/;
+/plugin/;
 
-#define ARMADILLO_IOTG_G4_AT_DTWEB
-#include "armadillo_iotg_g4.dts"
 #include "armadillo_iotg_g4-expansion-interface.dtsi"
