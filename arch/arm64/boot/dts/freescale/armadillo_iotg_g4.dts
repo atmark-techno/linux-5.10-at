@@ -575,6 +575,7 @@
 #ifdef ARMADILLO_IOTG_G4_AT_DTWEB
 		&pinctrl_expansion_interfacehog
 #endif
+		&pinctrl_customize
 	>;
 
 	pinctrl_hog: hoggrp {
@@ -586,9 +587,14 @@
 		>;
 	};
 
+	pinctrl_customize: customizegrp {
+		/* empty group defined for easier customizing: override this for your pin configurations */
+	};
+
 	/* Memo for pinctrl config:
 	 * 0x2/6 = stronger driving field
 	 *  0x10 = fast slew rate
+	 *  0x20 = open drain enable
 	 *  0x40 = pull up
 	 *  0x80 = schmitt trigger input
 	 * 0x100 = pull enable
