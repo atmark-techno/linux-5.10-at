@@ -121,7 +121,6 @@
 		>;
 	};
 
-
 	pinctrl_sai3: sai3grp {
 		fsl,pins = <
 			MX8MP_IOMUXC_SAI3_TXFS__AUDIOMIX_SAI3_TX_SYNC	0xd6 /* CON11_14 */
