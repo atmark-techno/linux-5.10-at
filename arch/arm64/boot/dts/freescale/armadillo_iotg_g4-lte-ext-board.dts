@@ -50,6 +50,7 @@
 		simple-audio-card,format = "dsp_a";
 		simple-audio-card,frame-master = <&ec25codec>;
 		simple-audio-card,bitclock-master = <&ec25codec>;
+		simple-audio-card,bitclock-inversion;
 
 		ec25cpu: simple-audio-card,cpu {
 			sound-dai = <&sai3>;
