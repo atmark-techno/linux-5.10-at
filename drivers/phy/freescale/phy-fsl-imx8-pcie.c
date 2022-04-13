@@ -15,6 +15,8 @@
 
 #define IMX8MP_PCIE_PHY_CMN_REG020	0x80
 #define  PLL_ANA_LPF_R_SEL_FINE_0_4	0x04
+#define IMX8MP_PCIE_PHY_CMN_REG036	0xD8
+#define  PLL_PMS_SDIV_8_4		0x32
 #define IMX8MP_PCIE_PHY_CMN_REG061	0x184
 #define  ANA_PLL_CLK_OUT_TO_EXT_IO_EN	BIT(0)
 #define IMX8MP_PCIE_PHY_CMN_REG062	0x188
@@ -61,6 +63,14 @@
 #define  LN0_RX_CDR_FBB_FINE_G3_G4	0x53
 #define IMX8MP_PCIE_PHY_TRSV_REG206	0x738
 #define  LN0_TG_RX_SIGVAL_LBF_DELAY	0x4
+#define IMX8MP_PCIE_PHY_TRSV_REG020	0x480
+#define  LN0_RX_CDR_REFDIV_1_2		1
+#define IMX8MP_PCIE_PHY_TRSV_REG022	0x488
+#define  LN0_RX_CDR_REFDIV_1_1		0
+#define IMX8MP_PCIE_PHY_TRSV_REG0BB	0x6EC
+#define  LN0_TXD_DESKEW_BYPASS		BIT(2)
+#define IMX8MP_PCIE_PHY_TRSV_REG0CF	0x73C
+#define  LN0_MISC_TX_CLK_SRC		BIT(2)
 
 static int imx8_pcie_phy_tuned;
 struct imx8_pcie_phy {
@@ -173,6 +183,20 @@ static int imx8_pcie_phy_cal(struct phy *phy)
 	       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG076);
 	writel(LANE_TX_DATA_CLK_MUX_SEL,
 	       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG078);
+
+	/* setup_deskew_fifo_bypass to workaround ERR050442 */
+	udelay(1);
+	writel(PLL_PMS_SDIV_8_4,
+	       imx8_phy->base + IMX8MP_PCIE_PHY_CMN_REG036);
+	writel(LN0_RX_CDR_REFDIV_1_2,
+	       imx8_phy->base + IMX8MP_PCIE_PHY_TRSV_REG020);
+	writel(LN0_RX_CDR_REFDIV_1_1,
+	       imx8_phy->base + IMX8MP_PCIE_PHY_TRSV_REG022);
+	writel(LN0_MISC_TX_CLK_SRC,
+	       imx8_phy->base + IMX8MP_PCIE_PHY_TRSV_REG0CF);
+	writel(LN0_TXD_DESKEW_BYPASS,
+	       imx8_phy->base + IMX8MP_PCIE_PHY_TRSV_REG0BB);
+	udelay(1);
 
 	return 0;
 }
