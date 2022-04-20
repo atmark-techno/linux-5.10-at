@@ -12,7 +12,7 @@ menu "Armadillo-WLAN(AWL13) Driver Options"
 
 choice
 	prompt "Selected AWL13 interface"
-	default ARMADILLO_WLAN_AWL13_SEL_USB
+	default ARMADILLO_WLAN_AWL13_USB
 
 config ARMADILLO_WLAN_AWL13_USB
 	bool "USB"

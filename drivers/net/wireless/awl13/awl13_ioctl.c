@@ -1798,7 +1798,8 @@ awl13_ip_getwidstr(struct net_device *dev, struct iw_request_info *info,
 	int			ret;
 
 	memset(val, 0x00, sizeof(val));
-	copy_from_user(param, wri->pointer, wri->length);
+	if(copy_from_user(param, wri->pointer, wri->length))
+		return -EFAULT;
         param[wri->length]=0x00;
 	wid = simple_strtol( param, (char **)NULL, 16);
 	size= sizeof(val);
@@ -1834,7 +1835,8 @@ awl13_ip_setwpspin(struct net_device *dev, struct iw_request_info *info,
 	if (data->length < AWL13_WPS_PIN_LEN)
 		return -EINVAL;
 
-	copy_from_user(str, data->pointer, data->length);
+	if (copy_from_user(str, data->pointer, data->length))
+		return -EFAULT;
 	for (i = 0; i < AWL13_WPS_PIN_LEN; i++) {
 		/* check range */
 		if (str[i] < '0' || str[i] > '9')
@@ -2161,7 +2163,8 @@ awl13_ip_setwps_cred_list(struct net_device *dev, struct iw_request_info *info,
 	struct awl13_private *priv = devToPriv(dev);
 	char buf[8];
 
-	copy_from_user(buf, data->pointer, data->length);
+	if(copy_from_user(buf, data->pointer, data->length))
+		return -EFAULT;
 	if(strcmp(buf, "permit")==0){
 
 		if(awl13_set_wps_cred_list(priv) != 0){
@@ -2187,7 +2190,8 @@ awl13_ip_getwps_cred_list(struct net_device *dev, struct iw_request_info *info,
 	struct awl13_private *priv = devToPriv(dev);
 	char buf[8];
 
-	copy_from_user(buf, data->pointer, data->length);
+	if(copy_from_user(buf, data->pointer, data->length))
+		return -EFAULT;
 	data->length = 0;
 	if(strcmp(buf, "permit")==0){
 

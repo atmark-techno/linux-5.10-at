@@ -100,7 +100,7 @@ static char* awl13_wid_status(uint8_t type, uint8_t code);
 static int   awl13_wid_check(struct awl13_private *priv, struct awl13_packet *res );
 void awl13_wid_complete (struct urb *urb);
 static void awl13_do_task(struct work_struct *work);
-static void awl13_wid_retry (unsigned long param);
+static void awl13_wid_retry (struct timer_list *t);
 static void awl13_task_init(struct awl13_private *priv);
 static int awl13_rx_fixup(struct awl13_usbnet *dev, struct sk_buff *skb);
 static struct sk_buff *awl13_tx_fixup(struct awl13_usbnet *dev, struct sk_buff *skb, gfp_t flags);
@@ -129,9 +129,10 @@ static struct net_device_stats* awl13_usbnet_get_stats (struct net_device *net);
 static void awl13_usbnet_defer_kevent (struct awl13_usbnet *dev, int work);
 static int  awl13_usbnet_stop (struct net_device *net);
 static int  awl13_usbnet_open (struct net_device *net);
-static void awl13_usbnet_tx_timeout (struct net_device *net);
+static void awl13_usbnet_tx_timeout (struct net_device *net, unsigned int txqueue);
 static int  awl13_usbnet_start_xmit (struct sk_buff *skb, struct net_device *net);
 static void awl13_usbnet_bh (unsigned long param);
+static void awl13_delay (struct timer_list *t);
 static void awl13_usbnet_disconnect (struct usb_interface *intf);
 static int  awl13_usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod);
 static void awl13_usbnet_clean(struct awl13_usbnet *dev,
@@ -439,10 +440,9 @@ awl13_do_task(struct work_struct *work)
  *
  *****************************************************************************/
 static void 
-awl13_wid_retry (unsigned long param)
+awl13_wid_retry (struct timer_list *t)
 {
-	struct awl13_private *priv;
-	priv = (struct awl13_private *)param;
+	struct awl13_private *priv = from_timer(priv, t, wid_retry);
 
 	if (schedule_delayed_work(&priv->wid_queue, 
 				  msecs_to_jiffies(0)) != 1) {
@@ -459,9 +459,7 @@ static void
 awl13_task_init(struct awl13_private *priv)
 {
 	INIT_DELAYED_WORK(&priv->wid_queue, awl13_do_task);
-	priv->wid_retry.function = awl13_wid_retry;
-	priv->wid_retry.data = (unsigned long) priv;
-	init_timer (&priv->wid_retry);
+	timer_setup(&priv->wid_retry, awl13_wid_retry, 0);
 	init_completion(&priv->wid_do_task_complete);
 	return;
 }
@@ -1249,8 +1247,8 @@ awl13_port_status( struct awl13_private *priv,
 		awl_err("usb_submit_urb(URB-CONTROL) error. (0x%x,%d)\n", type, ret );
 		return -1;
 	}
-    if(psta)
-    	*psta = priv->port_status;
+	if(psta)
+		*psta = priv->port_status;
 	return 0;
 }
 
@@ -2342,7 +2340,7 @@ awl13_usbnet_resume(struct usb_interface *intf)
  *
  *****************************************************************************/
 static void 
-awl13_usbnet_tx_timeout (struct net_device *net)
+awl13_usbnet_tx_timeout (struct net_device *net, unsigned int txqueue)
 {
 	struct awl13_usbnet		*dev = netdev_priv(net);
 
@@ -2549,7 +2547,12 @@ awl_debug ("bogus skb state %d\n", entry->state);
 	}
 }
 
-
+static void
+awl13_delay (struct timer_list *t)
+{
+	struct awl13_usbnet		*dev = from_timer(dev, t, delay);
+	awl13_usbnet_bh ((unsigned long)dev);
+}
 
 /******************************************************************************
  * awl13_usbnet_disconnect  -
@@ -2657,9 +2660,7 @@ awl13_usbnet_probe (struct usb_interface *intf, const struct usb_device_id *prod
 	dev->bh.func = awl13_usbnet_bh;
 	dev->bh.data = (unsigned long) dev;
 	INIT_WORK (&dev->kevent, awl13_kevent);
-	dev->delay.function = awl13_usbnet_bh;
-	dev->delay.data = (unsigned long) dev;
-	init_timer (&dev->delay);
+	timer_setup(&dev->delay, awl13_delay, 0);
 	//mutex_init (&dev->phy_mutex);
 
 	dev->net = net;
