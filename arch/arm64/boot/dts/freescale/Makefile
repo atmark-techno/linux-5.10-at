@@ -107,6 +107,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb imx8mq-evk-rpmsg.dtb imx8mp-ab2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-ddr4-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-ndm.dtb
 dtb-$(CONFIG_ARCH_MXC) += yakushima-eva.dtb
+DTC_FLAGS_yakushima-eva := -@
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4.dtb
 DTC_FLAGS_armadillo_iotg_g4 := -@
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-at-dtweb.dtbo
