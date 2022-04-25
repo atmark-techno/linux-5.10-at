@@ -605,7 +605,7 @@ static int imx_pinctrl_parse_groups(struct device_node *np,
 	if (!list) {
 		list = of_get_property(np, "pinmux", &size);
 		if (!list) {
-			dev_err(ipctl->dev,
+			dev_info(ipctl->dev,
 				"no fsl,pins and pins property in node %pOF\n", np);
 			return -EINVAL;
 		}
