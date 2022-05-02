@@ -1055,6 +1055,9 @@ static struct pinctrl *create_pinctrl(struct device *dev,
 	mutex_lock(&pinctrl_maps_mutex);
 	/* Iterate over the pin control maps to locate the right ones */
 	for_each_maps(maps_node, i, map) {
+		/* Skip dummy state table */
+		if (map->type == PIN_MAP_TYPE_DUMMY_STATE)
+			continue;
 		/* Map must be for this device */
 		if (strcmp(map->dev_name, devname))
 			continue;
