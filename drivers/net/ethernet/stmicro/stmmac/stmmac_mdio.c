@@ -469,7 +469,8 @@ int stmmac_mdio_register(struct net_device *ndev)
 
 	err = of_mdiobus_register(new_bus, mdio_node);
 	if (err != 0) {
-		dev_err(dev, "Cannot register the MDIO bus\n");
+		if (err != -EPROBE_DEFER)
+			dev_err(dev, "Cannot register the MDIO bus: %d\n", err);
 		goto bus_register_fail;
 	}
 
