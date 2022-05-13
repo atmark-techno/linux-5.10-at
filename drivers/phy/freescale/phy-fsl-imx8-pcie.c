@@ -241,8 +241,11 @@ static int imx8_pcie_phy_probe(struct platform_device *pdev)
 
 	imx8_phy->clk = devm_clk_get(dev, "phy");
 	if (IS_ERR(imx8_phy->clk)) {
-		dev_err(dev, "failed to get imx pcie phy clock\n");
-		return PTR_ERR(imx8_phy->clk);
+		int ret = PTR_ERR(imx8_phy->clk);
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev, "failed to get imx pcie phy clock: %d\n",
+				ret);
+		return ret;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
