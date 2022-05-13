@@ -162,8 +162,10 @@ static int imx8mp_hdmi_pavi_probe(struct platform_device *pdev)
 
 	pavi->clk_pvi = devm_clk_get(dev, "pvi_clk");
 	if (IS_ERR(pavi->clk_pvi)) {
-		dev_err(dev, "No pvi clock get\n");
-		return -EPROBE_DEFER;
+		int ret = PTR_ERR(pavi->clk_pvi);
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev, "No pvi clock get: %d\n", ret);
+		return ret;
 	}
 
 	pavi->clk_pai = devm_clk_get(dev, "pai_clk");
