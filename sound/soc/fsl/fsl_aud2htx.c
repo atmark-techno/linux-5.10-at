@@ -259,8 +259,10 @@ static int fsl_aud2htx_probe(struct platform_device *pdev)
 
 	aud2htx->bus_clk = devm_clk_get(&pdev->dev, "bus");
 	if (IS_ERR(aud2htx->bus_clk)) {
-		dev_err(&pdev->dev, "failed to get mem clock\n");
-		return PTR_ERR(aud2htx->bus_clk);
+		ret = PTR_ERR(aud2htx->bus_clk);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "failed to get mem clock: %d\n", ret);
+		return ret;
 	}
 
 	aud2htx->dma_params_tx.chan_name = "tx";
