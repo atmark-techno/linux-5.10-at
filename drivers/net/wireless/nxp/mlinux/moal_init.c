@@ -1286,6 +1286,78 @@ err:
 	return ret;
 }
 
+#ifdef CONFIG_OF
+static void woal_setup_handle_from_of_node(moal_handle *handle,
+					   struct device_node *dt_node)
+{
+	struct property *prop;
+	t_u32 data;
+
+	for_each_property_of_node (dt_node, prop) {
+		if (!strcmp(prop->name, "drv_mode")) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "drv_mode=0x%x\n", data);
+				handle->params.drv_mode = data;
+			}
+		} else if (!strcmp(prop->name, "antcfg")) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "antcfg=%d\n", data);
+				handle->params.antcfg = data;
+			}
+		}
+	}
+}
+
+/**
+ * @brief init local handle with parameters in dts
+ *
+ * Adjusted mix-match of woal_setup_module_param and woal_init_from_dev_tree
+ */
+static void woal_setup_handle_from_dev_tree(moal_handle *handle)
+{
+	struct device_node *dt_node, *mac_dt_node;
+	char mac_node_name[10];
+
+	ENTER();
+
+	if (!dts_enable) {
+		PRINTM(MIOCTL, "DTS is disabled\n");
+		LEAVE();
+		return;
+	}
+
+	dt_node = of_find_node_by_name(NULL, "moal-params");
+	if (!dt_node) {
+		PRINTM(MERROR, "No moal_params node\n");
+		LEAVE();
+		return;
+	}
+
+	/* common settings for all MACs */
+	woal_setup_handle_from_of_node(handle, dt_node);
+
+	/* get MAC-specific sub-node */
+	if (snprintf(mac_node_name, sizeof(mac_node_name),
+		     "mac-%d", handle->second_mac) >= sizeof(mac_node_name)) {
+		PRINTM(MERROR, "mac-specific dts node name does not fit in buffer, %d is long?\n",
+		       handle->second_mac);
+		of_node_put(dt_node);
+		LEAVE();
+		return;
+	}
+
+	mac_dt_node = of_find_node_by_name(dt_node, mac_node_name);
+	of_node_put(dt_node);
+	if (mac_dt_node) {
+		PRINTM(MIOCTL, "Got mac-%d subnode\n", handle->second_mac);
+		woal_setup_handle_from_of_node(handle, mac_dt_node);
+		of_node_put(mac_dt_node);
+	}
+
+	LEAVE();
+}
+#endif
+
 /**
  *  @brief This function initialize module parameter
  *
@@ -1580,6 +1652,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		if (params)
 			handle->params.dfs53cfg = params->dfs53cfg;
 	}
+
+#ifdef CONFIG_OF
+	woal_setup_handle_from_dev_tree(handle);
+#endif
 }
 
 /**
