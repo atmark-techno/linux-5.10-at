@@ -148,7 +148,7 @@ unsigned int imx_gpc_is_mf_mix_off(void)
 	return readl_relaxed(gpc_base + GPC_PGC_MF_PDN);
 }
 
-static void imx_gpc_mf_mix_off(void)
+static void __maybe_unused imx_gpc_mf_mix_off(void)
 {
 	int i;
 
@@ -194,11 +194,6 @@ void imx_gpc_pre_suspend(bool arm_power_off)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
 	int i;
-
-	/* power down the mega-fast power domain */
-	if ((cpu_is_imx6sx() || cpu_is_imx6ul() || cpu_is_imx6ull() ||
-	     cpu_is_imx6ulz() || cpu_is_imx6sll()) && arm_power_off)
-		imx_gpc_mf_mix_off();
 
 	/* Tell GPC to power off ARM core when suspend */
 	if (arm_power_off)
