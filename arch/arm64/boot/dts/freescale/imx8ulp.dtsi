@@ -1306,4 +1306,8 @@
 			gpio-ranges = <&iomuxc1 0 0 24>;
 		};
 	};
+
+	rpmsg-lifecycle {
+		compatible = "nxp,rpmsg-lifecycle";
+	};
 };
