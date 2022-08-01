@@ -1,0 +1,70 @@
+/*
+ * Copyright (C) 2022 Atmark Techno, Inc. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: (GPL-2.0 OR MIT)
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
+
+&{/} {
+	ems31_reset: ems31-reset {
+		compatible = "ems31-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ems31_reset>;
+		gpio-on = <&gpio4 19 GPIO_ACTIVE_HIGH>;
+		gpio-pwr = <&gpio3 18 GPIO_ACTIVE_LOW>;
+		gpio-lte-gpio25 = <&gpio4 20 GPIO_ACTIVE_HIGH>;
+	};
+
+	gpio-wakeup {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_wakeup>;
+
+		ring0 {
+			label = "RING0";
+			gpios = <&gpio4 16 GPIO_ACTIVE_LOW>;
+			gpio-key,wakeup = <1>;
+			linux,code = <KEY_WAKEUP>;
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl_ems31_reset: ems31resetgrp {
+		fsl,pins = <
+			MX6UL_PAD_CSI_VSYNC__GPIO4_IO19		0x0b008 /* BAT_LTE_ON */
+			MX6UL_PAD_LCD_DATA13__GPIO3_IO18	0x0b008 /* VCC_4.3V_LTE */
+			MX6UL_PAD_CSI_HSYNC__GPIO4_IO20		0x00008 /* EMS31 GPIO25 */
+		>;
+	};
+
+	pinctrl_uart4: uart4grp {
+		fsl,pins= <
+			MX6UL_PAD_LCD_CLK__UART4_DCE_TX		0x00008 /* EMS31 TXD0 */
+			MX6UL_PAD_LCD_ENABLE__UART4_DCE_RX	0x1b0b1 /* EMS31 RXD0 */
+			MX6UL_PAD_LCD_HSYNC__UART4_DCE_CTS	0x00008 /* EMS31 CTS0 */
+			MX6UL_PAD_LCD_VSYNC__UART4_DCE_RTS	0x1b0b1 /* EMS31 RTS0 */
+		>;
+	};
+
+	pinctrl_gpio_wakeup: gpio_wakeupgrp {
+		fsl,pins = <
+			MX6UL_PAD_NAND_DQS__GPIO4_IO16	0x1b0b8 /* EMS31 RING0 */
+		>;
+	};
+};
+
+/* EMS31(LTE) */
+&uart4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart4>;
+	status = "okay";
+	uart-has-rtscts;
+};

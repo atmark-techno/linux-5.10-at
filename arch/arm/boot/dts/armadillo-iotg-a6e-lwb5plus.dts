@@ -1,0 +1,112 @@
+/*
+ * Copyright (C) 2022 Atmark Techno, Inc. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: (GPL-2.0 OR MIT)
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&{/} {
+	reg_sd2_vmmc: regulator-sd2vmmc {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sd2_vmmc>;
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_SD2";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&iomuxc {
+	pinctrl_usdhc2: usdhc2grp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA23__USDHC2_DATA3	0x10059
+			MX6UL_PAD_LCD_DATA22__USDHC2_DATA2	0x10059
+			MX6UL_PAD_LCD_DATA21__USDHC2_DATA1	0x10059
+			MX6UL_PAD_LCD_DATA20__USDHC2_DATA0	0x10059
+			MX6UL_PAD_LCD_DATA19__USDHC2_CLK	0x10069
+			MX6UL_PAD_LCD_DATA18__USDHC2_CMD	0x10059
+		>;
+	};
+
+	pinctrl_sd2_vmmc: sd2vmmcgrp {
+		fsl,pins = <
+			MX6UL_PAD_GPIO1_IO08__GPIO1_IO08	0x00008 /* LWB5+ WL_REG_ON */
+		>;
+	};
+
+	pinctrl_uart2: uart2grp {
+		fsl,pins= <
+			MX6UL_PAD_NAND_DATA04__UART2_DCE_TX	0x00008 /* LWB5+ BT_UART_TXD */
+			MX6UL_PAD_NAND_DATA05__UART2_DCE_RX	0x1b0b1 /* LWB5+ BT_UART_RXD */
+			MX6UL_PAD_NAND_DATA06__UART2_DCE_CTS	0x00008 /* LWB5+ BT_UART_CTSn */
+			MX6UL_PAD_NAND_DATA07__UART2_DCE_RTS	0x1b0b1 /* LWB5+ BT_UART_RTSn */
+		>;
+	};
+
+	pinctrl_brcm_wifi: brcm_wifigrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA12__GPIO3_IO17	0x1b0b8 /* LWB5+ GPIO_0 */
+		>;
+	};
+
+	pinctrl_brcm_bluetooth: brcm_bluetoothgrp {
+		fsl,pins = <
+			MX6UL_PAD_GPIO1_IO05__GPIO1_IO05	0x00008 /* LWB5+ BT_REG_ON */
+			MX6UL_PAD_LCD_DATA14__GPIO3_IO19	0x1b0b8 /* LWB5+ BT_HOST_WAKE */
+		>;
+	};
+};
+
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2>;
+	vmmc-supply = <&reg_sd2_vmmc>;
+	broken-cd;
+	no-1-8-v;
+	non-removable;
+	keep-power-in-suspend;
+	wakeup-source;
+	status = "okay";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+	brcmf: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_brcm_wifi>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-names = "host-wake";
+	};
+};
+
+/* LWB5+(WLAN+BT) Bluetooth */
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart2>;
+	status = "okay";
+	uart-has-rtscts;
+
+	bluetooth {
+		compatible = "brcm,bcm4329-bt";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_brcm_bluetooth>;
+		max-speed = <4000000>;
+		shutdown-gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <19 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "host-wake";
+
+	};
+};

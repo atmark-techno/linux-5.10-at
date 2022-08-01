@@ -4,6 +4,7 @@
 DTC_FLAGS_armadillo-iotg-a6 := -@
 DTC_FLAGS_armadillo-iotg-a6-at-dtweb := -@
 DTC_FLAGS_armadillo-iotg-a6-extboard := -@
+DTC_FLAGS_armadillo-iotg-a6e := -@
 
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
@@ -717,7 +718,10 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-610-at-dtweb.dtb \
 	armadillo-iotg-a6.dtb \
 	armadillo-iotg-a6-at-dtweb.dtb \
-	armadillo-iotg-a6-extboard.dtb
+	armadillo-iotg-a6-extboard.dtb \
+	armadillo-iotg-a6e.dtb \
+	armadillo-iotg-a6e-ems31.dtbo \
+	armadillo-iotg-a6e-lwb5plus.dtbo
 dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-cl-som-imx7.dtb \
 	imx7d-colibri-aster.dtb \
