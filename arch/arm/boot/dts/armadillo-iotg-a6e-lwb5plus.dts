@@ -13,6 +13,18 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 &{/} {
+	reg_sd2_vqmmc: regulator-sd2vqmmc {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sd2_vqmmc>;
+		compatible = "regulator-fixed";
+		regulator-name = "VDDIO_SD2";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 9 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
 	reg_sd2_vmmc: regulator-sd2vmmc {
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_sd2_vmmc>;
@@ -35,6 +47,12 @@
 			MX6UL_PAD_LCD_DATA20__USDHC2_DATA0	0x10059
 			MX6UL_PAD_LCD_DATA19__USDHC2_CLK	0x10069
 			MX6UL_PAD_LCD_DATA18__USDHC2_CMD	0x10059
+		>;
+	};
+
+	pinctrl_sd2_vqmmc: sd2vqmmcgrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA04__GPIO3_IO09	0x00008 /* LWB5+ VDD_IO */
 		>;
 	};
 
@@ -70,6 +88,7 @@
 &usdhc2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc2>;
+	vqmmc-supply = <&reg_sd2_vqmmc>;
 	vmmc-supply = <&reg_sd2_vmmc>;
 	broken-cd;
 	no-1-8-v;
