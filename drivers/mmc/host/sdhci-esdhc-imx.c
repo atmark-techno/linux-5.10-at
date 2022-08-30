@@ -1558,6 +1558,9 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	if (of_property_read_u32(np, "fsl,delay-line", &boarddata->delay_line))
 		boarddata->delay_line = 0;
 
+	if (of_property_read_bool(np, "fsl,vqmmc-disable-on-shutdown"))
+		boarddata->vqmmc_disable_on_shutdown = true;
+
 	mmc_parse_voltage(&pdev->dev, &host->ocr_mask);
 
 	if (!is_s32v234_usdhc(imx_data) && esdhc_is_usdhc(imx_data) &&
@@ -1844,6 +1847,34 @@ static int sdhci_esdhc_imx_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void sdhci_esdhc_imx_shutdown(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
+	struct esdhc_platform_data *boarddata = &imx_data->boarddata;
+
+	if (!boarddata->vqmmc_disable_on_shutdown)
+		return;
+
+	/*
+	 * On i.MX6ULL, LCD1_DATA* lines can be used for usdhc2 as
+	 * well as BOOT_CFG. Disabling vqmmc at shutdown avoids such
+	 * conflict and allows reboot to work as expected. (Note that
+	 * there is no problem when booting from fuses as BOOT_CFG
+	 * pins are ignored)
+	 *
+	 * Stop all clocks first to ensure no further IO attempt is
+	 * made with vqmmc disabled.
+	 */
+	clk_disable_unprepare(imx_data->clk_per);
+	clk_disable_unprepare(imx_data->clk_ipg);
+	clk_disable_unprepare(imx_data->clk_ahb);
+
+	if (!IS_ERR(host->mmc->supply.vqmmc))
+		regulator_disable(host->mmc->supply.vqmmc);
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int sdhci_esdhc_suspend(struct device *dev)
 {
@@ -2024,6 +2055,7 @@ static struct platform_driver sdhci_esdhc_imx_driver = {
 	.id_table	= imx_esdhc_devtype,
 	.probe		= sdhci_esdhc_imx_probe,
 	.remove		= sdhci_esdhc_imx_remove,
+	.shutdown	= sdhci_esdhc_imx_shutdown,
 };
 
 module_platform_driver(sdhci_esdhc_imx_driver);
