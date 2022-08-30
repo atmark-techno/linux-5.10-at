@@ -90,6 +90,7 @@
 	pinctrl-0 = <&pinctrl_usdhc2>;
 	vqmmc-supply = <&reg_sd2_vqmmc>;
 	vmmc-supply = <&reg_sd2_vmmc>;
+	fsl,vqmmc-disable-on-shutdown;
 	broken-cd;
 	no-1-8-v;
 	non-removable;
