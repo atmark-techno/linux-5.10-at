@@ -236,6 +236,10 @@
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
 	};
+
+	moal-params {
+		host_mlme = <0x1>;
+	};
 };
 
 &aud2htx {
