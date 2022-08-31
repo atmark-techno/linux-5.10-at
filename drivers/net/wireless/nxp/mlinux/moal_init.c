@@ -1305,6 +1305,19 @@ static void woal_setup_handle_from_of_node(moal_handle *handle,
 				handle->params.antcfg = data;
 			}
 		}
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		else if (!strcmp(prop->name, "host_mlme")) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "host_mlme=%d\n", data);
+				if (data)
+					moal_extflg_set(handle, EXT_HOST_MLME);
+				else
+					moal_extflg_clear(handle, EXT_HOST_MLME);
+			}
+		}
+#endif
+#endif
 	}
 }
 
