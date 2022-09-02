@@ -1360,7 +1360,6 @@ static void woal_setup_handle_from_dev_tree(moal_handle *handle)
 	}
 
 	mac_dt_node = of_find_node_by_name(dt_node, mac_node_name);
-	of_node_put(dt_node);
 	if (mac_dt_node) {
 		PRINTM(MIOCTL, "Got mac-%d subnode\n", handle->second_mac);
 		woal_setup_handle_from_of_node(handle, mac_dt_node);
