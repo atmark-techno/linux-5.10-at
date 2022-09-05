@@ -278,6 +278,13 @@ static int ems31_reset_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void ems31_reset_shutdown(struct platform_device *pdev)
+{
+	struct ems31_reset_data *data = platform_get_drvdata(pdev);
+
+	ems31_reset_power_off(data);
+}
+
 static struct of_device_id ems31_reset_dt_ids[] = {
 	{ .compatible = "ems31-reset" },
 	{ }
@@ -286,6 +293,7 @@ static struct of_device_id ems31_reset_dt_ids[] = {
 static struct platform_driver ems31_reset_driver = {
 	.probe = ems31_reset_probe,
 	.remove = ems31_reset_remove,
+	.shutdown = ems31_reset_shutdown,
 	.driver = {
 		.name = "ems31-reset",
 		.owner = THIS_MODULE,
