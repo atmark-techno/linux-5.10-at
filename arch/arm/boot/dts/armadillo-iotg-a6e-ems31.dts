@@ -22,6 +22,10 @@
 		gpio-lte-gpio25 = <&gpio4 20 GPIO_ACTIVE_HIGH>;
 	};
 
+	linmux {
+		compatible = "linmux";
+	};
+
 	gpio-wakeup {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
