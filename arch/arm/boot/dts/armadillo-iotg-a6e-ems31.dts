@@ -13,6 +13,8 @@
 #include "imx6ull-pinfunc-snvs.h"
 
 &{/} {
+	model = "Atmark Techno Armadillo-IoT Gateway A6E Cat.M1 Board";
+
 	ems31_reset: ems31-reset {
 		compatible = "ems31-reset";
 		pinctrl-names = "default";
