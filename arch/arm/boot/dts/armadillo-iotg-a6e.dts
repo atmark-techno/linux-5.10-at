@@ -7,7 +7,7 @@
 #include "armadillo-610.dtsi"
 
 / {
-	model = "Atmark Techno Armadillo-IoT Gateway A6E";
+	model = "Atmark Techno Armadillo-IoT Gateway A6E Board";
 
 	chosen {
 		stdout-path = &uart3;
