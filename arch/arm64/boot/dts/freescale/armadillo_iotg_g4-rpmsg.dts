@@ -1,0 +1,90 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2023 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/input/input.h>
+
+#include "imx8mp-pinfunc.h"
+
+&{/} {
+	aliases {
+		i2c2 = &i2c_rpbus_3;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		m4_reserved: m4@0x80000000 {
+			no-map;
+			reg = <0 0x80000000 0 0x1000000>;
+		};
+
+		vdev0vring0: vdev0vring0@55000000 {
+			reg = <0 0x55000000 0 0x8000>;
+			no-map;
+		};
+
+		vdev0vring1: vdev0vring1@55008000 {
+			reg = <0 0x55008000 0 0x8000>;
+			no-map;
+		};
+
+		vdevbuffer: vdevbuffer@55400000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x55400000 0 0x100000>;
+			no-map;
+		};
+
+		rsc_table: rsc_table@550ff000 {
+			reg = <0 0x550ff000 0 0x1000>;
+			no-map;
+		};
+	};
+
+	imx8mp-cm7 {
+		compatible = "fsl,imx8mn-cm7";
+		rsc-da = <0x55000000>;
+		clocks = <&clk IMX8MP_CLK_M7_DIV>;
+		mbox-names = "tx", "rx", "rxdb";
+		mboxes = <&mu 0 1
+			  &mu 1 1
+			  &mu 3 1>;
+		memory-region = <&vdevbuffer>, <&vdev0vring0>, <&vdev0vring1>, <&rsc_table>;
+		status = "okay";
+	};
+
+	i2c_rpbus_3: i2c-rpbus-3 {
+		compatible = "fsl,i2c-rpbus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		pca6416: gpio@20 {
+			compatible = "ti,tca6416";
+			reg = <0x20>;
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
+	};
+};
+
+/*
+ * Attention: most M7 applications use serial by default so we disable
+ * uart4 below, but if you use other interfaces (ECSP, GPIO, PWM..) care
+ * should be taken to disable these as well.
+ *
+ * Note Armadillo G4/X2 uses i2c3 for its gpio expander so it should
+ * not be used from M7
+ */
+
+&uart4 {
+	status = "disabled";
+};
