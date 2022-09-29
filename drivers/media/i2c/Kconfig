@@ -710,6 +710,15 @@ config VIDEO_ST_MIPID02
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called st-mipid02.
+
+config VIDEO_THCV24XA_OX01F10
+	tristate "THCV242A-P and THCV241A-P relay driver for OX01F10"
+	depends on I2C
+	help
+	  Extend the MIPI cable of OX01F10.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called thcv24xa-ox01f10.
 endmenu
 
 #
