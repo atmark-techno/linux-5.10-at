@@ -667,13 +667,9 @@ static void __init build_mem_type_table(void)
 	mem_types[MT_MEMORY_RWX].prot_pte |= kern_pgprot;
 	mem_types[MT_MEMORY_RW].prot_sect |= ecc_mask | cp->pmd;
 	mem_types[MT_MEMORY_RW].prot_pte |= kern_pgprot;
-<<<<<<< HEAD
 	mem_types[MT_MEMORY_RW_NS].prot_sect |= ecc_mask | cp->pmd;
-||||||| 8f95261a0064
-=======
 	mem_types[MT_MEMORY_RO].prot_sect |= ecc_mask | cp->pmd;
 	mem_types[MT_MEMORY_RO].prot_pte |= kern_pgprot;
->>>>>>> v5.10.132
 	mem_types[MT_MEMORY_DMA_READY].prot_pte |= kern_pgprot;
 	mem_types[MT_MEMORY_RWX_NONCACHED].prot_sect |= ecc_mask;
 	mem_types[MT_ROM].prot_sect |= cp->pmd;
