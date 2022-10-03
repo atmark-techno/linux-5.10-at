@@ -1422,7 +1422,7 @@ awl13_set_usb_in_xfer_mode(struct awl13_private *priv, unsigned char type)
 	NOFW_EXIT(priv);
 	SLEEP_EXIT(priv);
 
-	if (type != CONFIG_ARMADILLO_WLAN_AWL13_USB_IN_XFER_VARIABLE && type != CONFIG_ARMADILLO_WLAN_AWL13_USB_IN_XFER_FIX)
+	if (type != AWL13_USB_IN_XFER_MODE_VARIABLE && type != AWL13_USB_IN_XFER_MODE_FIX)
 		return -EINVAL;
 
 	ret = awl13_set_common_value(priv, WID_USB_IN_XFER_MODE, &type, 1,
@@ -1851,7 +1851,7 @@ awl13_set_usb_rmtwkup_time(struct awl13_private *priv, unsigned char val)
 	if (val < 10 || val > 30)
 		return -EINVAL;
 	
-	if (val < CONFIG_ARMADILLO_WLAN_AWL13_USB_RMTWKUP_MIN || CONFIG_ARMADILLO_WLAN_AWL13_USB_RMTWKUP_MAX < val)
+	if (val < AWL13_USB_RMTWKUP_TIME_MIN || AWL13_USB_RMTWKUP_TIME_MAX < val)
 		return -EINVAL;
 
 	ret = awl13_set_common_value(priv, WID_USB_RMTWKUP_TIME, &val, 1,
