@@ -1832,7 +1832,7 @@ awl13_ip_setwpspin(struct net_device *dev, struct iw_request_info *info,
 	int i;
 	
 	/* check length */
-	if (data->length < AWL13_WPS_PIN_LEN)
+	if (data->length != AWL13_WPS_PIN_LEN)
 		return -EINVAL;
 
 	if (copy_from_user(str, data->pointer, data->length))
