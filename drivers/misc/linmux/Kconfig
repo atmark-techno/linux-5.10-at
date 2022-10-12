@@ -8,5 +8,50 @@ config LINMUX_INSTANCES
 	help
 	  This option defines the number of driver instances.
 
+config LINMUX_TTY_MAJOR_DEVNUM
+	int "Linmux TTY major devnum"
+	default 301
+	 range 1 511
+	help
+	  The major device number of the linmux tty device.
+
+	  For each additional instance of the linmux driver this
+	  number is incremented by 1.  So if there are more than one
+	  instance used there must be a corresponding range of free
+	  device numbers.
+
+config LINMUX_FS_DEVICE_NAME
+	string "Linmux FS device name"
+	default "linmuxcfg"
+	help
+	  The name of the linmux character device for configuration
+
+config LINMUX_FS_MAJOR_DEVNUM
+	int "Linmux FS major devnum"
+	default 300
+	 range 1 511
+	help
+	  The major device number of the linmux chracter device.
+
+config LINMUX_CLIENT_MODE
+	bool "Linmux client mode"
+	default n
+	help
+	  Use multiplex protocol in host or in client mode. This
+	  provides not the possibility for building the driver as
+	  client driver just by modifying this flag. It is only for
+	  simpler reuse of some source files.
+
+config LINMUX_TRACE_ENABLED
+	bool "Linmux trace enabled"
+	default y
+	help
+	  Enable or disable trace output.
+
+config LINMUX_POWER_MGMT_ENABLED
+	bool "Linmux power mgmt enabled"
+	default n
+	help
+	  Enable or disable power management.
 endmenu
 

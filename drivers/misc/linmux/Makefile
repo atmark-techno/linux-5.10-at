@@ -23,52 +23,36 @@
 client_mode         := 0
 
 # Enable or disable trace output
-trace_enabled       := 1
+trace_enabled       := 0
 
 # Enable or disable power management
 power_mgmt_enabled  := 0
 
-# Path to kernel sources
-ifneq ($(BB_KERNEL_SOURCES),)
-  kernel_src := $(BB_KERNEL_SOURCES)
-else
-  kernel_src := /lib/modules/$(shell uname -r)/build
-endif
 
 ###############################################################################
 # User parameters - End
 ###############################################################################
 
-
-ifneq ($(client_mode),)
-  Features := -DCLIENT_MODE=$(client_mode)
-endif
-ifneq ($(trace_enabled),)
-  Features := $(Features) -DTRACE_ENABLED=$(trace_enabled)
-endif
-ifneq ($(power_mgmt_enabled),)
-  Features := $(Features) -DPWRMGMT_ENABLED=$(power_mgmt_enabled)
+ifeq ($(CONFIG_LINMUX_CLIENT_MODE),y)
+client_mode         := 1
 endif
 
-
-ifneq ($(KERNELRELEASE),)
-  ifeq ($(M),)
-    BuiltInKernelModule=1
-  endif
+ifeq ($(CONFIG_LINMUX_TRACE_ENABLED),y)
+trace_enabled       := 1
 endif
 
-ifneq ($(BuiltInKernelModule),)
+ifeq ($(CONFIG_LINMUX_POWER_MGMT_ENABLED),y)
+power_mgmt_enabled  := 1
+endif
 
 # Make section for kernel integration
 
-ifneq ($(ANDROID_BUILD_TOP),)
-  # Android has the Linux kernel in the kernel/ subdirectory
-  include $(ANDROID_BUILD_TOP)/kernel/drivers/misc/linmux/major_devnums
-else
-  include $(PWD)/drivers/misc/linmux/major_devnums
-endif
-
-EXTRA_CFLAGS = -DTTY_DEVNUM=$(tty_major_devnum) -DFS_DEVNUM=$(fs_major_devnum) -DFS_DEVNAME='"$(fs_device_name)"' $(Features)
+ccflags-y += -DTTY_DEVNUM=$(CONFIG_LINMUX_TTY_MAJOR_DEVNUM)
+ccflags-y += -DFS_DEVNUM=$(CONFIG_LINMUX_FS_MAJOR_DEVNUM)
+ccflags-y += -DFS_DEVNAME='$(CONFIG_LINMUX_FS_DEVICE_NAME)'
+ccflags-y += -DCLIENT_MODE=$(client_mode)
+ccflags-y += -DTRACE_ENABLED=$(trace_enabled)
+ccflags-y += -DPWRMGMT_ENABLED=$(power_mgmt_enabled)
 
 obj-y += linmuxtty.o
 obj-y += linmuxcfg.o
@@ -89,89 +73,4 @@ obj-y += ddmpmem.o
 obj-y += ddmppkt.o
 obj-y += ddmpstat.o
 obj-y += ddmptype.o
-
-else # BuiltInKernelModule
-
-# Make section for loadable kernel module
-
-ifeq ($(M),)
-  ifneq ($(ANDROID_BUILD_TOP),)
-    include $(PWD)/kernel/drivers/misc/linmux/major_devnums
-  else
-    include $(PWD)/major_devnums
-  endif
-else
-  include $(M)/major_devnums
-endif
-
-ifeq ($(LinmuxModuleName),)
-  LinmuxModuleName := linmux
-endif
-
-Instances := 1
-Ports := 3
-
-ifeq ($(LinmuxInstDir),)
-  ifeq ($(shell test -d "/lib/modules/$(shell uname -r)/kernel/drivers/tty/serial";echo $$?), 0)
-    LinmuxInstDir := /lib/modules/$(shell uname -r)/kernel/drivers/tty/serial
-  else
-    LinmuxInstDir := /lib/modules/$(shell uname -r)/kernel/drivers/serial
-  endif
-endif
-
-ifeq ($(LinmuxInstScript),)
-  LinmuxInstScript := linmux-install
-endif
-
-EXTRA_CFLAGS = -DTTY_DEVNUM=$(tty_major_devnum) -DFS_DEVNUM=$(fs_major_devnum) -DFS_DEVNAME='"$(fs_device_name)"' $(Features)
-
-obj-m += $(LinmuxModuleName).o
-
-$(LinmuxModuleName)-objs := \
-  linmuxtty.o          \
-  linmuxcfg.o          \
-  linmuxpwr.o          \
-  os_wrap.o            \
-  ringbuffer.o         \
-  baseport.o           \
-  mux_interface.o      \
-  muxchannel.o         \
-  mux_msgqueue.o       \
-  muxdbg.o             \
-  ddmpadp.o            \
-  ddmpfra.o            \
-  ddmpfunc.o           \
-  ddmphdlc.o           \
-  ddmpiov2.o           \
-  ddmpmem.o            \
-  ddmppkt.o            \
-  ddmpstat.o           \
-  ddmptype.o
-
-$(LinmuxModuleName):
-	$(MAKE) -C $(kernel_src) M=$(PWD) modules
-
-all: clean $(LinmuxModuleName) instscript
-
-clean:
-	$(MAKE) -C $(kernel_src) M=$(PWD) clean
-	-rm $(LinmuxInstScript)
-
-install: uninstall all
-	cp $(LinmuxModuleName).ko $(LinmuxInstDir)
-	insmod $(LinmuxInstDir)/$(LinmuxModuleName).ko Instances=$(Instances) Ports=$(Ports)
-	mknod /dev/$(fs_device_name) c $(fs_major_devnum) 0
-
-uninstall:
-	-unlink /dev/$(fs_device_name)
-	-rmmod $(LinmuxModuleName)
-	-rm $(LinmuxInstDir)/$(LinmuxModuleName).ko
-
-instscript:
-	echo "#!/bin/sh" > $(LinmuxInstScript)
-	echo insmod $(LinmuxInstDir)/$(LinmuxModuleName).ko Instances=$(Instances) Ports=$(Ports) >> $(LinmuxInstScript)
-	echo mknod /dev/$(fs_device_name) c $(fs_major_devnum) 0 >> $(LinmuxInstScript)
-	chmod +x $(LinmuxInstScript)
-
-endif # BuiltInKernelModule
 
