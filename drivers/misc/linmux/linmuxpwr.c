@@ -23,10 +23,13 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/module.h>
 
 #include "linmux.h"
 #include "muxdbg.h"
 #include "baseport.h"
+#include "linmuxtty.h"
 
 //////////////////////////////////////////////////////////////////////////////
 // Power management callbacks
@@ -49,13 +52,25 @@ static const struct dev_pm_ops if_pm_ops = {
 
 //////////////////////////////////////////////////////////////////////////////
 
+static struct of_device_id linmux_dt_ids[] = {
+  { .compatible = "linmux" },
+  { }
+};
+
 struct platform_driver MuxPlatformDriver = {
+  .probe = mux_serial_probe,
+  .remove = mux_serial_remove,
   .driver = {
     .name  = LINMUX_PLATFORM_NAME,
     .pm    = &if_pm_ops,
+    .owner = THIS_MODULE,
+    .of_match_table = of_match_ptr(linmux_dt_ids),
   },
   .shutdown = mux_pm_shutdown,
 };
+
+MODULE_ALIAS("platform:linmux");
+MODULE_DEVICE_TABLE(of, linmux_dt_ids);
 
 //////////////////////////////////////////////////////////////////////////////
 

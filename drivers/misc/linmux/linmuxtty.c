@@ -900,8 +900,37 @@ static void mux_serial_destroy(void) {
   }
 
   mux_fs_exit();
+}
 
-  platform_driver_unregister(&MuxPlatformDriver);
+int mux_serial_probe(struct platform_device *pdev)
+{
+  int result, i;
+
+  DBGPRINT(ZONE_DRV_INIT, "*** Enter Cinterion Wireless Modules Serial Multiplex Driver ***");
+  DBGPRINT(ZONE_DRV_INIT, "Kernel-Version: %d.%d.%d", LINUX_VERSION_CODE >> 16, (LINUX_VERSION_CODE >> 8) & 0xff, LINUX_VERSION_CODE & 0xff);
+  DBGPRINT(ZONE_DRV_INIT, "LinMux-Version: %s", LINMUX_VERSION);
+
+  result = mux_fs_init();
+  if (result) {
+    DBGPRINT(ZONE_ERR, "mux_fs_init() failed -> %d", result);
+    mux_serial_destroy();
+  } else {
+    for (i = 0; i < gInstances; i++) {
+      result = mux_load_driver(i);
+      if (result) {
+        mux_serial_destroy();
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+int mux_serial_remove(struct platform_device *pdev)
+{
+  mux_serial_destroy();
+  DBGPRINT(ZONE_DRV_INIT, "*** Exit Cinterion Wireless Modules Serial Multiplex Client Driver ***");
+  return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -917,30 +946,12 @@ static void mux_serial_destroy(void) {
 //
 //////////////////////////////////////////////////////////////////////////////
 static int __init mux_serial_init(void) {
-  int result, i;
-
-  DBGPRINT(ZONE_DRV_INIT, "*** Enter THALES Wireless Modules Serial Multiplex Client Driver ***");
-  DBGPRINT(ZONE_DRV_INIT, "Kernel-Version: %d.%d.%d", LINUX_VERSION_CODE >> 16, (LINUX_VERSION_CODE >> 8) & 0xff, LINUX_VERSION_CODE & 0xff);
-  DBGPRINT(ZONE_DRV_INIT, "LinMux-Version: %s", LINMUX_VERSION);
+  int result;
 
   result = platform_driver_register(&MuxPlatformDriver);
-  if (result) {
+  if (result)
     DBGPRINT(ZONE_ERR, "platform_driver_register failed() -> %d", result);
-  } else {
-    result = mux_fs_init();
-    if (result) {
-      DBGPRINT(ZONE_ERR, "mux_fs_init() failed -> %d", result);
-      mux_serial_destroy();
-    } else {
-      for (i = 0; i < gInstances; i++) {
-        result = mux_load_driver(i);
-        if (result) {
-          mux_serial_destroy();
-          break;
-        }
-      }
-    }
-  }
+
   return result;
 }
 
@@ -958,7 +969,7 @@ static int __init mux_serial_init(void) {
 //////////////////////////////////////////////////////////////////////////////
 static void __exit mux_serial_exit(void) {
   mux_serial_destroy();
-  DBGPRINT(ZONE_DRV_INIT, "*** Exit THALES Wireless Modules Serial Multiplex Client Driver ***");
+  platform_driver_unregister(&MuxPlatformDriver);
 }
 
 //////////////////////////////////////////////////////////////////////////////
