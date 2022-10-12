@@ -60,6 +60,8 @@ static long mux_fs_ioctl(struct file *, unsigned int, unsigned long);
 
 //////////////////////////////////////////////////////////////////////////////
 
+static struct class *linmuxcfg_class;
+
 struct file_operations fops = {
   .open            = mux_fs_open,
   .release         = mux_fs_release,
@@ -389,8 +391,17 @@ int mux_fs_init(void) {
           break;
         }
       }
+      if (!iRet) {
+        linmuxcfg_class = class_create(THIS_MODULE, "linmuxcfg");
+        if (IS_ERR(linmuxcfg_class)) {
+          DBGPRINT(ZONE_ERR, "Failed to create class");
+          iRet = PTR_ERR(linmuxcfg_class);
+        } else
+          device_create(linmuxcfg_class, NULL, MKDEV(MUX_FS_MAJOR, 0), NULL, MUX_CFG_NAME);
+      }
     }
   }
+
   DBG_LEAVE(ZONE_FCT_CFG_IFACE, "Ret=%i", iRet);
   return iRet;
 }
@@ -410,6 +421,10 @@ int mux_fs_init(void) {
 void mux_fs_exit(void) {
   int i;
   DBG_ENTER(ZONE_FCT_CFG_IFACE, "");
+  if (!IS_ERR_OR_NULL(linmuxcfg_class)) {
+    device_destroy(linmuxcfg_class, MKDEV(MUX_FS_MAJOR, 0));
+    class_destroy(linmuxcfg_class);
+  }
   if (pMuxBasePorts) {
     for (i = 0; i < gInstances; i++) {
       bp_Destroy(pMuxBasePorts[i]);
