@@ -1,0 +1,27 @@
+###############################################################################
+#
+# Copyright (C) 2022 THALES DIS AIS Deutschland GmbH <CinterionWMSupport@thalesgroup.com>
+# Company name change from Gemalto M2M GmbH to THALES DIS AIS Deutschland GmbH
+# Copyright (C) 2013 Gemalto M2M GmbH
+#
+# All Rights Reserved.
+#
+# Gemalto provides this source code under the GPL v2 License.
+# The GPL v2 license is available at
+#
+# https://opensource.org/licenses/gpl-license.php
+#
+###############################################################################
+
+# The major device number of the linmux tty device.
+# For each additional instance of the linmux driver this number is incremented by 1.
+# So if there are more than one instance used there must be a corresponding range of
+# free device numbers.
+tty_major_devnum := 301
+
+# The major device number of the linmux chracter device.
+fs_major_devnum := 300
+
+# The name of the linmux character device for configuration
+fs_device_name := linmuxcfg
+
