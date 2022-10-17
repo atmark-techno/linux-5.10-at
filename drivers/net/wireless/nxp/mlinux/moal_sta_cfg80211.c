@@ -3,7 +3,7 @@
  * @brief This file contains the functions for STA CFG80211.
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -53,6 +53,12 @@ static const u32 cfg80211_cipher_suites[] = {
 #endif
 };
 
+#ifdef UAP_SUPPORT
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static int woal_cfg80211_set_monitor_channel(struct wiphy *wiphy,
+					     struct cfg80211_chan_def *chandef);
+#endif
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 static void
 #else
@@ -260,6 +266,7 @@ static int woal_cfg80211_add_station(struct wiphy *wiphy,
 #endif
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 					struct net_device *dev,
 					struct cfg80211_deauth_request *req);
@@ -267,6 +274,7 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 				      struct net_device *dev,
 				      struct cfg80211_disassoc_request *req);
+#endif
 
 /** cfg80211 operations */
 static struct cfg80211_ops woal_cfg80211_ops = {
@@ -277,8 +285,10 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 #endif
 	.connect = woal_cfg80211_connect,
 	.disconnect = woal_cfg80211_disconnect,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 	.deauth = woal_cfg80211_deauthenticate,
 	.disassoc = woal_cfg80211_disassociate,
+#endif
 	.get_station = woal_cfg80211_get_station,
 	.dump_station = woal_cfg80211_dump_station,
 	.dump_survey = woal_cfg80211_dump_survey,
@@ -395,6 +405,11 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.cancel_remain_on_channel = woal_cfg80211_cancel_remain_on_channel,
 #endif
 
+#ifdef UAP_SUPPORT
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	.set_monitor_channel = woal_cfg80211_set_monitor_channel,
+#endif
+#endif
 #ifdef CONFIG_NL80211_TESTMODE
 	.testmode_cmd = woal_testmode_cmd,
 #endif
@@ -493,7 +508,7 @@ static const struct ieee80211_iface_limit cfg80211_ap_sta_limits[] = {
 	{.max = 4,
 	 .types = MBIT(NL80211_IFTYPE_STATION)
 #ifdef UAP_CFG80211
-		  | MBIT(NL80211_IFTYPE_AP)
+		  | MBIT(NL80211_IFTYPE_AP) | MBIT(NL80211_IFTYPE_MONITOR)
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
@@ -557,6 +572,99 @@ static const struct wiphy_coalesce_support coalesce_support = {
 /********************************************************
 				Local Functions
 ********************************************************/
+#ifdef UAP_SUPPORT
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static int woal_cfg80211_set_monitor_channel(struct wiphy *wiphy,
+					     struct cfg80211_chan_def *chandef)
+{
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+	moal_private *priv =
+		(moal_private *)woal_get_priv(handle, MLAN_BSS_ROLE_STA);
+	netmon_band_chan_cfg band_chan_cfg;
+	t_u32 bandwidth = 0;
+	int ret = -EFAULT;
+
+	ENTER();
+
+	if (!priv) {
+		ret = -EFAULT;
+		goto done;
+	}
+	if (handle->mon_if) {
+		if (cfg80211_chandef_identical(&handle->mon_if->chandef,
+					       chandef)) {
+			ret = 0;
+			goto done;
+		}
+
+		memset(&band_chan_cfg, 0x00, sizeof(band_chan_cfg));
+		/* Set channel */
+		band_chan_cfg.channel = ieee80211_frequency_to_channel(
+			chandef->chan->center_freq);
+		/* Set band */
+		if (chandef->chan->band == IEEE80211_BAND_2GHZ)
+			band_chan_cfg.band |= (BAND_B | BAND_G);
+		if (chandef->chan->band == IEEE80211_BAND_5GHZ)
+			band_chan_cfg.band |= BAND_A;
+		if (chandef->chan->band == IEEE80211_BAND_2GHZ)
+			band_chan_cfg.band |= BAND_GN;
+		if (chandef->chan->band == IEEE80211_BAND_5GHZ)
+			band_chan_cfg.band |= BAND_AN;
+		if (chandef->chan->band == IEEE80211_BAND_2GHZ)
+			band_chan_cfg.band |= BAND_GAC;
+		if (chandef->chan->band == IEEE80211_BAND_5GHZ)
+			band_chan_cfg.band |= BAND_AAC;
+		/* Set bandwidth */
+		if (chandef->width == NL80211_CHAN_WIDTH_20)
+			bandwidth = CHANNEL_BW_20MHZ;
+		else if (chandef->width == NL80211_CHAN_WIDTH_40)
+			bandwidth = chandef->center_freq1 >
+						    chandef->chan->center_freq ?
+					    CHANNEL_BW_40MHZ_ABOVE :
+					    CHANNEL_BW_40MHZ_BELOW;
+		else if (chandef->width == NL80211_CHAN_WIDTH_80)
+			bandwidth = CHANNEL_BW_80MHZ;
+		band_chan_cfg.chan_bandwidth = bandwidth;
+
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_net_monitor(priv, MOAL_IOCTL_WAIT,
+					 CHANNEL_SPEC_SNIFFER_MODE, 0x7,
+					 &band_chan_cfg)) {
+			PRINTM(MERROR, "%s: woal_set_net_monitor fail\n",
+			       __func__);
+			ret = -EFAULT;
+			goto done;
+		}
+
+		moal_memcpy_ext(priv->phandle, &handle->mon_if->band_chan_cfg,
+				&band_chan_cfg,
+				sizeof(handle->mon_if->band_chan_cfg),
+				sizeof(handle->mon_if->band_chan_cfg));
+		handle->mon_if->chandef = *chandef;
+
+		if (handle->mon_if->chandef.chan)
+			PRINTM(MINFO,
+			       "set_monitor_channel+++ chan[band=%d center_freq=%d hw_value=%d] width=%d center_freq1=%d center_freq2=%d\n",
+			       handle->mon_if->chandef.chan->band,
+			       handle->mon_if->chandef.chan->center_freq,
+			       handle->mon_if->chandef.chan->hw_value,
+			       handle->mon_if->chandef.width,
+			       handle->mon_if->chandef.center_freq1,
+			       handle->mon_if->chandef.center_freq2);
+		PRINTM(MINFO,
+		       "set_monitor_channel+++ band=%x channel=%d bandwidth=%d\n",
+		       handle->mon_if->band_chan_cfg.band,
+		       handle->mon_if->band_chan_cfg.channel,
+		       handle->mon_if->band_chan_cfg.chan_bandwidth);
+		ret = 0;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+#endif
+#endif
 
 /**
  *  @brief This function check cfg80211 special region code.
@@ -565,7 +673,7 @@ static const struct wiphy_coalesce_support coalesce_support = {
  *
  *  @return     MTRUE/MFALSE
  */
-static t_u8 is_cfg80211_special_region_code(t_u8 *region_string)
+t_u8 is_cfg80211_special_region_code(t_u8 *region_string)
 {
 	t_u8 i;
 	region_code_t cfg80211_special_region_code[] = {
@@ -1069,9 +1177,9 @@ static mlan_status woal_send_domain_info_cmd_fw(moal_private *priv,
 		goto done;
 	}
 
-	PRINTM(MCMD_D, "Send domain info: country=%c%c band=%d\n",
+	PRINTM(MCMD_D, "Send domain info: country=%c%c band=%d dfs_region=%d\n",
 	       priv->phandle->country_code[0], priv->phandle->country_code[1],
-	       band);
+	       band, priv->phandle->dfs_region);
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11d_cfg));
 	if (req == NULL) {
@@ -1082,7 +1190,7 @@ static mlan_status woal_send_domain_info_cmd_fw(moal_private *priv,
 	cfg_11d->sub_command = MLAN_OID_11D_DOMAIN_INFO_EXT;
 	req->req_id = MLAN_IOCTL_11D_CFG;
 	req->action = MLAN_ACT_SET;
-
+	cfg_11d->param.domain_info.dfs_region = priv->phandle->dfs_region;
 	if (is_cfg80211_special_region_code(priv->phandle->country_code)) {
 		/* Set country code */
 		cfg_11d->param.domain_info.country_code[0] = 'W';
@@ -1627,6 +1735,7 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	req->req_id = MLAN_IOCTL_11D_CFG;
 	req->action = MLAN_ACT_SET;
 
+	cfg_11d->param.domain_info.dfs_region = NXP_DFS_UNKNOWN;
 	/* Set country code */
 	cfg_11d->param.domain_info.country_code[0] =
 		priv->phandle->country_code[0];
@@ -1683,7 +1792,7 @@ woal_cfg80211_connect_scan(moal_private *priv,
 {
 	moal_handle *handle = priv->phandle;
 	int ret = 0;
-	wlan_user_scan_cfg scan_req;
+	wlan_user_scan_cfg *scan_req;
 	enum ieee80211_band band;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_channel *ch;
@@ -1702,25 +1811,35 @@ woal_cfg80211_connect_scan(moal_private *priv,
 		return -EBUSY;
 	}
 #endif /* REASSOCIATION */
+	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
+						 GFP_KERNEL);
+	if (!scan_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return -ENOMEM;
+	}
+
 	priv->report_scan_result = MTRUE;
-	memset(&scan_req, 0x00, sizeof(scan_req));
-	moal_memcpy_ext(priv->phandle, scan_req.ssid_list[0].ssid,
+	memset(scan_req, 0x00, sizeof(wlan_user_scan_cfg));
+	moal_memcpy_ext(priv->phandle, scan_req->ssid_list[0].ssid,
 			conn_param->ssid, conn_param->ssid_len,
-			sizeof(scan_req.ssid_list[0].ssid));
-	scan_req.ssid_list[0].max_len = 0;
+			sizeof(scan_req->ssid_list[0].ssid));
+	scan_req->ssid_list[0].max_len = 0;
 	if (conn_param->channel) {
-		scan_req.chan_list[0].chan_number =
+		scan_req->chan_list[0].chan_number =
 			conn_param->channel->hw_value;
-		scan_req.chan_list[0].radio_type = conn_param->channel->band;
+		scan_req->chan_list[0].radio_type =
+			woal_ieee_band_to_radio_type(conn_param->channel->band);
 		if (conn_param->channel->flags & IEEE80211_CHAN_PASSIVE_SCAN)
-			scan_req.chan_list[0].scan_type =
+			scan_req->chan_list[0].scan_type =
 				MLAN_SCAN_TYPE_PASSIVE;
 		else if (conn_param->channel->flags & IEEE80211_CHAN_RADAR)
-			scan_req.chan_list[0].scan_type =
+			scan_req->chan_list[0].scan_type =
 				MLAN_SCAN_TYPE_PASSIVE_TO_ACTIVE;
 		else
-			scan_req.chan_list[0].scan_type = MLAN_SCAN_TYPE_ACTIVE;
-		scan_req.chan_list[0].scan_time = 0;
+			scan_req->chan_list[0].scan_type =
+				MLAN_SCAN_TYPE_ACTIVE;
+		scan_req->chan_list[0].scan_time = 0;
 	} else {
 		for (band = 0; (band < IEEE80211_NUM_BANDS); band++) {
 			if (!priv->wdev->wiphy->bands[band])
@@ -1730,25 +1849,27 @@ woal_cfg80211_connect_scan(moal_private *priv,
 				ch = &sband->channels[i];
 				if (ch->flags & IEEE80211_CHAN_DISABLED)
 					continue;
-				scan_req.chan_list[chan_idx].radio_type = band;
+				scan_req->chan_list[chan_idx].radio_type =
+					woal_ieee_band_to_radio_type(band);
 				if (ch->flags & IEEE80211_CHAN_PASSIVE_SCAN)
-					scan_req.chan_list[chan_idx].scan_type =
+					scan_req->chan_list[chan_idx].scan_type =
 						MLAN_SCAN_TYPE_PASSIVE;
 				else if (ch->flags & IEEE80211_CHAN_RADAR)
-					scan_req.chan_list[chan_idx].scan_type =
+					scan_req->chan_list[chan_idx].scan_type =
 						MLAN_SCAN_TYPE_PASSIVE_TO_ACTIVE;
 				else
-					scan_req.chan_list[chan_idx].scan_type =
+					scan_req->chan_list[chan_idx].scan_type =
 						MLAN_SCAN_TYPE_ACTIVE;
-				scan_req.chan_list[chan_idx].chan_number =
+				scan_req->chan_list[chan_idx].chan_number =
 					(u32)ch->hw_value;
 				chan_idx++;
 			}
 		}
 	}
-	moal_memcpy_ext(priv->phandle, scan_req.random_mac, priv->random_mac,
-			ETH_ALEN, sizeof(scan_req.random_mac));
-	ret = woal_request_userscan(priv, wait_option, &scan_req);
+	moal_memcpy_ext(priv->phandle, scan_req->random_mac, priv->random_mac,
+			ETH_ALEN, sizeof(scan_req->random_mac));
+	ret = woal_request_userscan(priv, wait_option, scan_req);
+	kfree(scan_req);
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
 #endif
@@ -1855,7 +1976,7 @@ static int woal_cfg80211_auth_scan(moal_private *priv,
 {
 	moal_handle *handle = priv->phandle;
 	int ret = 0;
-	wlan_user_scan_cfg scan_req;
+	wlan_user_scan_cfg *scan_req;
 	enum ieee80211_band band;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_channel *ch;
@@ -1875,31 +1996,42 @@ static int woal_cfg80211_auth_scan(moal_private *priv,
 		return -EBUSY;
 	}
 #endif /* REASSOCIATION */
+	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
+						 GFP_KERNEL);
+	if (!scan_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return -ENOMEM;
+	}
+
 	priv->report_scan_result = MTRUE;
-	memset(&scan_req, 0x00, sizeof(scan_req));
+	memset(scan_req, 0x00, sizeof(wlan_user_scan_cfg));
 	rcu_read_lock();
 	ssid = ieee80211_bss_get_ie(req->bss, WLAN_EID_SSID);
 	if (ssid) {
-		moal_memcpy_ext(priv->phandle, scan_req.ssid_list[0].ssid,
+		moal_memcpy_ext(priv->phandle, scan_req->ssid_list[0].ssid,
 				ssid + 2, ssid[1],
-				sizeof(scan_req.ssid_list[0].ssid));
-		scan_req.ssid_list[0].max_len = 0;
+				sizeof(scan_req->ssid_list[0].ssid));
+		scan_req->ssid_list[0].max_len = 0;
 	}
 	rcu_read_unlock();
-	moal_memcpy_ext(priv->phandle, scan_req.specific_bssid, req->bss->bssid,
-			ETH_ALEN, ETH_ALEN);
+	moal_memcpy_ext(priv->phandle, scan_req->specific_bssid,
+			req->bss->bssid, ETH_ALEN, ETH_ALEN);
 	if (req->bss->channel) {
-		scan_req.chan_list[0].chan_number = req->bss->channel->hw_value;
-		scan_req.chan_list[0].radio_type = req->bss->channel->band;
+		scan_req->chan_list[0].chan_number =
+			req->bss->channel->hw_value;
+		scan_req->chan_list[0].radio_type =
+			woal_ieee_band_to_radio_type(req->bss->channel->band);
 		if (req->bss->channel->flags & IEEE80211_CHAN_PASSIVE_SCAN)
-			scan_req.chan_list[0].scan_type =
+			scan_req->chan_list[0].scan_type =
 				MLAN_SCAN_TYPE_PASSIVE;
 		else if (req->bss->channel->flags & IEEE80211_CHAN_RADAR)
-			scan_req.chan_list[0].scan_type =
+			scan_req->chan_list[0].scan_type =
 				MLAN_SCAN_TYPE_PASSIVE_TO_ACTIVE;
 		else
-			scan_req.chan_list[0].scan_type = MLAN_SCAN_TYPE_ACTIVE;
-		scan_req.chan_list[0].scan_time = 0;
+			scan_req->chan_list[0].scan_type =
+				MLAN_SCAN_TYPE_ACTIVE;
+		scan_req->chan_list[0].scan_time = 0;
 	} else {
 		for (band = 0; (band < IEEE80211_NUM_BANDS); band++) {
 			if (!priv->wdev->wiphy->bands[band])
@@ -1909,25 +2041,27 @@ static int woal_cfg80211_auth_scan(moal_private *priv,
 				ch = &sband->channels[i];
 				if (ch->flags & IEEE80211_CHAN_DISABLED)
 					continue;
-				scan_req.chan_list[chan_idx].radio_type = band;
+				scan_req->chan_list[chan_idx].radio_type =
+					woal_ieee_band_to_radio_type(band);
 				if (ch->flags & IEEE80211_CHAN_PASSIVE_SCAN)
-					scan_req.chan_list[chan_idx].scan_type =
+					scan_req->chan_list[chan_idx].scan_type =
 						MLAN_SCAN_TYPE_PASSIVE;
 				else if (ch->flags & IEEE80211_CHAN_RADAR)
-					scan_req.chan_list[chan_idx].scan_type =
+					scan_req->chan_list[chan_idx].scan_type =
 						MLAN_SCAN_TYPE_PASSIVE_TO_ACTIVE;
 				else
-					scan_req.chan_list[chan_idx].scan_type =
+					scan_req->chan_list[chan_idx].scan_type =
 						MLAN_SCAN_TYPE_ACTIVE;
-				scan_req.chan_list[chan_idx].chan_number =
+				scan_req->chan_list[chan_idx].chan_number =
 					(u32)ch->hw_value;
 				chan_idx++;
 			}
 		}
 	}
-	moal_memcpy_ext(priv->phandle, scan_req.random_mac, priv->random_mac,
-			ETH_ALEN, sizeof(scan_req.random_mac));
-	ret = woal_request_userscan(priv, wait_option, &scan_req);
+	moal_memcpy_ext(priv->phandle, scan_req->random_mac, priv->random_mac,
+			ETH_ALEN, sizeof(scan_req->random_mac));
+	ret = woal_request_userscan(priv, wait_option, scan_req);
+	kfree(scan_req);
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
 #endif
@@ -1972,6 +2106,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	priv->cfg_disconnect = MFALSE;
 #ifdef UAP_CFG80211
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
+		PRINTM(MERROR, "ERR: Role is AP\n");
 		LEAVE();
 		return -EFAULT;
 	}
@@ -2092,6 +2227,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 				  KEY_INDEX_CLEAR_ALL, NULL, 1,
 				  MOAL_IOCTL_WAIT)) {
 		/* Disable keys and clear all previous security settings */
+		PRINTM(MERROR, "Fail to clear previous keys\n");
 		ret = -EFAULT;
 		goto done;
 	}
@@ -2121,6 +2257,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 		goto done;
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_auth_mode(priv, MOAL_IOCTL_WAIT, auth_alg)) {
+		PRINTM(MERROR, "Fail to set auth mode\n");
 		ret = -EFAULT;
 		goto done;
 	}
@@ -2133,6 +2270,8 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_set_wep_keys(priv, req->key, req->key_len,
 					       req->key_idx, MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "Fail to set wep key idx %d\n",
+			       req->key_idx);
 			ret = -EFAULT;
 			goto done;
 		}
@@ -2140,6 +2279,8 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_set_wep_keys(priv, NULL, 0, req->key_idx,
 					       MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "Fail to enable wep key idx %d\n",
+			       req->key_idx);
 			ret = -EFAULT;
 			goto done;
 		}
@@ -2253,7 +2394,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	priv->auth_flag = HOST_MLME_AUTH_PENDING;
 	priv->auth_alg = woal_cpu_to_le16(auth_alg);
 
-	PRINTM(MCMND, "wlan: HostMlme %s send auth to bssid " MACSTR "\n",
+	PRINTM(MMSG, "wlan: HostMlme %s send auth to bssid " MACSTR "\n",
 	       dev->name, MAC2STR(req->bss->bssid));
 	DBG_HEXDUMP(MDAT_D, "Auth:", pmbuf->pbuf + pmbuf->data_offset,
 		    pmbuf->data_len);
@@ -2276,6 +2417,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 		priv->auth_flag = 0;
 		priv->auth_alg = 0xFFFF;
 		ret = -EFAULT;
+		PRINTM(MERROR, "Fail to send packet status=%d\n", status);
 		break;
 	}
 done:
@@ -2329,15 +2471,16 @@ void woal_host_mlme_work_queue(struct work_struct *work)
  * case
  *
  *  @param priv  	pointer to moal_private
- *  @param assoc_rsp	pointer to mlan_ds_misc_assoc_rsp
+ *  @param assoc_info	pointer to mlan_ds_assoc_info
  *
  *  @return        N/A
  */
 void woal_host_mlme_process_assoc_resp(moal_private *priv,
-				       mlan_ds_misc_assoc_rsp *assoc_rsp)
+				       mlan_ds_assoc_info *assoc_info)
 {
 	struct cfg80211_bss *bss = NULL;
 	unsigned long flags;
+	u8 *assoc_req_buf = NULL;
 
 	if (priv) {
 		if (priv->auth_flag & HOST_MLME_ASSOC_DONE) {
@@ -2350,27 +2493,27 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 				return;
 			}
 
-			if (assoc_rsp->assoc_resp_len) {
+			if (assoc_info->assoc_resp_len) {
 				PRINTM(MCMND,
 				       "HostMlme: %s assoc_resp_len=%d, frame_control=0x%x\n",
 				       priv->netdev->name,
-				       assoc_rsp->assoc_resp_len,
+				       assoc_info->assoc_resp_len,
 				       ((struct ieee80211_mgmt *)
-						assoc_rsp->assoc_resp_buf)
+						assoc_info->assoc_resp_buf)
 					       ->frame_control);
 				if (ieee80211_is_assoc_resp(
 					    ((struct ieee80211_mgmt *)
-						     assoc_rsp->assoc_resp_buf)
+						     assoc_info->assoc_resp_buf)
 						    ->frame_control) ||
 				    ieee80211_is_reassoc_resp(
 					    ((struct ieee80211_mgmt *)
-						     assoc_rsp->assoc_resp_buf)
+						     assoc_info->assoc_resp_buf)
 						    ->frame_control)) {
 					spin_lock_irqsave(&priv->connect_lock,
 							  flags);
 					if (le16_to_cpu(
 						    ((struct ieee80211_mgmt
-							      *)assoc_rsp
+							      *)assoc_info
 							     ->assoc_resp_buf)
 							    ->u.assoc_resp
 							    .status_code) !=
@@ -2386,30 +2529,44 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 					}
 					spin_unlock_irqrestore(
 						&priv->connect_lock, flags);
+					/*Populate Assoc req buf only if len is
+					 * non zero . i.e. we received assoc req
+					 * buffer from fw.*/
+					if (assoc_info->assoc_req_len)
+						assoc_req_buf =
+							assoc_info
+								->assoc_req_buf;
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+					mutex_lock(&priv->wdev->mtx);
 					cfg80211_rx_assoc_resp(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len, -1,
-						NULL, 0);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len, -1,
+						assoc_req_buf,
+						assoc_info->assoc_req_len);
+					mutex_unlock(&priv->wdev->mtx);
 #else
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+					mutex_lock(&priv->wdev->mtx);
 					cfg80211_rx_assoc_resp(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len, -1);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len, -1);
+					mutex_unlock(&priv->wdev->mtx);
 #else
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+					mutex_lock(&priv->wdev->mtx);
 					cfg80211_rx_assoc_resp(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len);
+					mutex_unlock(&priv->wdev->mtx);
 #else
 					cfg80211_send_rx_assoc(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len);
 #endif
 #endif
 #endif
@@ -2434,14 +2591,25 @@ static void woal_assoc_resp_event(moal_private *priv,
 	struct woal_event *evt;
 	unsigned long flags;
 	moal_handle *handle = priv->phandle;
+	mlan_ds_misc_assoc_req assoc_req;
+	memset(&assoc_req, 0, sizeof(mlan_ds_misc_assoc_req));
+	woal_get_assoc_req(priv, &assoc_req, MOAL_IOCTL_WAIT);
 
 	evt = kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
 	if (evt) {
 		evt->priv = priv;
 		evt->type = WOAL_EVENT_ASSOC_RESP;
-		moal_memcpy_ext(priv->phandle, &evt->assoc_resp, passoc_rsp,
-				sizeof(mlan_ds_misc_assoc_rsp),
-				sizeof(mlan_ds_misc_assoc_rsp));
+		moal_memcpy_ext(priv->phandle, evt->assoc_info.assoc_resp_buf,
+				passoc_rsp->assoc_resp_buf,
+				passoc_rsp->assoc_resp_len, ASSOC_RSP_BUF_SIZE);
+		evt->assoc_info.assoc_resp_len =
+			MIN(passoc_rsp->assoc_resp_len, ASSOC_RSP_BUF_SIZE);
+		moal_memcpy_ext(priv->phandle, evt->assoc_info.assoc_req_buf,
+				assoc_req.assoc_req_buf,
+				assoc_req.assoc_req_len, ASSOC_RSP_BUF_SIZE);
+		evt->assoc_info.assoc_req_len =
+			MIN(assoc_req.assoc_req_len, ASSOC_RSP_BUF_SIZE);
+
 		INIT_LIST_HEAD(&evt->link);
 		spin_lock_irqsave(&handle->evt_lock, flags);
 		list_add_tail(&evt->link, &handle->evt_queue);
@@ -2468,7 +2636,7 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
-	mlan_ssid_bssid ssid_bssid;
+	mlan_ssid_bssid *ssid_bssid = NULL;
 	unsigned long flags;
 	const u8 *ssid_ie;
 	int wpa_enabled = 0, group_enc_mode = 0, pairwise_enc_mode = 0;
@@ -2476,6 +2644,12 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+
+	ssid_bssid = kmalloc(sizeof(mlan_ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid) {
+		LEAVE();
+		return -EFAULT;
+	}
 
 	if (priv->auth_alg == WLAN_AUTH_SAE) {
 		priv->auth_flag = HOST_MLME_AUTH_DONE;
@@ -2509,11 +2683,11 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 	priv->assoc_status = 0;
 	priv->auth_alg = 0xFFFF;
 
-	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+	memset(ssid_bssid, 0, sizeof(mlan_ssid_bssid));
 	rcu_read_lock();
 	ssid_ie = ieee80211_bss_get_ie(req->bss, WLAN_EID_SSID);
-	moal_memcpy_ext(priv->phandle, ssid_bssid.bssid, req->bss->bssid,
-			ETH_ALEN, sizeof(ssid_bssid.bssid));
+	moal_memcpy_ext(priv->phandle, ssid_bssid->bssid, req->bss->bssid,
+			ETH_ALEN, sizeof(ssid_bssid->bssid));
 
 	if (!ssid_ie) {
 		rcu_read_unlock();
@@ -2521,18 +2695,18 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 		goto done;
 	}
 
-	moal_memcpy_ext(priv->phandle, ssid_bssid.ssid.ssid, ssid_ie + 2,
-			ssid_ie[1], sizeof(ssid_bssid.ssid.ssid));
-	ssid_bssid.ssid.ssid_len = ssid_ie[1];
+	moal_memcpy_ext(priv->phandle, ssid_bssid->ssid.ssid, ssid_ie + 2,
+			ssid_ie[1], sizeof(ssid_bssid->ssid.ssid));
+	ssid_bssid->ssid.ssid_len = ssid_ie[1];
 	rcu_read_unlock();
 
-	if (ssid_bssid.ssid.ssid_len > MW_ESSID_MAX_SIZE) {
+	if (ssid_bssid->ssid.ssid_len > MW_ESSID_MAX_SIZE) {
 		PRINTM(MERROR, "Invalid SSID - aborting\n");
 		ret = -EINVAL;
 		goto done;
 	}
 
-	if (!ssid_bssid.ssid.ssid_len || ssid_bssid.ssid.ssid[0] < 0x20) {
+	if (!ssid_bssid->ssid.ssid_len || ssid_bssid->ssid.ssid[0] < 0x20) {
 		PRINTM(MERROR, "Invalid SSID - aborting\n");
 		ret = -EINVAL;
 		goto done;
@@ -2593,23 +2767,23 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 		if (ret)
 			goto done;
 	}
-	ssid_bssid.host_mlme = priv->host_mlme;
+	ssid_bssid->host_mlme = priv->host_mlme;
 
 	if (req->bss->channel) {
-		ssid_bssid.channel_flags = req->bss->channel->flags;
-		ssid_bssid.channel_flags |= CHAN_FLAGS_MAX;
+		ssid_bssid->channel_flags = req->bss->channel->flags;
+		ssid_bssid->channel_flags |= CHAN_FLAGS_MAX;
 		PRINTM(MCMND, "channel flags=0x%x\n", req->bss->channel->flags);
 	}
 	if (req->prev_bssid) {
-		moal_memcpy_ext(priv->phandle, ssid_bssid.prev_bssid,
+		moal_memcpy_ext(priv->phandle, ssid_bssid->prev_bssid,
 				req->prev_bssid, ETH_ALEN,
-				sizeof(ssid_bssid.prev_bssid));
+				sizeof(ssid_bssid->prev_bssid));
 	}
 
 	PRINTM(MCMND, "wlan: HostMlme %s send assoicate to bssid " MACSTR "\n",
 	       priv->netdev->name, MAC2STR(req->bss->bssid));
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_bss_start(priv, MOAL_IOCTL_WAIT_TIMEOUT, &ssid_bssid)) {
+	    woal_bss_start(priv, MOAL_IOCTL_WAIT_TIMEOUT, ssid_bssid)) {
 		PRINTM(MERROR, "HostMlme %s: bss_start Fails\n",
 		       priv->netdev->name);
 		priv->host_mlme = MFALSE;
@@ -2626,7 +2800,7 @@ done:
 		    || priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT
 #endif
 		)
-			woal_save_assoc_params(priv, req, &ssid_bssid);
+			woal_save_assoc_params(priv, req, ssid_bssid);
 		memset(&bss_info, 0, sizeof(bss_info));
 		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
 		priv->channel = bss_info.bss_chan;
@@ -2645,15 +2819,15 @@ done:
 		       "wlan: HostMlme %s Failed to connect to bssid " MACSTR
 		       "\n",
 		       priv->netdev->name, MAC2STR(req->bss->bssid));
-		if (ssid_bssid.assoc_rsp.assoc_resp_len &&
-		    ssid_bssid.assoc_rsp.assoc_resp_len >
+		if (ssid_bssid->assoc_rsp.assoc_resp_len &&
+		    ssid_bssid->assoc_rsp.assoc_resp_len >
 			    sizeof(IEEEtypes_MgmtHdr_t)) {
 			// save the connection param when send assoc_resp to
 			// kernel
-			woal_save_assoc_params(priv, req, &ssid_bssid);
+			woal_save_assoc_params(priv, req, ssid_bssid);
 			ret = 0;
 		} else {
-			ssid_bssid.assoc_rsp.assoc_resp_len = 0;
+			ssid_bssid->assoc_rsp.assoc_resp_len = 0;
 			ret = -EFAULT;
 			memset(priv->cfg_bssid, 0, ETH_ALEN);
 			if (priv->bss_type == MLAN_BSS_TYPE_STA)
@@ -2666,11 +2840,11 @@ done:
 	/*Association Response should also be send when ret is non-zero.
 	  We also need to return success when we have association response
 	  available*/
-	if (ssid_bssid.assoc_rsp.assoc_resp_len) {
+	if (ssid_bssid->assoc_rsp.assoc_resp_len) {
 		priv->auth_flag |= HOST_MLME_ASSOC_DONE;
-		woal_assoc_resp_event(priv, &ssid_bssid.assoc_rsp);
+		woal_assoc_resp_event(priv, &ssid_bssid->assoc_rsp);
 	}
-
+	kfree(ssid_bssid);
 	LEAVE();
 	return ret;
 }
@@ -2692,7 +2866,7 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 	struct cfg80211_ibss_params *ibss_param = NULL;
 	struct cfg80211_connect_params *conn_param = NULL;
 	mlan_802_11_ssid req_ssid;
-	mlan_ssid_bssid ssid_bssid;
+	mlan_ssid_bssid *ssid_bssid = NULL;
 	mlan_ioctl_req *req = NULL;
 	int ret = 0;
 	t_u32 auth_type = 0, mode;
@@ -2712,6 +2886,11 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 	ENTER();
 
 	if (!sme) {
+		LEAVE();
+		return -EFAULT;
+	}
+	ssid_bssid = kmalloc(sizeof(mlan_ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid) {
 		LEAVE();
 		return -EFAULT;
 	}
@@ -2806,7 +2985,7 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 	}
 
 	memset(&req_ssid, 0, sizeof(mlan_802_11_ssid));
-	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+	memset(ssid_bssid, 0, sizeof(mlan_ssid_bssid));
 
 	req_ssid.ssid_len = ssid_len;
 	if (ssid_len > MW_ESSID_MAX_SIZE) {
@@ -2825,7 +3004,7 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 
 	if (priv->phandle->card_info->embedded_supp)
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_ewpa_mode(priv, wait_option, &ssid_bssid)) {
+		    woal_set_ewpa_mode(priv, wait_option, ssid_bssid)) {
 			ret = -EFAULT;
 			goto done;
 		}
@@ -2984,13 +3163,13 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 				goto done;
 		}
 	}
-	moal_memcpy_ext(priv->phandle, &ssid_bssid.ssid, &req_ssid,
-			sizeof(mlan_802_11_ssid), sizeof(ssid_bssid.ssid));
+	moal_memcpy_ext(priv->phandle, &ssid_bssid->ssid, &req_ssid,
+			sizeof(mlan_802_11_ssid), sizeof(ssid_bssid->ssid));
 	if (bssid)
-		moal_memcpy_ext(priv->phandle, &ssid_bssid.bssid, bssid,
-				ETH_ALEN, sizeof(ssid_bssid.bssid));
+		moal_memcpy_ext(priv->phandle, &ssid_bssid->bssid, bssid,
+				ETH_ALEN, sizeof(ssid_bssid->bssid));
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_find_essid(priv, &ssid_bssid, wait_option)) {
+	    woal_find_essid(priv, ssid_bssid, wait_option)) {
 		/* Do specific SSID scanning */
 		if (mode != MLAN_BSS_MODE_IBSS)
 			ret = woal_cfg80211_connect_scan(priv, conn_param,
@@ -3010,46 +3189,46 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 
 	if (mode != MLAN_BSS_MODE_IBSS) {
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_find_best_network(priv, wait_option, &ssid_bssid)) {
+		    woal_find_best_network(priv, wait_option, ssid_bssid)) {
 			ret = -EFAULT;
 			goto done;
 		}
 		/* Inform the BSS information to kernel, otherwise
 		 * kernel will give a panic after successful assoc */
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_inform_bss_from_scan_result(priv, &ssid_bssid,
+		    woal_inform_bss_from_scan_result(priv, ssid_bssid,
 						     wait_option)) {
 			ret = -EFAULT;
 			goto done;
 		}
 	} else if (MLAN_STATUS_SUCCESS !=
-		   woal_find_best_network(priv, wait_option, &ssid_bssid))
+		   woal_find_best_network(priv, wait_option, ssid_bssid))
 		/* Adhoc start, Check the channel command */
 		woal_11h_channel_check_ioctl(priv, wait_option);
 
 	PRINTM(MINFO, "Trying to associate to %s and bssid " MACSTR "\n",
-	       (char *)req_ssid.ssid, MAC2STR(ssid_bssid.bssid));
+	       (char *)req_ssid.ssid, MAC2STR(ssid_bssid->bssid));
 
 	/* Zero SSID implies use BSSID to connect */
 	if (bssid)
-		memset(&ssid_bssid.ssid, 0, sizeof(mlan_802_11_ssid));
+		memset(&ssid_bssid->ssid, 0, sizeof(mlan_802_11_ssid));
 	else /* Connect to BSS by ESSID */
-		memset(&ssid_bssid.bssid, 0, MLAN_MAC_ADDR_LENGTH);
+		memset(&ssid_bssid->bssid, 0, MLAN_MAC_ADDR_LENGTH);
 	if (channel) {
-		ssid_bssid.channel_flags = channel->flags;
-		ssid_bssid.channel_flags |= CHAN_FLAGS_MAX;
+		ssid_bssid->channel_flags = channel->flags;
+		ssid_bssid->channel_flags |= CHAN_FLAGS_MAX;
 		PRINTM(MCMND, "channel flags=0x%x\n", channel->flags);
 	}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 	if (conn_param && conn_param->prev_bssid) {
-		moal_memcpy_ext(priv->phandle, ssid_bssid.prev_bssid,
+		moal_memcpy_ext(priv->phandle, ssid_bssid->prev_bssid,
 				conn_param->prev_bssid, ETH_ALEN,
-				sizeof(ssid_bssid.prev_bssid));
+				sizeof(ssid_bssid->prev_bssid));
 	}
 #endif
 
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_bss_start(priv, MOAL_IOCTL_WAIT_TIMEOUT, &ssid_bssid)) {
+	    woal_bss_start(priv, MOAL_IOCTL_WAIT_TIMEOUT, ssid_bssid)) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -3064,13 +3243,15 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 			goto done;
 		}
 	} else if (assoc_rsp) {
-		moal_memcpy_ext(priv->phandle, assoc_rsp, &ssid_bssid.assoc_rsp,
+		moal_memcpy_ext(priv->phandle, assoc_rsp,
+				&ssid_bssid->assoc_rsp,
 				sizeof(mlan_ds_misc_assoc_rsp),
 				sizeof(mlan_ds_misc_assoc_rsp));
 		PRINTM(MCMND, "assoc_rsp ie len=%d\n",
 		       assoc_rsp->assoc_resp_len);
 	}
 done:
+	kfree(ssid_bssid);
 	if (ret) {
 		/* clear the encryption mode */
 		if (MLAN_STATUS_SUCCESS !=
@@ -3184,8 +3365,11 @@ static void woal_cfg80211_fill_rate_info(moal_private *priv,
 		sinfo->txrate.mcs = rate->param.data_rate.tx_mcs_index;
 	} else {
 		/* Bit rate is in 500 kb/s units. Convert it to 100kb/s units */
-		sinfo->txrate.legacy =
-			Rates[rate->param.data_rate.tx_data_rate] * 5;
+		if (rate->param.data_rate.tx_data_rate < 12) {
+			sinfo->txrate.legacy =
+				Rates[rate->param.data_rate.tx_data_rate] * 5;
+		} else
+			sinfo->txrate.legacy = Rates[0] * 5;
 	}
 	// Fill Rx rate
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
@@ -3228,8 +3412,11 @@ static void woal_cfg80211_fill_rate_info(moal_private *priv,
 		sinfo->rxrate.mcs = rate->param.data_rate.rx_mcs_index;
 	} else {
 		/* Bit rate is in 500 kb/s units. Convert it to 100kb/s units */
-		sinfo->rxrate.legacy =
-			Rates[rate->param.data_rate.rx_data_rate] * 5;
+		if (rate->param.data_rate.rx_data_rate < 12) {
+			sinfo->rxrate.legacy =
+				Rates[rate->param.data_rate.rx_data_rate] * 5;
+		} else
+			sinfo->rxrate.legacy = 0;
 	}
 #endif
 done:
@@ -3355,40 +3542,6 @@ done:
 /********************************************************
 				Global Functions
 ********************************************************/
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-/**
- * @brief Set all radar channel's dfs_state
- *
- * @param wiphy           A pointer to wiphy structure
- *
- * @return                N/A
- */
-void woal_update_radar_chans_dfs_state(struct wiphy *wiphy)
-{
-	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
-	enum ieee80211_band band;
-	struct ieee80211_supported_band *sband;
-	int i;
-	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
-		sband = wiphy->bands[band];
-		if (!sband)
-			continue;
-		for (i = 0; i < sband->n_channels; i++) {
-			if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
-				if (moal_extflg_isset(handle, EXT_DFS_OFFLOAD))
-					sband->channels[i].dfs_state =
-						NL80211_DFS_AVAILABLE;
-				else
-					sband->channels[i].dfs_state =
-						NL80211_DFS_USABLE;
-			}
-		}
-	}
-	PRINTM(MCMND, "Set radar dfs_state: dfs_offload=%d\n",
-	       moal_extflg_isset(handle, EXT_DFS_OFFLOAD));
-}
-#endif
-
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 
 /**
@@ -3464,7 +3617,7 @@ woal_reg_apply_beaconing_flags(struct wiphy *wiphy,
 	int band, i;
 	t_u32 rule_flags = 0;
 
-	for (band = 0; band < NUM_NL80211_BANDS; band++) {
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
 		sband = wiphy->bands[band];
 		if (!sband)
 			continue;
@@ -3488,12 +3641,14 @@ woal_reg_apply_beaconing_flags(struct wiphy *wiphy,
 /**
  *  @brief This function create the custom regdomain
  *
+ *  @param priv       pointer to moal_private
  *  @param custom_reg       pointer to mlan_ds_custom_reg_domain
  *
  *  @return                 pointer to ieee80211_regdomain
  */
 static struct ieee80211_regdomain *
-create_custom_regdomain(mlan_ds_custom_reg_domain *custom_reg)
+create_custom_regdomain(moal_private *priv,
+			mlan_ds_custom_reg_domain *custom_reg)
 {
 	struct ieee80211_reg_rule *rule;
 	bool new_rule;
@@ -3608,7 +3763,7 @@ create_custom_regdomain(mlan_ds_custom_reg_domain *custom_reg)
 		regd->dfs_region = NL80211_DFS_UNSET;
 		break;
 	}
-
+	priv->phandle->dfs_region = regd->dfs_region;
 	PRINTM(MCMND, "create_custom_regdomain: %c%c rules=%d dfs_region=%d\n",
 	       regd->alpha2[0], regd->alpha2[1], valid_rules, regd->dfs_region);
 	for (idx = 0; idx < (int)regd->n_reg_rules; idx++) {
@@ -3692,7 +3847,7 @@ static int woal_update_custom_regdomain(moal_private *priv, struct wiphy *wiphy)
 		       misc->param.custom_reg_domain.region.country_code[1],
 		       country_code[0], country_code[1]);
 	}
-	regd = create_custom_regdomain(&misc->param.custom_reg_domain);
+	regd = create_custom_regdomain(priv, &misc->param.custom_reg_domain);
 	if (regd) {
 		PRINTM(MMSG, "call regulatory_set_wiphy_regd %c%c",
 		       misc->param.custom_reg_domain.region.country_code[0],
@@ -3700,19 +3855,51 @@ static int woal_update_custom_regdomain(moal_private *priv, struct wiphy *wiphy)
 		wiphy->regulatory_flags &=
 			~(REGULATORY_STRICT_REG | REGULATORY_CUSTOM_REG);
 		wiphy->regulatory_flags |= REGULATORY_WIPHY_SELF_MANAGED;
-		ret = regulatory_set_wiphy_regd(wiphy, regd);
+		rtnl_lock();
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+		ret = regulatory_set_wiphy_regd_sync(wiphy, regd);
+#else
+		ret = regulatory_set_wiphy_regd_sync_rtnl(wiphy, regd);
+#endif
+		rtnl_unlock();
 		kfree(regd);
-		if (!ret) {
-			woal_sched_timeout(100);
+		if (!ret)
 			woal_reg_apply_beaconing_flags(
 				wiphy, &misc->param.custom_reg_domain);
-		}
 	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 	LEAVE();
 	return ret;
+}
+
+/**
+ *  @brief This workqueue handles create customer regulatory
+ * case
+ *
+ *  @param work    A pointer to work_struct
+ *
+ *  @return        N/A
+ */
+void woal_regulatory_work_queue(struct work_struct *work)
+{
+	moal_handle *handle = container_of(work, moal_handle, regulatory_work);
+	struct wiphy *wiphy = handle->wiphy;
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	enum ieee80211_band band;
+
+	if (priv && wiphy) {
+		woal_update_custom_regdomain(priv, wiphy);
+		band = priv->phandle->band;
+		priv->phandle->band = IEEE80211_BAND_2GHZ;
+		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		if (priv->phandle->fw_bands & BAND_A) {
+			priv->phandle->band = IEEE80211_BAND_5GHZ;
+			woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		}
+		priv->phandle->band = band;
+	}
 }
 #endif
 
@@ -3739,10 +3926,12 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	int ret = 0;
 #endif
+	t_u8 load_power_table = MFALSE;
 	mlan_fw_info fw_info;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 	char *reg_alpha2 = NULL;
 #endif
+	t_u8 dfs_region = NXP_DFS_UNKNOWN;
 
 	ENTER();
 
@@ -3756,11 +3945,20 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 		return;
 #endif
 	}
-
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+	dfs_region = request->dfs_region;
+#endif
 	PRINTM(MCMND,
 	       "cfg80211 regulatory domain callback "
-	       "%c%c initiator=%d\n",
-	       request->alpha2[0], request->alpha2[1], request->initiator);
+	       "%c%c initiator=%d dfs_region=%d\n",
+	       request->alpha2[0], request->alpha2[1], request->initiator,
+	       dfs_region);
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	if (!(wiphy->regulatory_flags & REGULATORY_WIPHY_SELF_MANAGED))
+#endif
+		handle->dfs_region = dfs_region;
+
 	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	if (fw_info.force_reg) {
@@ -3774,10 +3972,6 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 #endif
 	}
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	if (moal_extflg_isset(handle, EXT_DFS_OFFLOAD))
-		woal_update_radar_chans_dfs_state(wiphy);
-#endif
 	memset(region, 0, sizeof(region));
 	moal_memcpy_ext(priv->phandle, region, request->alpha2,
 			sizeof(request->alpha2), sizeof(region));
@@ -3806,17 +4000,18 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 				return;
 #endif
 			}
+			load_power_table = MTRUE;
 		}
 	}
-	if (MTRUE != is_cfg80211_special_region_code(region)) {
-		if (!handle->params.cntry_txpwr) {
-			handle->country_code[0] = request->alpha2[0];
-			handle->country_code[1] = request->alpha2[1];
-			handle->country_code[2] = ' ';
+	if (!handle->params.cntry_txpwr) {
+		handle->country_code[0] = request->alpha2[0];
+		handle->country_code[1] = request->alpha2[1];
+		handle->country_code[2] = ' ';
+		if (MTRUE != is_cfg80211_special_region_code(region)) {
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_set_region_code(priv, handle->country_code))
+				PRINTM(MERROR, "Set country code failed!\n");
 		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_region_code(priv, handle->country_code))
-			PRINTM(MERROR, "Set country code failed!\n");
 	}
 	switch (request->initiator) {
 	case NL80211_REGDOM_SET_BY_DRIVER:
@@ -3824,22 +4019,28 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 		reg_alpha2 = priv->phandle->params.reg_alpha2;
 		if ((handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE) &&
+		    !handle->params.txpwrlimit_cfg && load_power_table &&
 		    reg_alpha2 && woal_is_valid_alpha2(reg_alpha2))
-			woal_update_custom_regdomain(priv, wiphy);
+			queue_work(handle->evt_workqueue,
+				   &handle->regulatory_work);
 #endif
 		break;
 	case NL80211_REGDOM_SET_BY_CORE:
 		PRINTM(MCMND, "Regulatory domain BY_CORE\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
-		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)
-			woal_update_custom_regdomain(priv, wiphy);
+		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE &&
+		    load_power_table && !handle->params.txpwrlimit_cfg)
+			queue_work(handle->evt_workqueue,
+				   &handle->regulatory_work);
 #endif
 		break;
 	case NL80211_REGDOM_SET_BY_USER:
 		PRINTM(MCMND, "Regulatory domain BY_USER\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
-		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)
-			woal_update_custom_regdomain(priv, wiphy);
+		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE &&
+		    load_power_table && !handle->params.txpwrlimit_cfg)
+			queue_work(handle->evt_workqueue,
+				   &handle->regulatory_work);
 #endif
 		break;
 	case NL80211_REGDOM_SET_BY_COUNTRY_IE:
@@ -3847,12 +4048,17 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 		break;
 	}
 	if (priv->wdev && priv->wdev->wiphy &&
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	    !(wiphy->regulatory_flags & REGULATORY_WIPHY_SELF_MANAGED) &&
+#endif
 	    (request->initiator != NL80211_REGDOM_SET_BY_COUNTRY_IE)) {
 		band = priv->phandle->band;
 		priv->phandle->band = IEEE80211_BAND_2GHZ;
 		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
-		priv->phandle->band = IEEE80211_BAND_5GHZ;
-		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		if (priv->phandle->fw_bands & BAND_A) {
+			priv->phandle->band = IEEE80211_BAND_5GHZ;
+			woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		}
 		priv->phandle->band = band;
 	}
 
@@ -4003,8 +4209,8 @@ static mlan_status woal_uap_scan(moal_private *priv,
 	woal_sched_timeout(5);
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
-#endif
 done:
+#endif
 	if (role == MLAN_BSS_ROLE_UAP)
 		woal_role_switch(tmp_priv, MOAL_IOCTL_WAIT, MLAN_BSS_ROLE_UAP);
 	if (band_change)
@@ -4042,6 +4248,9 @@ static int woal_find_wps_ie_in_probereq(const t_u8 *ie, int len)
 	return MFALSE;
 }
 
+#ifdef UAP_CFG80211
+/** scan result expired value */
+#define SCAN_RESULT_EXPIRTED 1
 /**
  *  @brief check if the scan result expired
  *
@@ -4050,34 +4259,11 @@ static int woal_find_wps_ie_in_probereq(const t_u8 *ie, int len)
  *
  *  @return             MTRUE/MFALSE;
  */
-static t_u8 woal_is_scan_result_expired(moal_private *priv)
+static t_u8 woal_is_uap_scan_result_expired(moal_private *priv)
 {
 	mlan_scan_resp scan_resp;
 	wifi_timeval t;
 	ENTER();
-	// Don't block ACS scan
-	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
-		LEAVE();
-		return MTRUE;
-	}
-	// Don't block scan when non any interface active
-	if (!woal_is_any_interface_active(priv->phandle)) {
-		LEAVE();
-		return MTRUE;
-	}
-#if defined(WIFI_DIRECT_SUPPORT)
-#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	// Do not skip p2p interface connect scan
-	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
-		LEAVE();
-		return MTRUE;
-	}
-#endif
-#endif
-	if (!priv->media_connected) {
-		LEAVE();
-		return MTRUE;
-	}
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_get_scan_table(priv, MOAL_IOCTL_WAIT, &scan_resp)) {
 		LEAVE();
@@ -4088,8 +4274,6 @@ static t_u8 woal_is_scan_result_expired(moal_private *priv)
 		return MTRUE;
 	}
 	woal_get_monotonic_time(&t);
-/** scan result expired value */
-#define SCAN_RESULT_EXPIRTED 1
 	if (t.time_sec > (scan_resp.age_in_secs + SCAN_RESULT_EXPIRTED)) {
 		LEAVE();
 		return MTRUE;
@@ -4097,6 +4281,7 @@ static t_u8 woal_is_scan_result_expired(moal_private *priv)
 	LEAVE();
 	return MFALSE;
 }
+#endif
 
 /**
  *  @brief check if the scan result ageout
@@ -4201,10 +4386,14 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 #endif
 #endif
 #endif
-	if (priv->fake_scan_complete || !woal_is_scan_result_expired(priv)) {
+	if (priv->fake_scan_complete) {
 		PRINTM(MEVENT,
 		       "scan result not expired or fake scan complete flag is on\n");
-		return -EAGAIN;
+		priv->phandle->scan_request = request;
+		queue_delayed_work(priv->phandle->evt_workqueue,
+				   &priv->scan_deferred_work,
+				   msecs_to_jiffies(1000));
+		return ret;
 	}
 	memset(&bss_info, 0, sizeof(bss_info));
 	if (MLAN_STATUS_SUCCESS ==
@@ -4264,10 +4453,8 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	if (scan_req->scan_chan_gap && priv->phandle->pref_mac)
 		scan_req->scan_chan_gap |= GAP_FLAG_OPTIONAL;
 
-	if (priv->phandle->scan_request->n_channels <= 38) {
-		if (scan_cfg.ext_scan == 3)
-			scan_req->ext_scan_type = EXT_SCAN_ENHANCE;
-	}
+	if (scan_cfg.ext_scan == 3)
+		scan_req->ext_scan_type = EXT_SCAN_ENHANCE;
 
 	for (i = 0; i < priv->phandle->scan_request->n_ssids; i++) {
 		moal_memcpy_ext(priv->phandle, scan_req->ssid_list[i].ssid,
@@ -4294,7 +4481,8 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	     i++) {
 		chan = priv->phandle->scan_request->channels[i];
 		scan_req->chan_list[i].chan_number = chan->hw_value;
-		scan_req->chan_list[i].radio_type = chan->band;
+		scan_req->chan_list[i].radio_type =
+			woal_ieee_band_to_radio_type(chan->band);
 		if ((chan->flags & IEEE80211_CHAN_PASSIVE_SCAN) ||
 		    !priv->phandle->scan_request->n_ssids)
 			scan_req->chan_list[i].scan_type =
@@ -4337,9 +4525,15 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 		}
 #endif
 #ifdef UAP_CFG80211
-		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-			scan_req->chan_list[i].scan_time =
-				MIN_SPECIFIC_SCAN_CHAN_TIME;
+		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
+			if (!woal_is_uap_scan_result_expired(priv))
+				scan_req->chan_list[i].scan_time =
+					MIN_SPECIFIC_SCAN_CHAN_TIME;
+
+			else
+				scan_req->chan_list[i].scan_time =
+					PASSIVE_SCAN_CHAN_TIME;
+		}
 #endif
 	}
 	if (priv->phandle->scan_request->ie &&
@@ -4837,7 +5031,9 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	unsigned long flags;
 	mlan_ds_misc_assoc_rsp *assoc_rsp = NULL;
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
-	mlan_ssid_bssid ssid_bssid;
+	mlan_ds_misc_assoc_req assoc_req;
+
+	mlan_ssid_bssid *ssid_bssid = NULL;
 	moal_handle *handle = priv->phandle;
 	int i;
 
@@ -4863,18 +5059,23 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		LEAVE();
 		return -EINVAL;
 	}
-	memset(&ssid_bssid, 0, sizeof(ssid_bssid));
-	moal_memcpy_ext(priv->phandle, &ssid_bssid.ssid.ssid, sme->ssid,
-			sme->ssid_len, sizeof(ssid_bssid.ssid.ssid));
-	ssid_bssid.ssid.ssid_len = sme->ssid_len;
+	ssid_bssid = kmalloc(sizeof(mlan_ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid) {
+		LEAVE();
+		return -EFAULT;
+	}
+	memset(ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+	moal_memcpy_ext(priv->phandle, &ssid_bssid->ssid.ssid, sme->ssid,
+			sme->ssid_len, sizeof(ssid_bssid->ssid.ssid));
+	ssid_bssid->ssid.ssid_len = sme->ssid_len;
 	if (sme->bssid)
-		moal_memcpy_ext(priv->phandle, &ssid_bssid.bssid, sme->bssid,
-				ETH_ALEN, sizeof(ssid_bssid.bssid));
+		moal_memcpy_ext(priv->phandle, &ssid_bssid->bssid, sme->bssid,
+				ETH_ALEN, sizeof(ssid_bssid->bssid));
 	/* Not allowed to connect to the same AP which is already connected
 		with other interface */
 	for (i = 0; i < handle->priv_num; i++) {
 		if (handle->priv[i] != priv &&
-		    MTRUE == woal_is_connected(handle->priv[i], &ssid_bssid)) {
+		    MTRUE == woal_is_connected(handle->priv[i], ssid_bssid)) {
 			PRINTM(MMSG,
 			       "wlan: already connected with other interface, bssid " MACSTR
 			       "\n",
@@ -4924,14 +5125,14 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
 		/** get target bss info */
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_find_essid(priv, &ssid_bssid, MOAL_IOCTL_WAIT)) {
+		    woal_find_essid(priv, ssid_bssid, MOAL_IOCTL_WAIT)) {
 			ret = woal_cfg80211_connect_scan(priv, sme,
 							 MOAL_IOCTL_WAIT);
 			if (!ret) {
 				if (MLAN_STATUS_SUCCESS !=
 				    woal_find_best_network(priv,
 							   MOAL_IOCTL_WAIT,
-							   &ssid_bssid)) {
+							   ssid_bssid)) {
 					PRINTM(MERROR,
 					       "can't find targe AP \n");
 					// LEAVE();
@@ -4939,9 +5140,9 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 				}
 			}
 		}
-		if (bss_info.mdid == ssid_bssid.ft_md &&
-		    bss_info.ft_cap == ssid_bssid.ft_cap) {
-			ret = woal_start_ft_roaming(priv, &ssid_bssid);
+		if (bss_info.mdid == ssid_bssid->ft_md &&
+		    bss_info.ft_cap == ssid_bssid->ft_cap) {
+			ret = woal_start_ft_roaming(priv, ssid_bssid);
 			LEAVE();
 			return 0;
 		}
@@ -4971,12 +5172,14 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		memset(&bss_info, 0, sizeof(bss_info));
 		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
 		priv->channel = bss_info.bss_chan;
-		if (!ssid_bssid.ft_md) {
+		if (!ssid_bssid->ft_md) {
 			priv->ft_ie_len = 0;
 			priv->ft_pre_connect = MFALSE;
 			priv->ft_md = 0;
 			priv->ft_cap = 0;
 		}
+		memset(&assoc_req, 0, sizeof(mlan_ds_misc_assoc_req));
+		woal_get_assoc_req(priv, &assoc_req, MOAL_IOCTL_WAIT);
 	}
 	spin_lock_irqsave(&priv->connect_lock, flags);
 	priv->cfg_connect = MFALSE;
@@ -4985,11 +5188,11 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		       "wlan: Connected to bssid " MACSTR " successfully\n",
 		       MAC2STR(priv->cfg_bssid));
 		spin_unlock_irqrestore(&priv->connect_lock, flags);
-		cfg80211_connect_result(priv->netdev, priv->cfg_bssid, NULL, 0,
-					passoc_rsp->ie_buffer,
-					assoc_rsp->assoc_resp_len -
-						ASSOC_RESP_FIXED_SIZE,
-					WLAN_STATUS_SUCCESS, GFP_KERNEL);
+		cfg80211_connect_result(
+			priv->netdev, priv->cfg_bssid, assoc_req.assoc_req_buf,
+			assoc_req.assoc_req_len, passoc_rsp->ie_buffer,
+			assoc_rsp->assoc_resp_len - ASSOC_RESP_FIXED_SIZE,
+			WLAN_STATUS_SUCCESS, GFP_KERNEL);
 	} else {
 		PRINTM(MINFO, "wlan: Failed to connect to bssid " MACSTR "\n",
 		       MAC2STR(priv->cfg_bssid));
@@ -4999,7 +5202,7 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 					NULL, 0, woal_get_assoc_status(priv),
 					GFP_KERNEL);
 	}
-
+	kfree(ssid_bssid);
 	kfree(assoc_rsp);
 	assoc_rsp = NULL;
 	LEAVE();
@@ -5147,6 +5350,7 @@ static int woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	return 0;
 }
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 /**
  *  @brief This function is deauthentication handler when host MLME
  *          enable.
@@ -5166,6 +5370,9 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 					struct cfg80211_deauth_request *req)
 {
 	int ret = 0;
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+	moal_private *pmpriv = (moal_private *)woal_get_netdev_priv(dev);
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	if (priv->host_mlme) {
@@ -5180,9 +5387,9 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 
 	ret = woal_cfg80211_disconnect(wiphy, dev, req->reason_code);
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
-	if (priv->wdev->iftype == NL80211_IFTYPE_STATION ||
-	    priv->wdev->iftype == NL80211_IFTYPE_P2P_CLIENT)
-		cfg80211_disconnected(priv->netdev, 0, NULL, 0, GFP_KERNEL);
+	if (pmpriv->wdev->iftype == NL80211_IFTYPE_STATION ||
+	    pmpriv->wdev->iftype == NL80211_IFTYPE_P2P_CLIENT)
+		cfg80211_disconnected(pmpriv->netdev, 0, NULL, 0, GFP_KERNEL);
 #endif
 	return ret;
 }
@@ -5205,6 +5412,9 @@ static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 				      struct cfg80211_disassoc_request *req)
 {
 	int ret = 0;
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+	moal_private *pmpriv = (moal_private *)woal_get_netdev_priv(dev);
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	if (priv->host_mlme) {
@@ -5219,12 +5429,13 @@ static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 
 	ret = woal_cfg80211_disconnect(wiphy, dev, req->reason_code);
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
-	if (priv->wdev->iftype == NL80211_IFTYPE_STATION ||
-	    priv->wdev->iftype == NL80211_IFTYPE_P2P_CLIENT)
-		cfg80211_disconnected(priv->netdev, 0, NULL, 0, GFP_KERNEL);
+	if (pmpriv->wdev->iftype == NL80211_IFTYPE_STATION ||
+	    pmpriv->wdev->iftype == NL80211_IFTYPE_P2P_CLIENT)
+		cfg80211_disconnected(pmpriv->netdev, 0, NULL, 0, GFP_KERNEL);
 #endif
 	return ret;
 }
+#endif
 
 /**
  * @brief Request the driver to get the station information
@@ -5421,8 +5632,22 @@ static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(wdev->netdev);
 	chan_band_info channel;
+#ifdef UAP_SUPPORT
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+#endif
 
 	memset(&channel, 0x00, sizeof(channel));
+
+#ifdef UAP_SUPPORT
+	if (wdev->iftype == NL80211_IFTYPE_MONITOR) {
+		if ((handle->mon_if) &&
+		    (handle->mon_if->mon_ndev == wdev->netdev)) {
+			*chandef = handle->mon_if->chandef;
+			return 0;
+		}
+		return -EFAULT;
+	}
+#endif
 
 #ifdef UAP_SUPPORT
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
@@ -5691,10 +5916,8 @@ int woal_cfg80211_remain_on_channel_cfg(moal_private *priv, t_u8 wait_option,
 			return -EBUSY;
 		}
 #endif
-		if (chan->band == IEEE80211_BAND_2GHZ)
-			chan_cfg.bandcfg.chanBand = BAND_2GHZ;
-		else if (chan->band == IEEE80211_BAND_5GHZ)
-			chan_cfg.bandcfg.chanBand = BAND_5GHZ;
+		chan_cfg.bandcfg.chanBand =
+			woal_ieee_band_to_radio_type(chan->band);
 		switch (channel_type) {
 		case CHAN_HT40MINUS:
 			chan_cfg.bandcfg.chan2Offset = SEC_CHAN_BELOW;
@@ -6050,13 +6273,13 @@ int woal_cfg80211_sched_scan_start(struct wiphy *wiphy, struct net_device *dev,
 		return -EINVAL;
 	}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-	PRINTM(MIOCTL,
-	       "%s sched scan: n_ssids=%d n_match_sets=%d n_channels=%d interval=%d ie_len=%d\n",
+	PRINTM(MCMND,
+	       "%s sched scan: n_ssids=%d n_match_sets=%d n_channels=%d interval=%d iterations=%d ie_len=%d\n",
 	       priv->netdev->name, request->n_ssids, request->n_match_sets,
 	       request->n_channels, request->scan_plans[0].interval,
-	       (int)request->ie_len);
+	       request->scan_plans[0].iterations, (int)request->ie_len);
 #else
-	PRINTM(MIOCTL,
+	PRINTM(MCMND,
 	       "%s sched scan: n_ssids=%d n_match_sets=%d n_channels=%d interval=%d ie_len=%d\n",
 	       priv->netdev->name, request->n_ssids, request->n_match_sets,
 	       request->n_channels, request->interval, (int)request->ie_len);
@@ -6078,7 +6301,8 @@ int woal_cfg80211_sched_scan_start(struct wiphy *wiphy, struct net_device *dev,
 	     i++) {
 		chan = request->channels[i];
 		priv->scan_cfg.chan_list[i].chan_number = chan->hw_value;
-		priv->scan_cfg.chan_list[i].radio_type = chan->band;
+		priv->scan_cfg.chan_list[i].radio_type =
+			woal_ieee_band_to_radio_type(chan->band);
 		if (chan->flags &
 		    (IEEE80211_CHAN_PASSIVE_SCAN | IEEE80211_CHAN_RADAR))
 			priv->scan_cfg.chan_list[i].scan_type =
@@ -6120,10 +6344,14 @@ int woal_cfg80211_sched_scan_start(struct wiphy *wiphy, struct net_device *dev,
 	 * second */
 	/* We want to use 30 second for per scan cycle */
 	priv->scan_cfg.scan_interval = MIN_BGSCAN_INTERVAL;
+	priv->scan_cfg.repeat_count = 0;
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-	if (request->scan_plans[0].interval * 1000 > MIN_BGSCAN_INTERVAL)
+	/* interval in seconds */
+	if (request->scan_plans[0].interval)
 		priv->scan_cfg.scan_interval =
 			request->scan_plans[0].interval * 1000;
+	priv->scan_cfg.repeat_count = request->scan_plans[0].iterations;
 	if (request->n_scan_plans >= 2) {
 		priv->scan_cfg.config_ees = MTRUE;
 		priv->scan_cfg.ees_mode =
@@ -6132,24 +6360,23 @@ int woal_cfg80211_sched_scan_start(struct wiphy *wiphy, struct net_device *dev,
 			request->scan_plans[0].interval * 1000;
 		priv->scan_cfg.high_period_count =
 			request->scan_plans[0].iterations;
-		priv->scan_cfg.mid_period = request->scan_plans[1].interval;
-		if (request->scan_plans[1].iterations == 0)
-			priv->scan_cfg.mid_period_count = DEF_REPEAT_COUNT;
-		else
-			priv->scan_cfg.mid_period_count =
-				request->scan_plans[1].iterations;
+		priv->scan_cfg.mid_period =
+			request->scan_plans[1].interval * 1000;
+		priv->scan_cfg.mid_period_count =
+			request->scan_plans[1].iterations;
 		if (request->n_scan_plans == 3) {
 			priv->scan_cfg.ees_mode |= MBIT(EES_MODE_LOW);
 			priv->scan_cfg.low_period =
-				request->scan_plans[2].interval;
-			priv->scan_cfg.low_period_count = DEF_REPEAT_COUNT;
+				request->scan_plans[2].interval * 1000;
+			priv->scan_cfg.low_period_count =
+				request->scan_plans[2].iterations;
 		}
 	}
 #else
-	if (request->interval > MIN_BGSCAN_INTERVAL)
+	/* interval in miliseconds */
+	if (request->interval)
 		priv->scan_cfg.scan_interval = request->interval;
 #endif
-	priv->scan_cfg.repeat_count = DEF_REPEAT_COUNT;
 	priv->scan_cfg.report_condition =
 		BG_SCAN_SSID_MATCH | BG_SCAN_WAIT_ALL_CHAN_DONE;
 	priv->scan_cfg.bss_type = MLAN_BSS_MODE_INFRA;
@@ -6258,8 +6485,10 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 					woal_inform_bss_from_scan_result(
 						handle->priv[i], NULL,
 						MOAL_IOCTL_WAIT);
+#if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
 					woal_report_sched_scan_result(
 						handle->priv[i]);
+#endif
 					handle->priv[i]->last_event = 0;
 					PRINTM(MCMND,
 					       "Report sched scan result in cfg80211 resume\n");
@@ -6268,6 +6497,7 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 				    handle->priv[i]->roaming_enabled) {
 					handle->priv[i]->roaming_required =
 						MTRUE;
+#ifdef ANDROID_KERNEL
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 					__pm_wakeup_event(
 						&handle->ws,
@@ -6278,8 +6508,11 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 						msecs_to_jiffies(
 							ROAMING_WAKE_LOCK_TIMEOUT));
 #endif
+#endif
+#ifdef REASSOCIATION
 					wake_up_interruptible(
 						&handle->reassoc_thread.wait_q);
+#endif
 				}
 			}
 		}
@@ -6343,6 +6576,8 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 
 done:
 	handle->cfg80211_suspend = MFALSE;
+	queue_work(handle->rx_workqueue, &handle->rx_work);
+
 	PRINTM(MCMND, "<--- Leave woal_cfg80211_resume --->\n");
 	return 0;
 }
@@ -7044,12 +7279,17 @@ static int woal_construct_tdls_data_frame(moal_private *priv, t_u8 *peer,
 	IEEEtypes_VHTCap_t *VHTcap;
 	IEEEtypes_VHTOprat_t *vht_oprat;
 	IEEEtypes_AID_t *AidInfo;
+	IEEEtypes_Header_t *ieee_hdr;
+	t_u8 *skb_data;
+	t_u8 len = 0;
 	IEEEtypes_Generic_t *pSupp_chan = NULL, *pRegulatory_class = NULL;
 	mlan_ds_misc_tdls_ies *tdls_ies = NULL;
 	int ret = 0;
 	mlan_bss_info bss_info;
 	enum ieee80211_band band;
 	mlan_fw_info fw_info;
+	t_u16 setup_flag = 0;
+	t_u16 confirm_flag = 0;
 
 	ENTER();
 
@@ -7080,22 +7320,27 @@ static int woal_construct_tdls_data_frame(moal_private *priv, t_u8 *peer,
 	tdata->payload_type = WLAN_TDLS_SNAP_RFTYPE;
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 
+	setup_flag = TDLS_IE_FLAGS_EXTCAP | TDLS_IE_FLAGS_HTCAP |
+		     TDLS_IE_FLAGS_SUPP_CS_IE;
+	confirm_flag = TDLS_IE_FLAGS_EXTCAP | TDLS_IE_FLAGS_HTINFO |
+		       TDLS_IE_FLAGS_QOS_INFO;
+	if (fw_info.fw_bands & BAND_AAC) {
+		setup_flag |= (TDLS_IE_FLAGS_VHTCAP | TDLS_IE_FLAGS_AID);
+		confirm_flag |= TDLS_IE_FLAGS_VHTOPRAT;
+	}
+	if (fw_info.fw_bands & BAND_AAX) {
+		setup_flag |= (TDLS_IE_FLAGS_VHTCAP | TDLS_IE_FLAGS_AID |
+			       TDLS_IE_FLAGS_HECAP);
+		confirm_flag |= (TDLS_IE_FLAGS_VHTOPRAT | TDLS_IE_FLAGS_HEOP);
+	}
+	if (fw_info.fw_bands & BAND_GAX) {
+		setup_flag |= TDLS_IE_FLAGS_HECAP;
+		confirm_flag |= TDLS_IE_FLAGS_HEOP;
+	}
 	switch (action_code) {
 	case WLAN_TDLS_SETUP_REQUEST:
-		if (fw_info.fw_bands & BAND_AAC)
-			woal_tdls_get_ies(priv, peer, tdls_ies,
-					  TDLS_IE_FLAGS_SETUP |
-						  TDLS_IE_FLAGS_EXTCAP |
-						  TDLS_IE_FLAGS_HTCAP |
-						  TDLS_IE_FLAGS_VHTCAP |
-						  TDLS_IE_FLAGS_AID |
-						  TDLS_IE_FLAGS_SUPP_CS_IE);
-		else
-			woal_tdls_get_ies(priv, peer, tdls_ies,
-					  TDLS_IE_FLAGS_SETUP |
-						  TDLS_IE_FLAGS_EXTCAP |
-						  TDLS_IE_FLAGS_HTCAP |
-						  TDLS_IE_FLAGS_SUPP_CS_IE);
+		setup_flag |= TDLS_IE_FLAGS_SETUP;
+		woal_tdls_get_ies(priv, peer, tdls_ies, setup_flag);
 
 		tdata->category = WLAN_CATEGORY_TDLS;
 		tdata->action_code = WLAN_TDLS_SETUP_REQUEST;
@@ -7106,18 +7351,7 @@ static int woal_construct_tdls_data_frame(moal_private *priv, t_u8 *peer,
 		woal_add_ext_supported_rates_ie(priv, skb, band);
 		break;
 	case WLAN_TDLS_SETUP_RESPONSE:
-		if (fw_info.fw_bands & BAND_AAC)
-			woal_tdls_get_ies(priv, peer, tdls_ies,
-					  TDLS_IE_FLAGS_EXTCAP |
-						  TDLS_IE_FLAGS_HTCAP |
-						  TDLS_IE_FLAGS_VHTCAP |
-						  TDLS_IE_FLAGS_AID |
-						  TDLS_IE_FLAGS_SUPP_CS_IE);
-		else
-			woal_tdls_get_ies(priv, peer, tdls_ies,
-					  TDLS_IE_FLAGS_EXTCAP |
-						  TDLS_IE_FLAGS_HTCAP |
-						  TDLS_IE_FLAGS_SUPP_CS_IE);
+		woal_tdls_get_ies(priv, peer, tdls_ies, setup_flag);
 
 		tdata->category = WLAN_CATEGORY_TDLS;
 		tdata->action_code = WLAN_TDLS_SETUP_RESPONSE;
@@ -7131,17 +7365,7 @@ static int woal_construct_tdls_data_frame(moal_private *priv, t_u8 *peer,
 		woal_add_ext_supported_rates_ie(priv, skb, band);
 		break;
 	case WLAN_TDLS_SETUP_CONFIRM:
-		if (fw_info.fw_bands & BAND_AAC)
-			woal_tdls_get_ies(priv, peer, tdls_ies,
-					  TDLS_IE_FLAGS_EXTCAP |
-						  TDLS_IE_FLAGS_HTINFO |
-						  TDLS_IE_FLAGS_VHTOPRAT |
-						  TDLS_IE_FLAGS_QOS_INFO);
-		else
-			woal_tdls_get_ies(priv, peer, tdls_ies,
-					  TDLS_IE_FLAGS_EXTCAP |
-						  TDLS_IE_FLAGS_HTINFO |
-						  TDLS_IE_FLAGS_QOS_INFO);
+		woal_tdls_get_ies(priv, peer, tdls_ies, confirm_flag);
 
 		tdata->category = WLAN_CATEGORY_TDLS;
 		tdata->action_code = WLAN_TDLS_SETUP_CONFIRM;
@@ -7251,6 +7475,17 @@ static int woal_construct_tdls_data_frame(moal_private *priv, t_u8 *peer,
 		} else {
 			PRINTM(MIOCTL, "No TDLS AID info\n");
 		}
+		/* HE capability */
+		if (tdls_ies->he_cap[2] == HE_CAPABILITY) {
+			ieee_hdr = (IEEEtypes_Header_t *)tdls_ies->he_cap;
+			len = sizeof(IEEEtypes_Header_t) + ieee_hdr->len;
+			skb_data = (void *)skb_put(skb, len);
+			memset(skb_data, 0, len);
+			moal_memcpy_ext(priv->phandle, skb_data,
+					tdls_ies->he_cap, len, len);
+		} else {
+			PRINTM(MIOCTL, "NO TDLS HE Capability IE\n");
+		}
 		break;
 	case WLAN_TDLS_SETUP_CONFIRM:
 		/*HT information*/
@@ -7275,6 +7510,16 @@ static int woal_construct_tdls_data_frame(moal_private *priv, t_u8 *peer,
 					sizeof(IEEEtypes_VHTOprat_t));
 		} else
 			PRINTM(MIOCTL, "NO TDLS VHT Operation IE\n");
+		/** HE operation */
+		if (tdls_ies->he_op[2] == HE_OPERATION) {
+			ieee_hdr = (IEEEtypes_Header_t *)tdls_ies->he_op;
+			len = sizeof(IEEEtypes_Header_t) + ieee_hdr->len;
+			skb_data = (void *)skb_put(skb, len);
+			memset(skb_data, 0, len);
+			moal_memcpy_ext(priv->phandle, skb_data,
+					tdls_ies->he_op, len, len);
+		} else
+			PRINTM(MIOCTL, "NO TDLS HE Operation IE\n");
 		break;
 	default:
 		break;
@@ -7608,6 +7853,7 @@ static int woal_send_tdls_data_frame(struct wiphy *wiphy,
 		sizeof(IEEEtypes_HTCap_t) + sizeof(IEEEtypes_2040BSSCo_t) +
 		sizeof(IEEEtypes_HTInfo_t) + sizeof(IEEEtypes_VHTCap_t) +
 		sizeof(IEEEtypes_VHTOprat_t) + sizeof(IEEEtypes_AID_t) +
+		sizeof(IEEEtypes_HECap_t) + sizeof(IEEEtypes_HeOp_t) +
 		extra_ies_len + sizeof(IEEEtypes_tdls_linkie));
 	if (!skb)
 		return -ENOMEM;
@@ -7672,13 +7918,15 @@ static int woal_send_tdls_data_frame(struct wiphy *wiphy,
 	DBG_HEXDUMP(MDAT_D, "TDLS data:", pmbuf->pbuf + pmbuf->data_offset,
 		    pmbuf->data_len);
 
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+	index = skb_get_queue_mapping(skb);
+#endif
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 
 	switch (status) {
 	case MLAN_STATUS_PENDING:
 		atomic_inc(&priv->phandle->tx_pending);
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-		index = skb_get_queue_mapping(skb);
 		atomic_inc(&priv->wmm_tx_pending[index]);
 #endif
 		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
@@ -8180,7 +8428,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	IEEEtypes_MobilityDomain_t *md_ie = NULL;
 	int ret = 0;
-	mlan_ds_misc_assoc_rsp assoc_rsp;
+	mlan_ds_misc_assoc_rsp *assoc_rsp = NULL;
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
 	mlan_bss_info bss_info;
 
@@ -8194,6 +8442,11 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 		LEAVE();
 		return ret;
 	}
+	assoc_rsp = kmalloc(sizeof(mlan_ds_misc_assoc_rsp), GFP_KERNEL);
+	if (!assoc_rsp) {
+		LEAVE();
+		return ret;
+	}
 #ifdef MLAN_64BIT
 	PRINTM(MINFO, "==>woal_cfg80211_update_ft_ies %lx \n", ftie->ie_len);
 #else
@@ -8203,6 +8456,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 		ftie->ie, ftie->ie_len, MOBILITY_DOMAIN);
 	if (!md_ie) {
 		PRINTM(MERROR, "No Mobility domain IE\n");
+		kfree(assoc_rsp);
 		LEAVE();
 		return ret;
 	}
@@ -8219,6 +8473,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 	priv->ft_md = ftie->md;
 
 	if (!priv->ft_pre_connect) {
+		kfree(assoc_rsp);
 		LEAVE();
 		return ret;
 	}
@@ -8226,6 +8481,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 	if (!memcmp(&priv->target_ap_bssid, priv->cfg_bssid,
 		    MLAN_MAC_ADDR_LENGTH)) {
 		PRINTM(MMSG, "This is the same AP, no Fast bss transition\n");
+		kfree(assoc_rsp);
 		priv->ft_pre_connect = MFALSE;
 		priv->ft_ie_len = 0;
 		LEAVE();
@@ -8238,22 +8494,22 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 	moal_memcpy_ext(priv->phandle, (void *)priv->sme_current.bssid,
 			&priv->target_ap_bssid, MLAN_MAC_ADDR_LENGTH,
 			sizeof(priv->conn_bssid));
-	memset(&assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
+	memset(assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
 	ret = woal_cfg80211_assoc(priv, (void *)&priv->sme_current,
-				  MOAL_IOCTL_WAIT, &assoc_rsp);
+				  MOAL_IOCTL_WAIT, assoc_rsp);
 
 	if ((priv->ft_cap & MBIT(0)) || priv->ft_roaming_triggered_by_driver) {
 		if (!ret) {
 			woal_inform_bss_from_scan_result(priv, NULL,
 							 MOAL_IOCTL_WAIT);
 			passoc_rsp = (IEEEtypes_AssocRsp_t *)
-					     assoc_rsp.assoc_resp_buf;
+					     assoc_rsp->assoc_resp_buf;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 			roam_info.bssid = priv->cfg_bssid;
 			roam_info.req_ie = priv->sme_current.ie;
 			roam_info.req_ie_len = priv->sme_current.ie_len;
 			roam_info.resp_ie = passoc_rsp->ie_buffer;
-			roam_info.resp_ie_len = assoc_rsp.assoc_resp_len -
+			roam_info.resp_ie_len = assoc_rsp->assoc_resp_len -
 						ASSOC_RESP_FIXED_SIZE;
 			cfg80211_roamed(priv->netdev, &roam_info, GFP_KERNEL);
 #else
@@ -8262,7 +8518,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 					priv->sme_current.ie,
 					priv->sme_current.ie_len,
 					passoc_rsp->ie_buffer,
-					assoc_rsp.assoc_resp_len -
+					assoc_rsp->assoc_resp_len -
 						ASSOC_RESP_FIXED_SIZE,
 					GFP_KERNEL);
 #else
@@ -8270,7 +8526,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 					priv->sme_current.ie,
 					priv->sme_current.ie_len,
 					passoc_rsp->ie_buffer,
-					assoc_rsp.assoc_resp_len -
+					assoc_rsp->assoc_resp_len -
 						ASSOC_RESP_FIXED_SIZE,
 					GFP_KERNEL);
 #endif
@@ -8297,13 +8553,13 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 
 	} else {
 		if (!ret) {
-			memset(&assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
-			woal_get_assoc_rsp(priv, &assoc_rsp, MOAL_IOCTL_WAIT);
+			memset(assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
+			woal_get_assoc_rsp(priv, assoc_rsp, MOAL_IOCTL_WAIT);
 			passoc_rsp = (IEEEtypes_AssocRsp_t *)
-					     assoc_rsp.assoc_resp_buf;
+					     assoc_rsp->assoc_resp_buf;
 			cfg80211_connect_result(priv->netdev, priv->cfg_bssid,
 						NULL, 0, passoc_rsp->ie_buffer,
-						assoc_rsp.assoc_resp_len -
+						assoc_rsp->assoc_resp_len -
 							ASSOC_RESP_FIXED_SIZE,
 						WLAN_STATUS_SUCCESS,
 						GFP_KERNEL);
@@ -8336,7 +8592,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 			// priv->ft_ie_len = 0;
 		}
 	}
-
+	kfree(assoc_rsp);
 	priv->ft_pre_connect = MFALSE;
 	LEAVE();
 	return 0;
@@ -8413,6 +8669,7 @@ void woal_clear_conn_params(moal_private *priv)
 	LEAVE();
 }
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 /**
  * @brief Build new roaming connect ie for okc
  *
@@ -8554,6 +8811,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 
 /**
  * @brief Start roaming: driver handle roaming
@@ -8565,10 +8823,10 @@ done:
 void woal_start_roaming(moal_private *priv)
 {
 	mlan_ds_get_signal signal;
-	mlan_ssid_bssid ssid_bssid;
+	mlan_ssid_bssid *ssid_bssid = NULL;
 	char rssi_low[10];
 	int ret = 0;
-	mlan_ds_misc_assoc_rsp *assoc_rsp;
+	mlan_ds_misc_assoc_rsp *assoc_rsp = NULL;
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 	struct cfg80211_roam_info roam_info = {};
@@ -8580,6 +8838,11 @@ void woal_start_roaming(moal_private *priv)
 		LEAVE();
 		return;
 	}
+	ssid_bssid = kmalloc(sizeof(mlan_ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid) {
+		LEAVE();
+		return;
+	}
 
 	if (priv->last_event & EVENT_BG_SCAN_REPORT) {
 		woal_inform_bss_from_scan_result(priv, NULL, MOAL_IOCTL_WAIT);
@@ -8587,6 +8850,7 @@ void woal_start_roaming(moal_private *priv)
 	}
 	if (priv->media_connected == MFALSE || !priv->sme_current.ssid_len) {
 		PRINTM(MIOCTL, "Not connected, ignore roaming\n");
+		kfree(ssid_bssid);
 		LEAVE();
 		return;
 	}
@@ -8599,28 +8863,29 @@ void woal_start_roaming(moal_private *priv)
 		ret = -EFAULT;
 		goto done;
 	}
-	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
-	ssid_bssid.ssid.ssid_len = priv->sme_current.ssid_len;
-	moal_memcpy_ext(priv->phandle, ssid_bssid.ssid.ssid,
+	memset(ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+	ssid_bssid->ssid.ssid_len = priv->sme_current.ssid_len;
+	moal_memcpy_ext(priv->phandle, ssid_bssid->ssid.ssid,
 			priv->sme_current.ssid, priv->sme_current.ssid_len,
-			sizeof(ssid_bssid.ssid.ssid));
+			sizeof(ssid_bssid->ssid.ssid));
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_find_best_network(priv, MOAL_IOCTL_WAIT, &ssid_bssid)) {
+	    woal_find_best_network(priv, MOAL_IOCTL_WAIT, ssid_bssid)) {
 		PRINTM(MIOCTL, "Can not find better network\n");
 		ret = -EFAULT;
 		goto done;
 	}
 	/* check if we found different AP */
-	if (!memcmp(&ssid_bssid.bssid, priv->cfg_bssid, MLAN_MAC_ADDR_LENGTH)) {
+	if (!memcmp(&ssid_bssid->bssid, priv->cfg_bssid,
+		    MLAN_MAC_ADDR_LENGTH)) {
 		PRINTM(MIOCTL, "This is the same AP, no roaming\n");
 		ret = -EFAULT;
 		goto done;
 	}
 	PRINTM(MIOCTL, "Find AP: bssid=" MACSTR ", signal=%d\n",
-	       MAC2STR(ssid_bssid.bssid), ssid_bssid.rssi);
+	       MAC2STR(ssid_bssid->bssid), ssid_bssid->rssi);
 	/* check signal */
 	if (!(priv->last_event & EVENT_PRE_BCN_LOST)) {
-		if ((abs(signal.bcn_rssi_avg) - abs(ssid_bssid.rssi)) <
+		if ((abs(signal.bcn_rssi_avg) - abs(ssid_bssid->rssi)) <
 		    DELTA_RSSI) {
 			PRINTM(MERROR, "New AP's signal is not good too.\n");
 			ret = -EFAULT;
@@ -8628,16 +8893,16 @@ void woal_start_roaming(moal_private *priv)
 		}
 	}
 	/**check if need start FT Roaming*/
-	if (priv->ft_ie_len && (priv->ft_md == ssid_bssid.ft_md) &&
-	    (priv->ft_cap == ssid_bssid.ft_cap)) {
+	if (priv->ft_ie_len && (priv->ft_md == ssid_bssid->ft_md) &&
+	    (priv->ft_cap == ssid_bssid->ft_cap)) {
 		priv->ft_roaming_triggered_by_driver = MTRUE;
-		woal_start_ft_roaming(priv, &ssid_bssid);
+		woal_start_ft_roaming(priv, ssid_bssid);
 		goto done;
 	}
 	/* start roaming to new AP */
 	priv->sme_current.bssid = priv->conn_bssid;
 	moal_memcpy_ext(priv->phandle, (void *)priv->sme_current.bssid,
-			&ssid_bssid.bssid, MLAN_MAC_ADDR_LENGTH,
+			&ssid_bssid->bssid, MLAN_MAC_ADDR_LENGTH,
 			sizeof(priv->conn_bssid));
 
 #ifdef STA_CFG80211
@@ -8734,10 +8999,11 @@ void woal_start_roaming(moal_private *priv)
 		       MAC2STR(priv->cfg_bssid));
 	} else {
 		PRINTM(MIOCTL, "Roaming to bssid " MACSTR " failed\n",
-		       MAC2STR(ssid_bssid.bssid));
+		       MAC2STR(ssid_bssid->bssid));
 	}
 	kfree(assoc_rsp);
 done:
+	kfree(ssid_bssid);
 	/* config rssi low threshold again */
 	priv->last_event = 0;
 	priv->rssi_low = DEFAULT_RSSI_LOW_THRESHOLD;
@@ -8778,7 +9044,7 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 	ENTER();
 
 	req_len = sizeof(mlan_ds_bss);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	if (params->ext_capab_len)
 		req_len += sizeof(MrvlIEtypesHeader_t) + params->ext_capab_len;
 #endif
@@ -8793,7 +9059,7 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 	if (params->vht_capa)
 		req_len += sizeof(MrvlIEtypesHeader_t) +
 			   sizeof(struct ieee80211_vht_cap);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (params->opmode_notif_used)
 		req_len += sizeof(MrvlIEtypesHeader_t) + sizeof(u8);
 #endif
@@ -8835,7 +9101,7 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 	       params->sta_flags_set, params->listen_interval, params->aid);
 #endif
 	pos = &bss->param.sta_info.tlv[0];
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	if (params->ext_capab_len) {
 		tlv = (MrvlIEtypes_Data_t *)pos;
 		tlv->header.type = EXT_CAPABILITY;
@@ -8894,7 +9160,7 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 			sizeof(MrvlIEtypesHeader_t) + tlv->header.len;
 		tlv = (MrvlIEtypes_Data_t *)pos;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (params->opmode_notif_used) {
 		tlv = (MrvlIEtypes_Data_t *)pos;
 		tlv->header.type = OPER_MODE_NTF;
@@ -8928,6 +9194,16 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
+#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
+	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
+		struct station_info *sinfo = NULL;
+		sinfo = kzalloc(sizeof(struct station_info), GFP_KERNEL);
+		if (sinfo) {
+			cfg80211_new_sta(dev, mac, sinfo, GFP_KERNEL);
+			kfree(sinfo);
+		}
+	}
+#endif
 done:
 	LEAVE();
 	return ret;
@@ -8996,7 +9272,7 @@ void woal_host_mlme_disconnect(moal_private *priv, u16 reason_code, u8 *sa)
 	}
 
 	if (GET_BSS_ROLE(priv) != MLAN_BSS_ROLE_UAP) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 		mutex_lock(&priv->wdev->mtx);
 		cfg80211_rx_mlme_mgmt(priv->netdev, frame_buf, 26);
 		mutex_unlock(&priv->wdev->mtx);
@@ -9093,11 +9369,19 @@ mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 			priv->wdev->ps = MFALSE;
 	}
 	if (priv->phandle->country_code[0] && priv->phandle->country_code[1]) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+		if (priv->phandle->params.cntry_txpwr == CNTRY_RGPOWER_MODE &&
+		    !priv->phandle->params.txpwrlimit_cfg)
+			queue_work(priv->phandle->evt_workqueue,
+				   &priv->phandle->regulatory_work);
+#endif
 		band = priv->phandle->band;
 		priv->phandle->band = IEEE80211_BAND_2GHZ;
 		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
-		priv->phandle->band = IEEE80211_BAND_5GHZ;
-		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		if (priv->phandle->fw_bands & BAND_A) {
+			priv->phandle->band = IEEE80211_BAND_5GHZ;
+			woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		}
 		priv->phandle->band = band;
 	}
 	LEAVE();
@@ -9164,7 +9448,6 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 			mcs_supp = priv->phandle->params.antcfg & 0xf;
 			if (mcs_supp != 3 && mcs_supp != 0)
 				cfg_11n->param.supported_mcs_set[1] = 0;
-			cfg_11n->param.supported_mcs_set[4] = 0;
 		}
 		woal_cfg80211_setup_ht_cap(
 			&wiphy->bands[IEEE80211_BAND_2GHZ]->ht_cap, hw_dev_cap,
@@ -9198,6 +9481,7 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 					   wiphy->bands[IEEE80211_BAND_5GHZ]);
 #endif
 	}
+
 	kfree(req);
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
@@ -9309,7 +9593,7 @@ static void woal_update_channel_flag(struct wiphy *wiphy, mlan_fw_info *fw_info)
 		sband = wiphy->bands[band];
 		if (!sband)
 			continue;
-		if (sband->band & IEEE80211_BAND_5GHZ &&
+		if (sband->band == IEEE80211_BAND_5GHZ &&
 		    fw_info->prohibit_80mhz) {
 			for (i = 0; i < sband->n_channels; i++) {
 				sband->channels[i].flags |=
@@ -9388,6 +9672,7 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	wiphy->interface_modes = 0;
 	wiphy->interface_modes =
 		MBIT(NL80211_IFTYPE_STATION) | MBIT(NL80211_IFTYPE_AP);
+	wiphy->interface_modes |= MBIT(NL80211_IFTYPE_MONITOR);
 
 #ifdef WIFI_DIRECT_SUPPORT
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
@@ -9405,24 +9690,18 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	if (!fw_info.fw_bands)
 		fw_info.fw_bands = BAND_B | BAND_G;
 	if (fw_info.fw_bands & BAND_A) {
-		if (priv->phandle->second_mac)
-			wiphy->bands[IEEE80211_BAND_5GHZ] =
-				&mac1_cfg80211_band_5ghz;
-		else
-
-			wiphy->bands[IEEE80211_BAND_5GHZ] = &cfg80211_band_5ghz;
+		wiphy->bands[IEEE80211_BAND_5GHZ] =
+			woal_setup_wiphy_bands(IEEE80211_BAND_5GHZ);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 		woal_update_channel_flag(wiphy, &fw_info);
 #endif
 		priv->phandle->band = IEEE80211_BAND_5GHZ;
 	}
+
 	/* Supported bands */
 	if (fw_info.fw_bands & (BAND_B | BAND_G | BAND_GN | BAND_GAC)) {
-		if (priv->phandle->second_mac)
-			wiphy->bands[IEEE80211_BAND_2GHZ] =
-				&mac1_cfg80211_band_2ghz;
-		else
-			wiphy->bands[IEEE80211_BAND_2GHZ] = &cfg80211_band_2ghz;
+		wiphy->bands[IEEE80211_BAND_2GHZ] =
+			woal_setup_wiphy_bands(IEEE80211_BAND_2GHZ);
 		/* If 2.4G enable, it will overwrite default to 2.4G*/
 		priv->phandle->band = IEEE80211_BAND_2GHZ;
 	}
@@ -9489,10 +9768,12 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 #endif
 		wiphy->flags |= WIPHY_FLAG_HAVE_AP_SME;
 #endif
+#ifdef ANDROID_KERNEL
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (!moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 #endif
 		wiphy->flags |= WIPHY_FLAG_HAVE_AP_SME;
+#endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 	if (priv->phandle->params.sched_scan) {
@@ -9510,6 +9791,9 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 #endif
 	}
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+	wiphy->features |= NL80211_FEATURE_TX_POWER_INSERTION;
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 	wiphy->features |= NL80211_FEATURE_INACTIVITY_TIMER;
 #endif
@@ -9520,6 +9804,19 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	wiphy->features |= NL80211_FEATURE_TDLS_CHANNEL_SWITCH;
 #endif
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+#define WLAN_EXT_FEATURE_DFS_OFFLOAD 25
+	if (moal_extflg_isset(priv->phandle, EXT_DFS_OFFLOAD)) {
+		if (NUM_NL80211_EXT_FEATURES > WLAN_EXT_FEATURE_DFS_OFFLOAD) {
+			PRINTM(MCMND,
+			       "wlan: Set NL80211_EXT_FEATURE_DFS_OFFLOAD\n");
+			wiphy_ext_feature_set(wiphy,
+					      WLAN_EXT_FEATURE_DFS_OFFLOAD);
+		}
+	}
+#endif
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 		wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_RRM);
@@ -9603,9 +9900,18 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 		PRINTM(MIOCTL, "Follow countryIE provided by AP.\n");
 	}
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	/*REGULATORY_IGNORE_STALE_KICKOFF: the regulatory core will _not_ make
+	 * sure all interfaces on this wiphy reside on allowed channels. If this
+	 * flag is not set, upon a regdomain change, the interfaces are given a
+	 * grace period (currently 60 seconds) to disconnect or move to an
+	 * allowed channel.*/
+	wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
+#endif
 
 	memset(&priv->phandle->country_code, 0,
 	       sizeof(priv->phandle->country_code));
+	priv->phandle->dfs_region = NXP_DFS_UNKNOWN;
 
 	if (reg_alpha2 && !strncmp(reg_alpha2, "99", strlen("99"))) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
@@ -9638,10 +9944,10 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 		goto err_wiphy;
 	}
 
+	wiphy->interface_modes &= ~(MBIT(NL80211_IFTYPE_MONITOR));
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
-	if (fw_info.force_reg ||
-	    (priv->phandle->params.txpwrlimit_cfg &&
-	     priv->phandle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)) {
+	if (fw_info.force_reg) {
 		PRINTM(MCMND, "FW region_code=%d force_reg=%d\n",
 		       fw_info.region_code, fw_info.force_reg);
 		country = region_code_2_string(fw_info.region_code);
@@ -9649,7 +9955,8 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 			moal_memcpy_ext(priv->phandle,
 					priv->phandle->country_code, country, 2,
 					2);
-			woal_update_custom_regdomain(priv, wiphy);
+			queue_work(priv->phandle->evt_workqueue,
+				   &priv->phandle->regulatory_work);
 		}
 	}
 #endif
@@ -9685,8 +9992,10 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	priv->phandle->wiphy = wiphy;
 	return ret;
 err_wiphy:
-	if (wiphy)
+	if (wiphy) {
+		woal_cfg80211_free_bands(wiphy);
 		wiphy_free(wiphy);
+	}
 	LEAVE();
 	return ret;
 }

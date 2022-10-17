@@ -4,7 +4,7 @@
  *  related functions.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -31,9 +31,7 @@ Change log:
 #include "moal_sdio.h"
 
 /** define nxp vendor id */
-#ifdef SD9177
 #define NXP_VENDOR_ID 0x0471
-#endif
 #define MRVL_VENDOR_ID 0x02df
 
 /********************************************************
@@ -83,6 +81,14 @@ static moal_if_ops sdiommc_ops;
 /** Device ID for SD9097 */
 #define SD_DEVICE_ID_9097 (0x9155)
 #endif
+#ifdef SD9177
+/** Device ID for SD9177 */
+#define SD_DEVICE_ID_9177 (0x0205)
+#endif
+#ifdef SDNW62X
+/** Device ID for SDNW62X */
+#define SD_DEVICE_ID_NW62X (0x020D)
+#endif
 
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
@@ -116,6 +122,9 @@ static const struct sdio_device_id wlan_ids[] = {
 #endif
 #ifdef SD9177
 	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_9177)},
+#endif
+#ifdef SDNW62X
+	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_NW62X)},
 #endif
 	{},
 };
@@ -377,6 +386,20 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V16, strlen(V16),
+			strlen(driver_version) -
+				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
+	}
+#endif
+#ifdef SDNW62X
+	if (cardp_sd->func->device == SD_DEVICE_ID_NW62X) {
+		card_type = CARD_TYPE_SDNW62X;
+		moal_memcpy_ext(NULL, driver_version, CARD_SDNW62X,
+				strlen(CARD_SDNW62X), strlen(driver_version));
+		moal_memcpy_ext(
+			NULL,
+			driver_version + strlen(INTF_CARDTYPE) +
+				strlen(KERN_VERSION),
+			V17, strlen(V17),
 			strlen(driver_version) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
@@ -1153,14 +1176,21 @@ static void woal_sdiommc_unregister_dev(moal_handle *handle)
 	ENTER();
 	if (handle->card) {
 		struct sdio_mmc_card *card = handle->card;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 		struct sdio_func *func = card->func;
-
+#endif
 		/* Release the SDIO IRQ */
 		sdio_claim_host(card->func);
 		sdio_release_irq(card->func);
 		sdio_disable_func(card->func);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 		if (handle->driver_status)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+			mmc_hw_reset(func->card);
+#else
 			mmc_hw_reset(func->card->host);
+#endif
+#endif
 		sdio_release_host(card->func);
 
 		sdio_set_drvdata(card->func, NULL);
@@ -1334,7 +1364,8 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	t_u32 rev_id_reg = handle->card_info->rev_id_reg;
 
 #if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
-	defined(SD9097) || defined(SD8978) || defined(SD9177)
+	defined(SD9097) || defined(SDNW62X) || defined(SD8978) ||              \
+	defined(SD9177)
 	t_u32 magic_reg = handle->card_info->magic_reg;
 	t_u32 magic = 0;
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
@@ -1354,7 +1385,8 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	PRINTM(MCMND, "revision_id=0x%x\n", revision_id);
 
 #if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
-	defined(SD9097) || defined(SD8978) || defined(SD9177)
+	defined(SD9097) || defined(SDNW62X) || defined(SD8978) ||              \
+	defined(SD9177)
 	/** Revision ID register */
 	woal_sdiommc_read_reg(handle, magic_reg, &magic);
 	/** Revision ID register */
@@ -1502,12 +1534,25 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		}
 	}
 #endif
+#ifdef SDNW62X
+	if (IS_SDNW62X(handle->card_type)) {
+		if (magic == CHIP_MAGIC_VALUE) {
+			if (strap == CARD_TYPE_SD_UART)
+				strcpy(handle->card_info->fw_name,
+				       SDUARTNW62X_COMBO_FW_NAME);
+			else
+				strcpy(handle->card_info->fw_name,
+				       SDSDNW62X_COMBO_FW_NAME);
+		}
+	}
+#endif
+
 #ifdef SD9177
 	if (IS_SD9177(handle->card_type)) {
 		switch (revision_id) {
 		case SD9177_A0:
 			if (magic == CHIP_MAGIC_VALUE) {
-				if (strap == CARD_TYPE_SD_UART)
+				if (strap == CARD_TYPE_SD9177_UART)
 					strcpy(handle->card_info->fw_name,
 					       SDUART9177_DEFAULT_COMBO_FW_NAME);
 				else
@@ -1516,6 +1561,18 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			}
 			strcpy(handle->card_info->fw_name_wlan,
 			       SD9177_DEFAULT_WLAN_FW_NAME);
+			break;
+		case SD9177_A1:
+			if (magic == CHIP_MAGIC_VALUE) {
+				if (strap == CARD_TYPE_SD9177_UART)
+					strcpy(handle->card_info->fw_name,
+					       SDUART9177_DEFAULT_COMBO_V1_FW_NAME);
+				else
+					strcpy(handle->card_info->fw_name,
+					       SDSD9177_DEFAULT_COMBO_V1_FW_NAME);
+			}
+			strcpy(handle->card_info->fw_name_wlan,
+			       SD9177_DEFAULT_WLAN_V1_FW_NAME);
 			break;
 		default:
 			break;
@@ -1635,7 +1692,7 @@ static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 		}
 		udelay(100);
 	}
-	if (ctrl_data == debug_host_ready) {
+	if (ctrl_data == debug_host_ready || tries == MAX_POLL_TRIES) {
 		PRINTM(MERROR, "Fail to pull ctrl_data\n");
 		return RDWR_STATUS_FAILURE;
 	}
@@ -2414,7 +2471,11 @@ void woal_sdio_reset_hw(moal_handle *handle)
 	sdio_claim_host(func);
 	sdio_release_irq(card->func);
 	sdio_disable_func(card->func);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	mmc_hw_reset(func->card);
+#else
 	mmc_hw_reset(func->card->host);
+#endif
 #ifdef MMC_QUIRK_BLKSZ_FOR_BYTE_MODE
 	/* The byte mode patch is available in kernel MMC driver
 	 * which fixes one issue in MP-A transfer.

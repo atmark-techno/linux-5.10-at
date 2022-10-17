@@ -3,7 +3,7 @@
  * @brief This file contains functions for debug proc file.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -117,6 +117,7 @@ static struct debug_data items[] = {
 	 item_addr(bypass_pkt_count), INFO_ADDR},
 	{"scan_processing", item_size(scan_processing),
 	 item_addr(scan_processing), INFO_ADDR},
+	{"scan_state", item_size(scan_state), item_addr(scan_state), INFO_ADDR},
 	{"num_cmd_timeout", item_size(num_cmd_timeout),
 	 item_addr(num_cmd_timeout), INFO_ADDR},
 	{"timeout_cmd_id", item_size(timeout_cmd_id), item_addr(timeout_cmd_id),
@@ -743,7 +744,9 @@ static int woal_histogram_read(struct seq_file *sfp, void *data)
 
 static int woal_histogram_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_histogram_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_histogram_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_histogram_read, PDE(inode)->data);
@@ -942,7 +945,9 @@ static int woal_log_read(struct seq_file *sfp, void *data)
  */
 static int woal_log_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_log_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_log_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_log_read, PDE(inode)->data);
@@ -1266,7 +1271,9 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 
 static int woal_debug_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_debug_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_debug_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_debug_read, PDE(inode)->data);

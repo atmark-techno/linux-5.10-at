@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211.
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -127,6 +127,9 @@ static struct ieee80211_channel cfg80211_channels_5ghz[] = {
 	{.center_freq = 5785, .hw_value = 157, .max_power = 20},
 	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
 	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
+	{.center_freq = 5845, .hw_value = 169, .max_power = 20},
+	{.center_freq = 5865, .hw_value = 173, .max_power = 20},
+	{.center_freq = 5885, .hw_value = 177, .max_power = 20},
 };
 
 struct ieee80211_supported_band cfg80211_band_2ghz = {
@@ -145,50 +148,7 @@ struct ieee80211_supported_band cfg80211_band_5ghz = {
 	.n_bitrates = ARRAY_SIZE(cfg80211_rates) - 4,
 };
 
-/** Channel definitions for 5 GHz to be advertised to cfg80211 */
-static struct ieee80211_channel mac1_cfg80211_channels_5ghz[] = {
-	{.center_freq = 5180, .hw_value = 36, .max_power = 20},
-	{.center_freq = 5200, .hw_value = 40, .max_power = 20},
-	{.center_freq = 5220, .hw_value = 44, .max_power = 20},
-	{.center_freq = 5240, .hw_value = 48, .max_power = 20},
-	{.center_freq = 5260, .hw_value = 52, .max_power = 20},
-	{.center_freq = 5280, .hw_value = 56, .max_power = 20},
-	{.center_freq = 5300, .hw_value = 60, .max_power = 20},
-	{.center_freq = 5320, .hw_value = 64, .max_power = 20},
-	{.center_freq = 5500, .hw_value = 100, .max_power = 20},
-	{.center_freq = 5520, .hw_value = 104, .max_power = 20},
-	{.center_freq = 5540, .hw_value = 108, .max_power = 20},
-	{.center_freq = 5560, .hw_value = 112, .max_power = 20},
-	{.center_freq = 5580, .hw_value = 116, .max_power = 20},
-	{.center_freq = 5600, .hw_value = 120, .max_power = 20},
-	{.center_freq = 5620, .hw_value = 124, .max_power = 20},
-	{.center_freq = 5640, .hw_value = 128, .max_power = 20},
-	{.center_freq = 5660, .hw_value = 132, .max_power = 20},
-	{.center_freq = 5680, .hw_value = 136, .max_power = 20},
-	{.center_freq = 5700, .hw_value = 140, .max_power = 20},
-	{.center_freq = 5720, .hw_value = 144, .max_power = 20},
-	{.center_freq = 5745, .hw_value = 149, .max_power = 20},
-	{.center_freq = 5765, .hw_value = 153, .max_power = 20},
-	{.center_freq = 5785, .hw_value = 157, .max_power = 20},
-	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
-	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
-};
-
-struct ieee80211_supported_band mac1_cfg80211_band_2ghz = {
-	.channels = cfg80211_channels_2ghz,
-	.band = IEEE80211_BAND_2GHZ,
-	.n_channels = ARRAY_SIZE(cfg80211_channels_2ghz),
-	.bitrates = cfg80211_rates,
-	.n_bitrates = ARRAY_SIZE(cfg80211_rates),
-};
-
-struct ieee80211_supported_band mac1_cfg80211_band_5ghz = {
-	.channels = mac1_cfg80211_channels_5ghz,
-	.band = IEEE80211_BAND_5GHZ,
-	.n_channels = ARRAY_SIZE(mac1_cfg80211_channels_5ghz),
-	.bitrates = cfg80211_rates + 4,
-	.n_bitrates = ARRAY_SIZE(cfg80211_rates) - 4,
-};
+extern pmoal_handle m_handle[];
 
 #if KERNEL_VERSION(2, 6, 29) < LINUX_VERSION_CODE
 #ifdef UAP_SUPPORT
@@ -207,6 +167,11 @@ extern const struct net_device_ops woal_netdev_ops;
 /********************************************************
  *				Global Functions
  ********************************************************/
+#ifdef UAP_SUPPORT
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg);
+#endif
+#endif
 
 /**
  * @brief Get the private structure from wiphy
@@ -323,6 +288,32 @@ t_u8 woal_band_cfg_to_ieee_band(t_u32 band)
 
 	LEAVE();
 	return ret_radio_type;
+}
+
+/**
+ *  @brief Convert IEEE band type to radio_type
+ *
+ *  @param ieeeband     IEEE band
+ *
+ *  @return           radio_type
+ */
+t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band)
+{
+	t_u8 radio_type = 0;
+
+	ENTER();
+
+	switch (ieee_band) {
+	case IEEE80211_BAND_5GHZ:
+		radio_type = BAND_5GHZ;
+		break;
+	case IEEE80211_BAND_2GHZ:
+	default:
+		radio_type = BAND_2GHZ;
+		break;
+	}
+	LEAVE();
+	return radio_type;
 }
 
 /**
@@ -1045,6 +1036,11 @@ int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+
+	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
+		ret = -EFAULT;
+		goto done;
+	}
 
 	if (priv->wdev->iftype == type) {
 		PRINTM(MINFO, "Already set to required type\n");
@@ -2438,6 +2434,8 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 	LEAVE();
 }
 
+#ifdef UAP_CFG80211
+#if KERNEL_VERSION(3, 12, 0) <= CFG80211_VERSION_CODE
 /*
  * @brief  prepare and send WOAL_EVENT_CANCEL_CHANRPT
  *
@@ -2465,6 +2463,8 @@ static void woal_cancel_chanrpt_event(moal_private *priv)
 	spin_unlock_irqrestore(&handle->evt_lock, flags);
 	queue_work(handle->evt_workqueue, &handle->evt_work);
 }
+#endif
+#endif
 
 #if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
 #if KERNEL_VERSION(3, 3, 0) <= CFG80211_VERSION_CODE
@@ -2661,11 +2661,24 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 				break;
 			case IEEE80211_STYPE_DEAUTH:
 			case IEEE80211_STYPE_DISASSOC:
+				/* Need cancel the CAC when stop hostapd during
+				 * CAC*/
+#ifdef UAP_CFG80211
+#if KERNEL_VERSION(3, 12, 0) <= CFG80211_VERSION_CODE
+				if (priv->phandle->is_cac_timer_set)
+					woal_cancel_chanrpt_event(priv);
+#endif
+#endif
+#ifdef UAP_SUPPORT
+				if (!priv->bss_started) {
+					PRINTM(MCMND,
+					       "Drop deauth packet before AP started\n");
+					goto done;
+				}
+#endif
 				PRINTM(MMSG,
 				       "wlan: HostMlme %s send deauth/disassoc\n",
 				       priv->netdev->name);
-				if (priv->phandle->is_cac_timer_set)
-					woal_cancel_chanrpt_event(priv);
 
 				break;
 			case IEEE80211_STYPE_ASSOC_RESP:
@@ -2736,7 +2749,7 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 #endif
 
-		if (chan) {
+		if (chan && priv->bss_type != MLAN_BSS_ROLE_UAP) {
 			duration = (wait > MGMT_TX_DEFAULT_WAIT_TIME) ?
 					   wait :
 					   MGMT_TX_DEFAULT_WAIT_TIME;
@@ -3381,6 +3394,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 		case HT_OPERATION:
 		case VHT_CAPABILITY:
 		case VHT_OPERATION:
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
 				if ((out_len + length + 2) < (int)ie_out_len) {
 					moal_memcpy_ext(priv->phandle,
@@ -3393,6 +3407,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 					       "IE too big, fail copy COUNTRY INFO IE\n");
 				}
 			}
+#endif
 			break;
 		case EXTENDED_SUPPORTED_RATES:
 		case WLAN_EID_ERP_INFO:
@@ -3405,11 +3420,14 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 			break;
 		case EXTENSION:
 			ext_id = *(pos + 2);
-			if ((ext_id == HE_CAPABILITY ||
-			     ext_id == HE_OPERATION) &&
-			    !moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
+			if ((ext_id == HE_CAPABILITY || ext_id == HE_OPERATION)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+			    && !moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
+#endif
+			)
 				break;
 			else {
+#ifdef UAP_SUPPORT
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
 				if (ext_id == HE_CAPABILITY) {
 					mlan_ds_11ax_he_cfg he_cfg;
@@ -3452,6 +3470,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 						       "Fail to get 11ax he_cap parameters\n");
 					}
 				} else
+#endif
 #endif
 				{
 					if ((out_len + length + 2) <
@@ -4167,6 +4186,62 @@ done:
 }
 
 /**
+ *  @brief Sets up the ieee80211_supported band
+ *  *
+ *  @param ht_info      A pointer to ieee80211_sta_ht_cap structure
+ *  @param dev_cap      Device capability information
+ *  @param mcs_set      Device MCS sets
+ *
+ *  @return             N/A
+ */
+struct ieee80211_supported_band *woal_setup_wiphy_bands(t_u8 ieee_band)
+{
+	struct ieee80211_supported_band *band = NULL;
+	switch (ieee_band) {
+	case IEEE80211_BAND_5GHZ:
+		band = kmemdup(&cfg80211_band_5ghz,
+			       sizeof(struct ieee80211_supported_band),
+			       GFP_KERNEL);
+		if (!band) {
+			PRINTM(MERROR, "No memory for 5g band\n");
+			break;
+		}
+		band->channels =
+			kmemdup(&cfg80211_channels_5ghz,
+				sizeof(cfg80211_channels_5ghz), GFP_KERNEL);
+		if (!band->channels) {
+			PRINTM(MERROR, "No memory for 5g band->channel\n");
+			kfree(band);
+			band = NULL;
+			break;
+		}
+		band->n_channels = ARRAY_SIZE(cfg80211_channels_5ghz);
+		break;
+	case IEEE80211_BAND_2GHZ:
+	default:
+		band = kmemdup(&cfg80211_band_2ghz,
+			       sizeof(struct ieee80211_supported_band),
+			       GFP_KERNEL);
+		if (!band) {
+			PRINTM(MERROR, "No memory for 2g band\n");
+			break;
+		}
+		band->channels =
+			kmemdup(&cfg80211_channels_2ghz,
+				sizeof(cfg80211_channels_2ghz), GFP_KERNEL);
+		if (!band->channels) {
+			PRINTM(MERROR, "No memory for 2g band->channel\n");
+			kfree(band);
+			band = NULL;
+			break;
+		}
+		band->n_channels = ARRAY_SIZE(cfg80211_channels_2ghz);
+		break;
+	}
+	return band;
+}
+
+/**
  *  @brief Sets up the CFG802.11 specific HT capability fields
  *  with default values
  *
@@ -4385,12 +4460,12 @@ Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 
 /**
  *  @brief update 11ax ie for AP mode *
- *  @param band     band config
- *  @hecap_ie      a pointer to mlan_ds_11ax_he_capa
+ *  @param band     channel band
+ *  @hecap_ie       a pointer to mlan_ds_11ax_he_capa
  *
  *  @return         0--success, otherwise failure
  */
-void woal_uap_update_11ax_ie(t_u8 band, mlan_ds_11ax_he_capa *hecap_ie)
+static void woal_uap_update_11ax_ie(t_u8 band, mlan_ds_11ax_he_capa *hecap_ie)
 {
 	if (band == BAND_5GHZ) {
 		hecap_ie->he_mac_cap[0] &= UAP_HE_MAC_CAP0_MASK;
@@ -4471,6 +4546,7 @@ void woal_cfg80211_setup_he_cap(moal_private *priv,
 		PRINTM(MERROR, "Fail to allocate iftype data\n");
 		goto done;
 	}
+	memset(iftype_data, 0, sizeof(struct ieee80211_sband_iftype_data));
 	iftype_data->types_mask =
 		MBIT(NL80211_IFTYPE_STATION) | MBIT(NL80211_IFTYPE_AP) |
 		MBIT(NL80211_IFTYPE_P2P_CLIENT) | MBIT(NL80211_IFTYPE_P2P_GO);
@@ -4522,6 +4598,8 @@ done:
 	LEAVE();
 }
 
+#endif
+
 /**
  *  @brief free iftype_data
  *
@@ -4530,21 +4608,26 @@ done:
  *
  *  @return             N/A
  */
-void woal_cfg80211_free_iftype_data(struct wiphy *wiphy)
+void woal_cfg80211_free_bands(struct wiphy *wiphy)
 {
 	enum nl80211_band band;
 
-	for (band = NL80211_BAND_2GHZ; band < NUM_NL80211_BANDS; ++band) {
+	for (band = NL80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; ++band) {
 		if (!wiphy->bands[band])
 			continue;
-		if (!wiphy->bands[band]->iftype_data)
-			continue;
-		kfree(wiphy->bands[band]->iftype_data);
-		wiphy->bands[band]->n_iftype_data = 0;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+		if (wiphy->bands[band]->iftype_data) {
+			kfree(wiphy->bands[band]->iftype_data);
+			wiphy->bands[band]->n_iftype_data = 0;
+		}
+#endif
+		kfree(wiphy->bands[band]->channels);
+		kfree(wiphy->bands[band]);
+		wiphy->bands[band] = NULL;
 	}
 }
-#endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /*
  * @brief  prepare and send fake deauth packet to cfg80211 to
  *         notify wpa_supplicant about disconnection
@@ -4576,6 +4659,7 @@ void woal_deauth_event(moal_private *priv, int reason_code)
 	spin_unlock_irqrestore(&handle->evt_lock, flags);
 	queue_work(handle->evt_workqueue, &handle->evt_work);
 }
+#endif
 
 #ifdef STA_CFG80211
 #if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
@@ -4625,27 +4709,6 @@ void woal_cfg80211_notify_sched_scan_stop(moal_private *priv)
 }
 
 /**
- * @brief sched_scan work handler
- *
- * @param work            a pointer to work_struct
- *
- * @return                0 -- success, otherwise fail
- */
-void woal_sched_scan_work_queue(struct work_struct *work)
-{
-	struct delayed_work *delayed_work =
-		container_of(work, struct delayed_work, work);
-	moal_private *priv =
-		container_of(delayed_work, moal_private, sched_scan_work);
-	ENTER();
-
-	if (priv->sched_scanning)
-		woal_cfg80211_notify_sched_scan_stop(priv);
-
-	LEAVE();
-}
-
-/**
  * @brief report sched_scan result to kernel
  *
  * @param priv          A pointer moal_private structure
@@ -4660,8 +4723,6 @@ void woal_report_sched_scan_result(moal_private *priv)
 				    priv->bg_scan_reqid
 #endif
 	);
-	queue_delayed_work(priv->sched_scan_workqueue, &priv->sched_scan_work,
-			   msecs_to_jiffies(2000));
 }
 #endif
 #endif
@@ -4838,7 +4899,6 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				}
 #endif
 			}
-			bands->ht_cap.mcs.rx_mask[4] = 0;
 		}
 
 		if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
@@ -4852,10 +4912,16 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				     0x300 &&
 			     (radio->param.ant_cfg.rx_antenna & 0xFF00) != 0)) {
 				bands->ht_cap.mcs.rx_mask[1] = 0;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 				bands->vht_cap.vht_mcs.rx_mcs_map =
 					(__force __le16)0xfffe;
 				bands->vht_cap.vht_mcs.tx_mcs_map =
 					(__force __le16)0xfffe;
+				bands->vht_cap.vht_mcs.rx_highest =
+					(__force __le16)0x186;
+				bands->vht_cap.vht_mcs.tx_highest =
+					(__force __le16)0x186;
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
 				if (bands->n_iftype_data &&
 				    bands->iftype_data &&
@@ -4882,10 +4948,16 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				   (radio->param.ant_cfg.rx_antenna & 0xFF00) ==
 					   0x300) {
 				bands->ht_cap.mcs.rx_mask[1] = 0xff;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 				bands->vht_cap.vht_mcs.rx_mcs_map =
 					(__force __le16)0xfffa;
 				bands->vht_cap.vht_mcs.tx_mcs_map =
 					(__force __le16)0xfffa;
+				bands->vht_cap.vht_mcs.rx_highest =
+					(__force __le16)0x30c;
+				bands->vht_cap.vht_mcs.tx_highest =
+					(__force __le16)0x30c;
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
 				if (bands->n_iftype_data &&
 				    bands->iftype_data &&
@@ -4978,3 +5050,169 @@ done:
 	return status;
 }
 #endif
+
+/**
+ * @brief Set given radar channel dfs_state to AVAILABLE
+ *
+ * @param wiphy           A pointer to struct wiphy
+ *
+ * @return                N/A
+ */
+void woal_clear_wiphy_dfs_state(struct wiphy *wiphy)
+{
+	struct ieee80211_supported_band *sband;
+	int i;
+
+	ENTER();
+	if (!wiphy) {
+		LEAVE();
+		return;
+	}
+	sband = wiphy->bands[NL80211_BAND_5GHZ];
+
+	if (!sband) {
+		LEAVE();
+		return;
+	}
+
+	for (i = 0; i < sband->n_channels; i++) {
+		if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
+			if (sband->channels[i].dfs_state ==
+			    NL80211_DFS_UNAVAILABLE) {
+				sband->channels[i].dfs_state =
+					NL80211_DFS_USABLE;
+				sband->channels[i].dfs_state_entered = jiffies;
+			}
+#endif
+		}
+	}
+	LEAVE();
+}
+
+/**
+ * @brief Set given radar channel dfs_state to AVAILABLE
+ *
+ * @param wiphy           A pointer to struct wiphy
+ * @param ch_dfs_state    A pointer to struct mlan_ds_11h_chan_dfs_state
+ *
+ * @return                N/A
+ */
+int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
+				  mlan_ds_11h_chan_dfs_state *ch_dfs_state)
+{
+	struct ieee80211_supported_band *sband;
+	int i;
+	int ret = -1;
+	t_u8 channel = ch_dfs_state->channel;
+
+	ENTER();
+	if (!wiphy) {
+		LEAVE();
+		return ret;
+	}
+	sband = wiphy->bands[NL80211_BAND_5GHZ];
+
+	if (!sband) {
+		LEAVE();
+		return ret;
+	}
+
+	for (i = 0; i < sband->n_channels; i++) {
+		if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
+			if (sband->channels[i].hw_value == channel) {
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
+				ch_dfs_state->dfs_state =
+					sband->channels[i].dfs_state;
+				ch_dfs_state->dfs_required = MTRUE;
+				ret = 0;
+#endif
+				break;
+			}
+		}
+	}
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Set given radar channel dfs_state to AVAILABLE
+ *
+ * @param wiphy           A pointer to struct wiphy
+ * @param channel         given radar channel
+ * @param dfs_state       dfs_state
+ *
+ * @return                N/A
+ */
+static void woal_update_wiphy_chan_dfs_state(struct wiphy *wiphy, t_u8 channel,
+					     t_u8 dfs_state)
+{
+	struct ieee80211_supported_band *sband;
+	int i;
+
+	ENTER();
+	if (!wiphy) {
+		LEAVE();
+		return;
+	}
+	sband = wiphy->bands[NL80211_BAND_5GHZ];
+
+	if (!sband) {
+		LEAVE();
+		return;
+	}
+
+	for (i = 0; i < sband->n_channels; i++) {
+		if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
+			if (sband->channels[i].hw_value == channel) {
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
+				sband->channels[i].dfs_state = dfs_state;
+				sband->channels[i].dfs_state_entered = jiffies;
+#endif
+				break;
+			}
+		}
+	}
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
+	if (i < sband->n_channels)
+		PRINTM(MCMND, "DFS: Set channel %d dfs_state: %d\n", channel,
+		       sband->channels[i].dfs_state);
+#endif
+	LEAVE();
+}
+/**
+ * @brief Set given radar channel dfs_state
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param channel         given radar channel
+ * @param dfs_state       dfs_state
+ *
+ * @return                N/A
+ */
+static void woal_update_wiphy_channel_dfs_state(struct wiphy *wiphy,
+						t_u8 channel, t_u8 dfs_state)
+{
+	if (!wiphy) {
+		LEAVE();
+		return;
+	}
+	woal_update_wiphy_chan_dfs_state(wiphy, channel, dfs_state);
+}
+
+/**
+ * @brief update channel dfs state to all wiphy
+ *
+ * @param channel         given radar channel
+ * @param dfs_state       dfs_state
+ *
+ * @return                N/A
+ */
+void woal_update_channel_dfs_state(t_u8 channel, t_u8 dfs_state)
+{
+	int index;
+	for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
+		if (m_handle[index] && m_handle[index]->wiphy)
+			woal_update_wiphy_channel_dfs_state(
+				m_handle[index]->wiphy, channel, dfs_state);
+	}
+}

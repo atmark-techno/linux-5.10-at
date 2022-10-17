@@ -257,6 +257,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+	if (pmdevice->callbacks.moal_recv_amsdu_packet)
+		PRINTM(MMSG, "Enable moal_recv_amsdu_packet\n");
 
 	/* Allocate memory for adapter structure */
 	if (pmdevice->callbacks.moal_vmalloc && pmdevice->callbacks.moal_vfree)
@@ -328,6 +330,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->card_type = pmdevice->card_type;
 	pmadapter->card_rev = pmdevice->card_rev;
 	pmadapter->init_para.uap_max_sta = pmdevice->uap_max_sta;
+	pmadapter->init_para.mcs32 = pmdevice->mcs32;
 
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
@@ -459,6 +462,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	}
 #endif
 	pmadapter->init_para.dfs53cfg = pmdevice->dfs53cfg;
+	pmadapter->init_para.dfs_offload = pmdevice->dfs_offload;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
 
@@ -479,24 +483,40 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	memset(pmadapter, pmadapter->priv[0], 0, sizeof(mlan_private));
 
 	pmadapter->priv[0]->adapter = pmadapter;
-	pmadapter->priv[0]->bss_type = (t_u8)pmdevice->bss_attr[0].bss_type;
-	pmadapter->priv[0]->frame_type = (t_u8)pmdevice->bss_attr[0].frame_type;
-	pmadapter->priv[0]->bss_priority =
-		(t_u8)pmdevice->bss_attr[0].bss_priority;
-	if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_STA)
+	if (pmdevice->drv_mode & DRV_MODE_MASK) {
+		/* Save bss_type, frame_type & bss_priority */
+		pmadapter->priv[0]->bss_type = 0xff;
+		pmadapter->priv[0]->frame_type = MLAN_DATA_FRAME_TYPE_ETH_II;
+		pmadapter->priv[0]->bss_priority = 0;
 		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
-	else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_UAP)
-		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_UAP;
+
+		/* Save bss_index and bss_num */
+		pmadapter->priv[0]->bss_index = 0;
+		pmadapter->priv[0]->bss_num = 0xff;
+	} else {
+		pmadapter->priv[0]->bss_type =
+			(t_u8)pmdevice->bss_attr[0].bss_type;
+		pmadapter->priv[0]->frame_type =
+			(t_u8)pmdevice->bss_attr[0].frame_type;
+		pmadapter->priv[0]->bss_priority =
+			(t_u8)pmdevice->bss_attr[0].bss_priority;
+		if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_STA)
+			pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
+		else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_UAP)
+			pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_UAP;
 #ifdef WIFI_DIRECT_SUPPORT
-	else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
-		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
-		if (pmdevice->bss_attr[0].bss_virtual)
-			pmadapter->priv[0]->bss_virtual = MTRUE;
-	}
+		else if (pmdevice->bss_attr[0].bss_type ==
+			 MLAN_BSS_TYPE_WIFIDIRECT) {
+			pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
+			if (pmdevice->bss_attr[0].bss_virtual)
+				pmadapter->priv[0]->bss_virtual = MTRUE;
+		}
 #endif
-	/* Save bss_index and bss_num */
-	pmadapter->priv[0]->bss_index = 0;
-	pmadapter->priv[0]->bss_num = (t_u8)pmdevice->bss_attr[0].bss_num;
+		/* Save bss_index and bss_num */
+		pmadapter->priv[0]->bss_index = 0;
+		pmadapter->priv[0]->bss_num =
+			(t_u8)pmdevice->bss_attr[0].bss_num;
+	}
 
 	/* init function table */
 	for (j = 0; mlan_ops[j]; j++) {
@@ -1697,6 +1717,50 @@ t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
 	ret = wlan_wmm_select_queue(pmpriv, tid);
 	LEAVE();
 	return ret;
+}
+
+/**
+ *  @brief this function handle the amsdu packet after deaggreate.
+ *
+ *  @param padapter	A pointer to mlan_adapter structure
+ *  @param pmbuf    A pointer to the deaggreated buf
+ *  @param drop	    A pointer to return the drop flag.
+ *
+ *  @return			N/A
+ */
+void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
+{
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
+	mlan_private *pmpriv;
+	t_u16 eth_type = 0;
+
+	*drop = MFALSE;
+	pmpriv = pmadapter->priv[pmbuf->bss_index];
+	eth_type =
+		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
+						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+	switch (eth_type) {
+	case MLAN_ETHER_PKT_TYPE_EAPOL:
+		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");
+		if (pmpriv->sec_info.ewpa_enabled) {
+			*drop = MTRUE;
+			wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_EAPOL_PKT,
+					 0, 0, MNULL, pmbuf);
+			wlan_recv_event(pmpriv,
+					MLAN_EVENT_ID_DRV_DEFER_HANDLING,
+					MNULL);
+		}
+		break;
+	case MLAN_ETHER_PKT_TYPE_TDLS_ACTION:
+		PRINTM(MEVENT, "Recevie AMSDU TDLS action frame\n");
+		wlan_process_tdls_action_frame(pmpriv,
+					       pmbuf->pbuf + pmbuf->data_offset,
+					       pmbuf->data_len);
+		break;
+	default:
+		break;
+	}
+	return;
 }
 
 #if defined(SDIO) || defined(PCIE)

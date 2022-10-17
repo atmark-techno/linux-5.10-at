@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -77,6 +77,8 @@ mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,
 				       int key_len, t_u8 index,
 				       t_u8 wait_option);
 
+t_u8 is_cfg80211_special_region_code(t_u8 *region_string);
+
 /**
  * If multiple wiphys are registered e.g. a regular netdev with
  * assigned ieee80211_ptr and you won't know whether it points
@@ -104,11 +106,16 @@ pmoal_private woal_get_scan_interface(pmoal_handle handle);
 void woal_host_mlme_disconnect(pmoal_private priv, u16 reason_code, u8 *sa);
 void woal_host_mlme_work_queue(struct work_struct *work);
 void woal_host_mlme_process_assoc_resp(moal_private *priv,
-				       mlan_ds_misc_assoc_rsp *assoc_rsp);
+				       mlan_ds_assoc_info *assoc_info);
 #endif
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+void woal_regulatory_work_queue(struct work_struct *work);
+#endif
+
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
+t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band);
 
 int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 				      struct net_device *dev,
@@ -257,10 +264,6 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #endif
 			  u64 *cookie);
 
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
-void woal_update_radar_chans_dfs_state(struct wiphy *wiphy);
-#endif
-
 mlan_status woal_register_cfg80211(moal_private *priv);
 
 extern struct ieee80211_supported_band cfg80211_band_2ghz;
@@ -318,9 +321,7 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
-#if defined(WIFI_DIRECT_SUPPORT)
 void woal_remove_virtual_interface(moal_handle *handle);
-#endif
 
 #ifdef WIFI_DIRECT_SUPPORT
 /* Group Owner Negotiation Req */
@@ -462,7 +463,6 @@ void woal_channel_switch_event(moal_private *priv, chan_band_info *pchan_info);
 #if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
 void woal_bgscan_stop_event(moal_private *priv);
 void woal_cfg80211_notify_sched_scan_stop(moal_private *priv);
-void woal_sched_scan_work_queue(struct work_struct *work);
 void woal_report_sched_scan_result(moal_private *priv);
 #endif
 #endif
@@ -473,7 +473,9 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				 mlan_ds_radio_cfg *radio);
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 void woal_deauth_event(moal_private *priv, int reason_code);
+#endif
 
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 mlan_status woal_chandef_create(moal_private *priv,
@@ -484,8 +486,10 @@ mlan_status woal_chandef_create(moal_private *priv,
 #if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
 void woal_cfg80211_setup_he_cap(moal_private *priv,
 				struct ieee80211_supported_band *band);
-void woal_cfg80211_free_iftype_data(struct wiphy *wiphy);
 #endif
+
+void woal_cfg80211_free_bands(struct wiphy *wiphy);
+struct ieee80211_supported_band *woal_setup_wiphy_bands(t_u8 ieee_band);
 
 void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
 int woal_cfg80211_mgmt_frame_ie(
@@ -506,4 +510,8 @@ void woal_cfg80211_setup_vht_cap(moal_private *priv,
 int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 			pmlan_ds_misc_assoc_rsp assoc_rsp);
 
+void woal_clear_wiphy_dfs_state(struct wiphy *wiphy);
+void woal_update_channel_dfs_state(t_u8 channel, t_u8 dfs_state);
+int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
+				  mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 #endif /* _MOAL_CFG80211_H_ */

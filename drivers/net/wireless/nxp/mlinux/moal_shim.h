@@ -4,7 +4,7 @@
  * functions defined in moal module
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -59,6 +59,7 @@ mlan_status moal_write_data_sync(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 				 t_u32 timeout);
 mlan_status moal_read_data_sync(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 				t_u32 timeout);
+mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent);
 mlan_status moal_malloc(t_void *pmoal, t_u32 size, t_u32 flag, t_u8 **ppbuf);
@@ -121,6 +122,7 @@ void moal_tp_accounting_rx_param(t_void *pmoal, unsigned int type,
 void moal_amsdu_tp_accounting(t_void *pmoal, t_s32 amsdu_process_delay,
 			      t_s32 amsdu_copy_delay);
 
+void moal_connection_status_check_pmqos(t_void *pmoal);
 #if defined(PCIE) || defined(SDIO)
 /* pmqos busfreq add request handler*/
 void woal_request_busfreq_pmqos_add(t_void *pmhandle);

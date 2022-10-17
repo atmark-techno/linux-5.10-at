@@ -3,7 +3,7 @@
  * @brief This file contains functions for proc file.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -81,6 +81,7 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	struct net_device *netdev = (struct net_device *)sfp->private;
 	char fmt[MLAN_MAX_VER_STR_LEN];
 	moal_private *priv = (moal_private *)netdev_priv(netdev);
+	mlan_fw_info fw_info;
 #ifdef STA_SUPPORT
 	int i = 0;
 	moal_handle *handle = NULL;
@@ -104,6 +105,8 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		t_u32 l;
 		t_u8 c[4];
 	} ver;
+
+	fw_info.uuid_lo = fw_info.uuid_hi = 0x0ULL;
 
 	ENTER();
 
@@ -154,6 +157,11 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	ver.l = handle->fw_release_number;
 	seq_printf(sfp, "firmware_major_version=%u.%u.%u\n", ver.c[2], ver.c[1],
 		   ver.c[0]);
+
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (fw_info.uuid_lo || fw_info.uuid_hi)
+		seq_printf(sfp, "uuid = %llx%llx\n", fw_info.uuid_lo,
+			   fw_info.uuid_hi);
 #ifdef WIFI_DIRECT_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
@@ -358,7 +366,9 @@ exit:
 
 static int woal_info_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_info_proc_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_info_proc_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_info_proc_read, PDE(inode)->data);
@@ -521,18 +531,14 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		if (ref_handle) {
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
-#ifdef DEBUG_LEVEL1
-				drvdbg &= ~MFW_D;
-#endif
+				handle->fw_dump_status = MTRUE;
 				woal_mlan_debug_info(priv);
 				woal_moal_debug_info(priv, NULL, MFALSE);
 			}
 		}
 		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 		if (priv) {
-#ifdef DEBUG_LEVEL1
-			drvdbg &= ~MFW_D;
-#endif
+			handle->fw_dump_status = MTRUE;
 			woal_mlan_debug_info(priv);
 			woal_moal_debug_info(priv, NULL, MFALSE);
 			handle->ops.dump_fw_info(handle);
@@ -592,6 +598,11 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 			woal_set_tp_state(priv);
 		PRINTM(MMSG, "on=%d drop_point=%d\n", handle->tp_acnt.on,
 		       handle->tp_acnt.drop_point);
+	}
+	if (!strncmp(databuf, "hssetpara=", strlen("hssetpara="))) {
+		line += strlen("hssetpara") + 1;
+		PRINTM(MCMND, "hssetpara=%s\n", line);
+		woal_process_proc_hssetpara(handle, line);
 	}
 	if (!strncmp(databuf, "rf_test_mode", strlen("rf_test_mode"))) {
 		line += strlen("rf_test_mode") + 1;
@@ -672,6 +683,8 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 {
 	moal_handle *handle = (moal_handle *)sfp->private;
 	int i;
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	mlan_ds_hs_cfg hscfg;
 
 	ENTER();
 
@@ -683,6 +696,13 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 	seq_printf(sfp, "hardware_status=%d\n", (int)handle->hardware_status);
 	seq_printf(sfp, "netlink_num=%d\n", (int)handle->netlink_num);
 	seq_printf(sfp, "drv_mode=%d\n", (int)handle->params.drv_mode);
+	if (priv) {
+		memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
+		woal_set_get_hs_params(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				       &hscfg);
+		seq_printf(sfp, "hssetpara=%d,0x%x,%d,%d\n", hscfg.conditions,
+			   hscfg.gpio, hscfg.gap, hscfg.hs_wake_interval);
+	}
 #ifdef SDIO
 	if (IS_SD(handle->card_type)) {
 		seq_printf(sfp, "sdcmd52rw=%d 0x%0x 0x%02X\n",
@@ -776,7 +796,9 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 
 static int woal_config_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_config_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_config_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_config_read, PDE(inode)->data);
@@ -851,7 +873,9 @@ done:
 
 static int woal_drv_dump_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_drv_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_drv_dump_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_drv_dump_read, PDE(inode)->data);
@@ -928,7 +952,9 @@ done:
 
 static int woal_fw_dump_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_fw_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_fw_dump_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_fw_dump_read, PDE(inode)->data);
@@ -978,7 +1004,9 @@ static int woal_wifi_status_read(struct seq_file *sfp, void *data)
 
 static int woal_wifi_status_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_wifi_status_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_wifi_status_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_wifi_status_read, PDE(inode)->data);

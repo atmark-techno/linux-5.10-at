@@ -1050,7 +1050,7 @@ static void wlan_update_all_stations_ampdu(mlan_private *priv)
 	}
 	while (sta_ptr != (sta_node *)&priv->sta_list) {
 		for (i = 0; i < MAX_NUM_TID; i++) {
-			if (sta_ptr->is_11n_enabled)
+			if (sta_ptr->is_11n_enabled || sta_ptr->is_11ax_enabled)
 				sta_ptr->ampdu_sta[i] =
 					priv->aggr_prio_tbl[i].ampdu_user;
 		}
@@ -1233,7 +1233,8 @@ static mlan_status wlan_11n_ioctl_supported_mcs_set(pmlan_adapter pmadapter,
 	if ((ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg) ||
 	     ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_a)) &&
 	    !(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	      pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+	      pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
+	    pmadapter->init_para.mcs32 == 1)
 		SETHT_MCS32(mcs_set);
 
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
@@ -1330,7 +1331,7 @@ static TxBAStreamTbl *wlan_11n_get_txbastream_status(mlan_private *priv,
  *
  *  @return             N/A
  */
-static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
+static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u16 bands)
 {
 	t_u32 usr_dot_11n_dev_cap;
 
@@ -1419,7 +1420,8 @@ static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
  *
  *  @return             N/A
  */
-static void wlan_reset_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
+static void wlan_reset_cap_info(mlan_private *priv, HTCap_t *ht_cap,
+				t_u16 bands)
 {
 	t_u32 usr_dot_11n_dev_cap;
 
@@ -1513,8 +1515,10 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	if (IS_CARD9098(pmadapter->card_type) ||
+	    IS_CARDNW62X(pmadapter->card_type) ||
 	    IS_CARD9097(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
@@ -1538,7 +1542,8 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 	 * supprot*/
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
+	    pmadapter->init_para.mcs32 == 1)
 		SETHT_MCS32(pht_cap->ht_cap.supported_mcs_set);
 
 	/* Clear RD responder bit */
@@ -1587,8 +1592,10 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	if (IS_CARD9098(pmadapter->card_type) ||
+	    IS_CARDNW62X(pmadapter->card_type) ||
 	    IS_CARD9097(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
@@ -1612,7 +1619,8 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 	 * supprot*/
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
+	    pmadapter->init_para.mcs32 == 1)
 		SETHT_MCS32(pht_cap->ht_cap.supported_mcs_set);
 
 	/* Clear RD responder bit */
@@ -2289,9 +2297,13 @@ mlan_status wlan_ret_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
  * @param chan            channel num
  * @return                second channel offset
  */
-t_u8 wlan_get_second_channel_offset(int chan)
+t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 {
 	t_u8 chan2Offset = SEC_CHAN_NONE;
+
+	/* Special Case: 20Mhz-only Channel */
+	if (priv->adapter->region_code != COUNTRY_CODE_US && chan == 165)
+		return chan2Offset;
 
 	switch (chan) {
 	case 36:
@@ -2306,6 +2318,8 @@ t_u8 wlan_get_second_channel_offset(int chan)
 	case 140:
 	case 149:
 	case 157:
+	case 165:
+	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -2320,11 +2334,9 @@ t_u8 wlan_get_second_channel_offset(int chan)
 	case 144:
 	case 153:
 	case 161:
+	case 169:
+	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
-		break;
-	case 165:
-		/* Special Case: 20Mhz-only Channel */
-		chan2Offset = SEC_CHAN_NONE;
 		break;
 	}
 	return chan2Offset;
@@ -2371,7 +2383,8 @@ t_u8 wlan_validate_chan_offset(mlan_private *pmpriv, t_u16 band, t_u32 chan,
 				if ((chan == 8) || (chan == 9))
 					chan_offset = SEC_CHAN_BELOW;
 		} else if (band & BAND_AN)
-			chan_offset = wlan_get_second_channel_offset(chan);
+			chan_offset =
+				wlan_get_second_channel_offset(pmpriv, chan);
 	}
 	return chan_offset;
 }
@@ -2554,7 +2567,7 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		pchan_list->chan_scan_param[0].chan_number =
 			pbss_desc->pht_info->ht_info.pri_chan;
 		pchan_list->chan_scan_param[0].bandcfg.chanBand =
-			wlan_band_to_radio_type((t_u8)pbss_desc->bss_band);
+			wlan_band_to_radio_type(pbss_desc->bss_band);
 		/* support the VHT if the network to be join has the VHT
 		 * operation */
 		if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info) &&
@@ -3126,7 +3139,7 @@ int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
  *
  *  @return 0--not allowed, other value allowed
  */
-t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
+t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
 	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
 		if (bss_band & BAND_G)
