@@ -1,17 +1,18 @@
+if THALES_LTE_MULTIPLEX
 menu "Cinterion Linmux Driver"
 
 config LINMUX_INSTANCES
 	int "Linmux instances"
 	depends on X86
 	default 1
-        range 1 256
+	range 1 256
 	help
 	  This option defines the number of driver instances.
 
 config LINMUX_TTY_MAJOR_DEVNUM
 	int "Linmux TTY major devnum"
 	default 301
-	 range 1 511
+	range 1 511
 	help
 	  The major device number of the linmux tty device.
 
@@ -29,7 +30,7 @@ config LINMUX_FS_DEVICE_NAME
 config LINMUX_FS_MAJOR_DEVNUM
 	int "Linmux FS major devnum"
 	default 300
-	 range 1 511
+	range 1 511
 	help
 	  The major device number of the linmux chracter device.
 
@@ -55,3 +56,4 @@ config LINMUX_POWER_MGMT_ENABLED
 	  Enable or disable power management.
 endmenu
 
+endif
