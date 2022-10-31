@@ -201,30 +201,45 @@
 		ocrams: sram@8f8000 {
 			compatible = "fsl,lpm-sram";
 			reg = <0x8f8000 0x4000>;
+			ranges = <0 0x008f8000 0x4000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			clocks = <&clks IMX6SX_CLK_OCRAM_S>;
 		};
 
 		ocrams_ddr: sram@900000 {
 			compatible = "fsl,ddr-lpm-sram";
 			reg = <0x900000 0x1000>;
+			ranges = <0 0x00900000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			clocks = <&clks IMX6SX_CLK_OCRAM>;
 		};
 
 		ocram: sram@901000 {
 			compatible = "mmio-sram";
 			reg = <0x901000 0x1F000>;
+			ranges = <0 0x00901000 0x1F000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			clocks = <&clks IMX6SX_CLK_OCRAM>;
 		};
 
 		ocram_mf: sram-mf@900000 {
 			compatible = "fsl,mega-fast-sram";
 			reg = <0x900000 0x20000>;
+			ranges = <0 0x00900000 0x20000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			clocks = <&clks IMX6SX_CLK_OCRAM>;
 		};
 
 		ocram_optee {
 			compatible = "fsl,optee-lpm-sram";
 			reg = <0x8f8000 0x4000>;
+			ranges = <0 0x008f8000 0x4000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			overw_reg = <&ocrams_ddr 0x904000 0x1000>,
 					<&ocram 0x905000 0x1b000>,
 					<&ocrams 0x900000 0x4000>;
