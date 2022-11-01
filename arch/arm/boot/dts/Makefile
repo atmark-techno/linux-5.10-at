@@ -720,6 +720,7 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-iotg-a6-at-dtweb.dtb \
 	armadillo-iotg-a6-extboard.dtb \
 	armadillo-iotg-a6e.dtb \
+	armadillo-iotg-a6e-at-dtweb.dtbo \
 	armadillo-iotg-a6e-ems31.dtbo \
 	armadillo-iotg-a6e-lwb5plus.dtbo
 dtb-$(CONFIG_SOC_IMX7D) += \
