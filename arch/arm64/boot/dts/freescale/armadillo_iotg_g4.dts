@@ -238,6 +238,9 @@
 
 	moal-params {
 		host_mlme = <0x1>;
+		// disable power savings
+		ps_mode = <0x2>;
+		auto_ds = <0x2>;
 	};
 };
 
