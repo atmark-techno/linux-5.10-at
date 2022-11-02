@@ -1373,10 +1373,9 @@ static void woal_setup_handle_from_of_node(moal_handle *handle,
 				PRINTM(MIOCTL, "antcfg=%d\n", data);
 				handle->params.antcfg = data;
 			}
-		}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-		else if (!strcmp(prop->name, "host_mlme")) {
+		} else if (!strcmp(prop->name, "host_mlme")) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "host_mlme=%d\n", data);
 				if (data)
@@ -1384,9 +1383,21 @@ static void woal_setup_handle_from_of_node(moal_handle *handle,
 				else
 					moal_extflg_clear(handle, EXT_HOST_MLME);
 			}
+#endif
+#endif
+		} else if (!strcmp(prop->name, "ps_mode")) {
+			if (!handle->params.ps_mode &&
+			    !of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "ps_mode=%d\n", data);
+				handle->params.ps_mode = data;
+			}
+		} else if (!strcmp(prop->name, "auto_ds")) {
+			if (!handle->params.auto_ds &&
+			    !of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "auto_ds=%d\n", data);
+				handle->params.auto_ds = data;
+			}
 		}
-#endif
-#endif
 	}
 }
 
