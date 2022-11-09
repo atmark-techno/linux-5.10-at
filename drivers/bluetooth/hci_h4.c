@@ -20,6 +20,7 @@
 
 #include <linux/of.h>
 #include <linux/serdev.h>
+#include <linux/netdevice.h>
 #include <linux/slab.h>
 #include <linux/tty.h>
 #include <linux/errno.h>
@@ -142,8 +143,22 @@ static int h4_probe(struct serdev_device *serdev)
 {
 	struct h4_device *h4dev;
 	struct hci_uart *hu;
+	struct net_device *netdev;
+	const char *netdev_name;
 	int ret;
 	u32 speed;
+
+	ret = device_property_read_string(&serdev->dev, "hci-uart-h4,required-netdev",
+					  &netdev_name);
+	if (!ret) {
+		/* h4 drivers init is external, wait for network interface
+		 * to come up before setting up
+		 */
+		netdev = dev_get_by_name(&init_net, netdev_name);
+		if (!netdev)
+			return -EPROBE_DEFER;
+		dev_put(netdev);
+	}
 
 	h4dev = devm_kzalloc(&serdev->dev, sizeof(*h4dev), GFP_KERNEL);
 	if (!h4dev)
