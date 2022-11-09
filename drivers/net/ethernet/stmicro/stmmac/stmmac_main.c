@@ -4904,6 +4904,12 @@ static int stmmac_hw_init(struct stmmac_priv *priv)
 
 	/* Get the HW capability (new GMAC newer than 3.50a) */
 	priv->hw_cap_support = stmmac_get_hw_features(priv);
+
+	if (!device_property_read_u32(priv->device,
+				      "st,disable_dma_vlhash", &ret)
+	    && ret)
+		priv->dma_cap.vlhash = 0;
+
 	if (priv->hw_cap_support) {
 		dev_info(priv->device, "DMA HW capability register supported\n");
 
