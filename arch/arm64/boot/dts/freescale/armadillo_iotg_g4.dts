@@ -311,6 +311,7 @@
 	snps,reset-gpio = <&gpio4 22 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 15000 150000>; // hold reset 15ms and wait 150ms after reset for reinit
+	st,disable_dma_vlhash = <1>;
 	status = "okay";
 
 	mdio {
