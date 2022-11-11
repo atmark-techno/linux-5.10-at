@@ -241,6 +241,13 @@
 		// disable power savings
 		ps_mode = <0x2>;
 		auto_ds = <0x2>;
+		// disable wifi direct, untested
+		drv_mode = <0x3>;
+		// disable mac-1 to fit power budget
+		mac-1 {
+			drv_mode = <0x0>;
+		};
+
 	};
 };
 
