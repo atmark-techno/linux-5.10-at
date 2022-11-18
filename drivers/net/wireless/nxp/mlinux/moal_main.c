@@ -3377,7 +3377,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 		}
 	}
 	woal_get_version(handle, str_buf, sizeof(str_buf) - 1);
-	PRINTM(MMSG, "wlan: version = %s\n", str_buf);
+	pr_info("wlan: version = %s\n", str_buf);
 
 	handle->woal_notifier.notifier_call = woal_netdevice_event;
 	if (register_inetaddr_notifier(&handle->woal_notifier)) {
