@@ -10205,6 +10205,10 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 
 	/* Init module parameters */
 	woal_init_module_param(handle);
+	if (handle->params.drv_mode == 0) {
+		/* this card is disabled, bail out */
+		return ERR_PTR(-ENODEV);
+	}
 #ifdef IMX_SUPPORT
 #ifdef SDIO
 	if (IS_SD(handle->card_type)) {
