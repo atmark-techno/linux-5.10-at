@@ -47,10 +47,12 @@ void wlan_update_11ac_cap(mlan_private *pmpriv);
 t_u8 wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band);
 t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc);
 
-mlan_status wlan_cmd_11ac_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
-			      t_u16 cmd_action, t_void *pdata_buf);
+mlan_status wlan_cmd_11ac_cfg(pmlan_private pmpriv,
+			      HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
+			      t_void *pdata_buf);
 
-mlan_status wlan_ret_11ac_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+mlan_status wlan_ret_11ac_cfg(pmlan_private pmpriv,
+			      HostCmd_DS_COMMAND *resp,
 			      mlan_ioctl_req *pioctl_buf);
 
 #endif /* _MLAN_11AC_H_ */

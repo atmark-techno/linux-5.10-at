@@ -109,27 +109,27 @@ typedef struct _wifi_ring_buffer {
 
 #define TLV_LOG_HEADER_LEN 4
 
-#define WIFI_LOGGER_MEMORY_DUMP_SUPPORTED MBIT(0) /* Memory dump of Fw*/
-#define WIFI_LOGGER_PER_PACKET_TX_RX_STATUS_SUPPORT MBIT(1) /*PKT status*/
-#define WIFI_LOGGER_CONNECT_EVENT_SUPPORTED MBIT(2) /* connectivity event*/
-#define WIFI_LOGGER_POWER_EVENT_SUPPORTED MBIT(3) /* Power of driver*/
-#define WIFI_LOGGER_WAKE_LOCK_SUPPORTED MBIT(4) /* Wake lock of driver*/
-#define WIFI_LOGGER_VERBOSE_SUPPORTED MBIT(5) /*verbose log of Fw*/
+#define WIFI_LOGGER_MEMORY_DUMP_SUPPORTED MBIT(0)	/* Memory dump of Fw */
+#define WIFI_LOGGER_PER_PACKET_TX_RX_STATUS_SUPPORT MBIT(1)	/*PKT status */
+#define WIFI_LOGGER_CONNECT_EVENT_SUPPORTED MBIT(2)	/* connectivity event */
+#define WIFI_LOGGER_POWER_EVENT_SUPPORTED MBIT(3)	/* Power of driver */
+#define WIFI_LOGGER_WAKE_LOCK_SUPPORTED MBIT(4)	/* Wake lock of driver */
+#define WIFI_LOGGER_VERBOSE_SUPPORTED MBIT(5)	/*verbose log of Fw */
 #define WIFI_LOGGER_WATCHDOG_TIMER_SUPPORTED                                   \
-	MBIT(6) /*monitor the health of Fw*/
+	MBIT(6)			/*monitor the health of Fw */
 
 /**
  * Parameters of wifi logger events are TLVs
  * Event parameters tags are defined as:
  */
-#define WIFI_TAG_VENDOR_SPECIFIC 0 // take a byte stream as parameter
-#define WIFI_TAG_BSSID 1 // takes a 6 bytes MAC address as parameter
-#define WIFI_TAG_ADDR 2 // takes a 6 bytes MAC address as parameter
-#define WIFI_TAG_SSID 3 // takes a 32 bytes SSID address as parameter
-#define WIFI_TAG_STATUS 4 // takes an integer as parameter
-#define WIFI_TAG_REASON_CODE 14 // take a reason code as per 802.11 as parameter
-#define WIFI_TAG_RSSI 21 // take an integer as parameter
-#define WIFI_TAG_CHANNEL 22 // take an integer as parameter
+#define WIFI_TAG_VENDOR_SPECIFIC 0	// take a byte stream as parameter
+#define WIFI_TAG_BSSID 1	// takes a 6 bytes MAC address as parameter
+#define WIFI_TAG_ADDR 2		// takes a 6 bytes MAC address as parameter
+#define WIFI_TAG_SSID 3		// takes a 32 bytes SSID address as parameter
+#define WIFI_TAG_STATUS 4	// takes an integer as parameter
+#define WIFI_TAG_REASON_CODE 14	// take a reason code as per 802.11 as parameter
+#define WIFI_TAG_RSSI 21	// take an integer as parameter
+#define WIFI_TAG_CHANNEL 22	// take an integer as parameter
 
 #define RING_ENTRY_SIZE (sizeof(wifi_ring_buffer_entry))
 #define ENTRY_LENGTH(hdr) (hdr->entry_size + RING_ENTRY_SIZE)
@@ -163,9 +163,10 @@ enum logger_attributes {
 
 /* Below events refer to the wifi_connectivity_event ring and shall be supported
  */
-enum { WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
-       WIFI_EVENT_AUTH_COMPLETE,
-       WIFI_EVENT_ASSOC_COMPLETE,
+enum {
+	WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
+	WIFI_EVENT_AUTH_COMPLETE,
+	WIFI_EVENT_ASSOC_COMPLETE,
 };
 
 enum {
@@ -175,11 +176,13 @@ enum {
 	RING_BUFFER_ENTRY_FLAGS_HAS_TIMESTAMP = (1 << (1))
 };
 
-enum { ENTRY_TYPE_CONNECT_EVENT = 1,
-       ENTRY_TYPE_PKT,
-       ENTRY_TYPE_WAKE_LOCK,
-       ENTRY_TYPE_POWER_EVENT,
-       ENTRY_TYPE_DATA };
+enum {
+	ENTRY_TYPE_CONNECT_EVENT = 1,
+	ENTRY_TYPE_PKT,
+	ENTRY_TYPE_WAKE_LOCK,
+	ENTRY_TYPE_POWER_EVENT,
+	ENTRY_TYPE_DATA
+};
 
 /** WiFi ring buffer entry structure */
 typedef struct {
@@ -191,7 +194,7 @@ typedef struct {
 	t_u8 type;
 	/** present if has_timestamp bit is set. */
 	t_u64 timestamp;
-} __attribute__((packed)) wifi_ring_buffer_entry;
+} __attribute__ ((packed)) wifi_ring_buffer_entry;
 
 /** WiFi ring buffer status structure*/
 typedef struct _wifi_ring_buffer_status {
@@ -221,7 +224,7 @@ typedef struct {
 	u16 length;
 	/** Value */
 	u8 value[];
-} __attribute__((packed)) tlv_log;
+} __attribute__ ((packed)) tlv_log;
 
 /** WiFi ring buffer driver structure */
 typedef struct {
@@ -235,7 +238,7 @@ typedef struct {
 	 * found etc... as well, event_data can include a vendor proprietary
 	 * part which is understood by the developer only
 	 */
-} __attribute__((packed)) wifi_ring_buffer_driver_connectivity_event;
+} __attribute__ ((packed)) wifi_ring_buffer_driver_connectivity_event;
 
 /** Assoc logger data structure */
 typedef struct _assoc_logger {
@@ -506,9 +509,10 @@ int woal_packet_fate_monitor(moal_private *priv,
 #define APF_FRAME_HEADER_SIZE 14
 #define PACKET_FILTER_MAX_LEN 1024
 
-enum { PACKET_FILTER_STATE_INIT = 0,
-       PACKET_FILTER_STATE_STOP,
-       PACKET_FILTER_STATE_START,
+enum {
+	PACKET_FILTER_STATE_INIT = 0,
+	PACKET_FILTER_STATE_STOP,
+	PACKET_FILTER_STATE_START,
 };
 
 enum wifi_attr_packet_filter {
@@ -546,35 +550,35 @@ int woal_deinit_wifi_hal(moal_private *priv);
 	(VENDOR_ID_OVERHEAD + VENDOR_SUBCMD_OVERHEAD + VENDOR_DATA_OVERHEAD)
 
 /* Features Enums*/
-#define WLAN_FEATURE_INFRA 0x0001 // Basic infrastructure mode support
-#define WLAN_FEATURE_INFRA_5G 0x0002 // 5 GHz Band support
-#define WLAN_FEATURE_HOTSPOT 0x0004 // GAS/ANQP support
-#define WLAN_FEATURE_P2P 0x0008 // Wifi-Direct/P2P
-#define WLAN_FEATURE_SOFT_AP 0x0010 // Soft AP support
-#define WLAN_FEATURE_GSCAN 0x0020 // Google-Scan APIsi support
-#define WLAN_FEATURE_NAN 0x0040 // Neighbor Awareness Networking (NAN)
-#define WLAN_FEATURE_D2D_RTT 0x0080 // Device-to-device RTT support
-#define WLAN_FEATURE_D2AP_RTT 0x0100 // Device-to-AP RTT support
-#define WLAN_FEATURE_BATCH_SCAN 0x0200 // Batched Scan (legacy) support
-#define WLAN_FEATURE_PNO 0x0400 // Preferred network offload support
-#define WLAN_FEATURE_ADDITIONAL_STA 0x0800 // Two STAs support
-#define WLAN_FEATURE_TDLS 0x1000 // Tunnel directed link setup (TDLS)
-#define WLAN_FEATURE_TDLS_OFFCHANNEL 0x2000 // TDLS off channel support
-#define WLAN_FEATURE_EPR 0x4000 // Enhanced power reporting support
-#define WLAN_FEATURE_AP_STA 0x8000 // AP STA Concurrency support
+#define WLAN_FEATURE_INFRA 0x0001	// Basic infrastructure mode support
+#define WLAN_FEATURE_INFRA_5G 0x0002	// 5 GHz Band support
+#define WLAN_FEATURE_HOTSPOT 0x0004	// GAS/ANQP support
+#define WLAN_FEATURE_P2P 0x0008	// Wifi-Direct/P2P
+#define WLAN_FEATURE_SOFT_AP 0x0010	// Soft AP support
+#define WLAN_FEATURE_GSCAN 0x0020	// Google-Scan APIsi support
+#define WLAN_FEATURE_NAN 0x0040	// Neighbor Awareness Networking (NAN)
+#define WLAN_FEATURE_D2D_RTT 0x0080	// Device-to-device RTT support
+#define WLAN_FEATURE_D2AP_RTT 0x0100	// Device-to-AP RTT support
+#define WLAN_FEATURE_BATCH_SCAN 0x0200	// Batched Scan (legacy) support
+#define WLAN_FEATURE_PNO 0x0400	// Preferred network offload support
+#define WLAN_FEATURE_ADDITIONAL_STA 0x0800	// Two STAs support
+#define WLAN_FEATURE_TDLS 0x1000	// Tunnel directed link setup (TDLS)
+#define WLAN_FEATURE_TDLS_OFFCHANNEL 0x2000	// TDLS off channel support
+#define WLAN_FEATURE_EPR 0x4000	// Enhanced power reporting support
+#define WLAN_FEATURE_AP_STA 0x8000	// AP STA Concurrency support
 #define WLAN_FEATURE_LINK_LAYER_STATS                                          \
-	0x10000 // Link layer stats collection support
-#define WLAN_FEATURE_LOGGER 0x20000 // WiFi Logger support
-#define WLAN_FEATURE_HAL_EPNO 0x40000 // WiFi enhanced PNO support
-#define WLAN_FEATURE_RSSI_MONITOR 0x80000 // RSSI Monitor support
-#define WLAN_FEATURE_MKEEP_ALIVE 0x100000 // WiFi mkeep_alive support
-#define WLAN_FEATURE_CONFIG_NDO 0x200000 // ND offload configure support
+	0x10000			// Link layer stats collection support
+#define WLAN_FEATURE_LOGGER 0x20000	// WiFi Logger support
+#define WLAN_FEATURE_HAL_EPNO 0x40000	// WiFi enhanced PNO support
+#define WLAN_FEATURE_RSSI_MONITOR 0x80000	// RSSI Monitor support
+#define WLAN_FEATURE_MKEEP_ALIVE 0x100000	// WiFi mkeep_alive support
+#define WLAN_FEATURE_CONFIG_NDO 0x200000	// ND offload configure support
 #define WLAN_FEATURE_TX_TRANSMIT_POWER                                         \
-	0x400000 // Capture Tx transmit power levels
-#define WLAN_FEATURE_CONTROL_ROAMING 0x800000 // Enable/Disable firmware roaming
-#define WLAN_FEATURE_IE_WHITELIST 0x1000000 // Probe IE white listing support
+	0x400000		// Capture Tx transmit power levels
+#define WLAN_FEATURE_CONTROL_ROAMING 0x800000	// Enable/Disable firmware roaming
+#define WLAN_FEATURE_IE_WHITELIST 0x1000000	// Probe IE white listing support
 #define WLAN_FEATURE_SCAN_RAND                                                 \
-	0x2000000 // MAC & Probe Sequence Number randomization Support
+	0x2000000		// MAC & Probe Sequence Number randomization Support
 // Add more features here
 
 #define MAX_CHANNEL_NUM 200
@@ -624,10 +628,13 @@ enum mrvl_wlan_vendor_attr_wifi_logger {
 enum vendor_event {
 	event_hang = 0,
 	event_fw_dump_done = 1,
+	event_fw_reset_success = 2,
+	event_fw_reset_failure = 3,
+	event_fw_reset_start = 4,
 	event_rssi_monitor = 0x1501,
+	event_rtt_result = 0x07,
 	event_set_key_mgmt_offload = 0x10001,
 	event_fw_roam_success = 0x10002,
-	event_cloud_keep_alive = 0x10003,
 	event_dfs_radar_detected = 0x10004,
 	event_dfs_cac_started = 0x10005,
 	event_dfs_cac_finished = 0x10006,
@@ -690,13 +697,20 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi);
 enum vendor_sub_command {
 	sub_cmd_set_drvdbg = 0,
 	sub_cmd_set_roaming_offload_key = 0x0002,
-	sub_cmd_start_keep_alive = 0x0003,
-	sub_cmd_stop_keep_alive = 0x0004,
 	sub_cmd_dfs_capability = 0x0005,
+	sub_cmd_get_correlated_time = 0x0006,
 	sub_cmd_set_scan_mac_oui = 0x0007,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,
+	SUBCMD_RTT_GET_CAPA = 0x1100,
+	SUBCMD_RTT_RANGE_REQUEST,
+	SUBCMD_RTT_RANGE_CANCEL,
+	SUBCMD_RTT_GET_RESPONDER_INFO,
+	SUBCMD_RTT_ENABLE_RESPONDER,
+	SUBCMD_RTT_DISABLE_RESPONDER,
+	SUBCMD_RTT_SET_LCI,
+	SUBCMD_RTT_SET_LCR,
 	sub_cmd_link_statistic_set = 0x1200,
 	sub_cmd_link_statistic_get = 0x1201,
 	sub_cmd_link_statistic_clr = 0x1202,
@@ -713,7 +727,7 @@ enum vendor_sub_command {
 	sub_cmd_get_drv_mem_dump = 0x1407,
 	sub_cmd_start_packet_fate_monitor = 0x1408,
 	sub_cmd_rssi_monitor = 0x1500,
-	/*Sub-command for wifi hal*/
+	/*Sub-command for wifi hal */
 	sub_cmd_get_roaming_capability = 0x1700,
 	sub_cmd_fw_roaming_enable = 0x1701,
 	sub_cmd_fw_roaming_config = 0x1702,
@@ -726,8 +740,8 @@ enum vendor_sub_command {
 };
 
 void woal_register_cfg80211_vendor_command(struct wiphy *wiphy);
-int woal_cfg80211_vendor_event(moal_private *priv, int event, t_u8 *data,
-			       int len);
+int woal_cfg80211_vendor_event(moal_private *priv, int event,
+			       t_u8 *data, int len);
 
 enum mrvl_wlan_vendor_attr {
 	MRVL_WLAN_VENDOR_ATTR_INVALID = 0,
@@ -744,22 +758,6 @@ typedef enum {
 	ATTR_ND_OFFLOAD_AFTER_LAST,
 	ATTR_ND_OFFLOAD_MAX = ATTR_ND_OFFLOAD_AFTER_LAST - 1,
 } ND_OFFLOAD_ATTR;
-
-#define MKEEP_ALIVE_IP_PKT_MAX 256
-enum mkeep_alive_attributes {
-	MKEEP_ALIVE_ATTRIBUTE_INVALID = 0,
-	MKEEP_ALIVE_ATTRIBUTE_ID,
-	MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE,
-	MKEEP_ALIVE_ATTRIBUTE_IP_PKT,
-	MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN,
-	MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR,
-	MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR,
-	MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC,
-	MKEEP_ALIVE_ATTRIBUTE_RETRY_INTERVAL,
-	MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT,
-	MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST,
-	MKEEP_ALIVE_ATTRIBUTE_MAX = MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST - 1
-};
 
 int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len);
 
@@ -824,6 +822,29 @@ enum mrvl_wlan_vendor_attr_fw_roaming {
 	MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX =
 		MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_AFTER_LAST - 1
 };
+
+enum attr_rtt {
+	ATTR_RTT_INVALID = 0,
+	ATTR_RTT_CAPA,
+	ATTR_RTT_TARGET_NUM,
+	ATTR_RTT_TARGET_CONFIG,
+	ATTR_RTT_TARGET_ADDR,
+	ATTR_RTT_RESULT_COMPLETE,
+	ATTR_RTT_RESULT_NUM,
+	ATTR_RTT_RESULT_FULL,
+	ATTR_RTT_CHANNEL_INFO,
+	ATTR_RTT_MAX_DUR_SEC,
+	ATTR_RTT_PREAMBLE,
+	ATTR_RTT_LCI_INFO,
+	ATTR_RTT_LCR_INFO,
+
+	/* keep last */
+	ATTR_RTT_AFTER_LAST,
+	ATTR_RTT_MAX = ATTR_RTT_AFTER_LAST - 1
+};
+
+mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
+					   int len);
 
 enum attr_csi {
 	ATTR_CSI_INVALID = 0,

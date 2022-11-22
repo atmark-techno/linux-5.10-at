@@ -110,7 +110,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_SNMP_MIB_DTIM_PERIOD = 0x00040006,
 	MLAN_OID_SNMP_MIB_SIGNALEXT_ENABLE = 0x00040007,
 	MLAN_OID_SNMP_MIB_CTRL_DEAUTH = 0x00040008,
+#if defined(DFS_TESTING_SUPPORT)
 	MLAN_OID_SNMP_MIB_DOT11H_FAKERADAR = 0x00040009,
+#endif
 	MLAN_OID_SNMP_MIB_CHAN_TRACK = 0x0004000A,
 
 	/* Status Information Group */
@@ -230,18 +232,41 @@ enum _mlan_ioctl_req_id {
 	MLAN_IOCTL_11H_CFG = 0x00110000,
 	MLAN_OID_11H_CHANNEL_CHECK = 0x00110001,
 	MLAN_OID_11H_LOCAL_POWER_CONSTRAINT = 0x00110002,
+#if defined(DFS_TESTING_SUPPORT)
 	MLAN_OID_11H_DFS_TESTING = 0x00110003,
+#endif
 	MLAN_OID_11H_CHAN_REPORT_REQUEST = 0x00110004,
 	MLAN_OID_11H_CHAN_SWITCH_COUNT = 0x00110005,
+#ifdef DFS_TESTING_SUPPORT
 	MLAN_OID_11H_CHAN_NOP_INFO = 0x00110006,
+#endif
 	MLAN_OID_11H_CHAN_DFS_STATE = 0x00110007,
 	MLAN_OID_11H_DFS_W53_CFG = 0x00110008,
+	MLAN_OID_11H_DFS_MODE = 0x00110009,
+#ifdef DFS_TESTING_SUPPORT
+	MLAN_OID_11H_NOP_CHAN_LIST = 0x0011000A,
+#endif
 
 	/* 802.11n Configuration Group RANDYTODO for value assign */
 	MLAN_IOCTL_11AC_CFG = 0x00120000,
 	MLAN_OID_11AC_VHT_CFG = 0x00120001,
 	MLAN_OID_11AC_CFG_SUPPORTED_MCS_SET = 0x00120002,
 	MLAN_OID_11AC_OPERMODE_CFG = 0x00120003,
+
+	MLAN_IOCTL_11K_CFG = 0x00130000,
+	MLAN_OID_11K_CFG_ENABLE = 0x00130001,
+	MLAN_OID_11K_GET_NLIST = 0x00130002,
+
+#ifdef MAC80211_SUPPORT
+	MLAN_IOCTL_MAC80211 = 0x00160000,
+#if defined(MAC80211_SUPPORT_UAP) || defined(MAC80211_SUPPORT_MESH)
+	MLAN_OID_SET_BEACON_CFG = 0x00160001,
+#endif
+	MLAN_OID_STA_STATE = 0x00160002,
+	MLAN_OID_AMPDU_CFG_TXRX = 0x00160003,
+	MLAN_OID_AMPDU_DELETE = 0x00160004,
+	MLAN_OID_MAC_ADDR = 0x00160005,
+#endif
 
 	/* 802.11ax Configuration Group  */
 	MLAN_IOCTL_11AX_CFG = 0x00170000,
@@ -254,9 +279,6 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_GEN_IE = 0x00200001,
 	MLAN_OID_MISC_REGION = 0x00200002,
 	MLAN_OID_MISC_WARM_RESET = 0x00200003,
-#ifdef SDIO
-	MLAN_OID_MISC_SDIO_MPA_CTRL = 0x00200006,
-#endif
 	MLAN_OID_MISC_HOST_CMD = 0x00200007,
 	MLAN_OID_MISC_SYS_CLOCK = 0x00200009,
 	MLAN_OID_MISC_SOFT_RESET = 0x0020000A,
@@ -280,9 +302,6 @@ enum _mlan_ioctl_req_id {
 #endif
 	MLAN_OID_MISC_HOTSPOT_CFG = 0x0020001C,
 	MLAN_OID_MISC_OTP_USER_DATA = 0x0020001D,
-#ifdef USB
-	MLAN_OID_MISC_USB_AGGR_CTRL = 0x0020001F,
-#endif
 	MLAN_OID_MISC_TXCONTROL = 0x00200020,
 #ifdef STA_SUPPORT
 	MLAN_OID_MISC_EXT_CAP_CFG = 0x00200021,
@@ -290,13 +309,14 @@ enum _mlan_ioctl_req_id {
 #if defined(STA_SUPPORT)
 	MLAN_OID_MISC_PMFCFG = 0x00200022,
 #endif
+	MLAN_OID_MISC_MULTI_CHAN_CFG = 0x00200023,
+	MLAN_OID_MISC_MULTI_CHAN_POLICY = 0x00200024,
 #ifdef WIFI_DIRECT_SUPPORT
 	MLAN_OID_MISC_WIFI_DIRECT_CONFIG = 0x00200025,
 #endif
 	MLAN_OID_MISC_TDLS_OPER = 0x00200026,
 	MLAN_OID_MISC_GET_TDLS_IES = 0x00200027,
 	MLAN_OID_MISC_LOW_PWR_MODE = 0x00200029,
-	MLAN_OID_MISC_MEF_FLT_CFG = 0x0020002A,
 	MLAN_OID_MISC_DFS_REAPTER_MODE = 0x0020002B,
 #ifdef RX_PACKET_COALESCE
 	MLAN_OID_MISC_RX_PACKET_COALESCE = 0x0020002C,
@@ -305,7 +325,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_COALESCE_CFG = 0x0020002E,
 	MLAN_OID_MISC_TDLS_IDLE_TIME = 0x0020002F,
 	MLAN_OID_MISC_GET_SENSOR_TEMP = 0x00200030,
-	MLAN_OID_MISC_IPV6_RA_OFFLOAD = 0x00200036,
+	MLAN_OID_FILS_IP_CFG = 0x00200035,
 	MLAN_OID_MISC_GTK_REKEY_OFFLOAD = 0x00200037,
 	MLAN_OID_MISC_OPER_CLASS = 0x00200038,
 	MLAN_OID_MISC_PMIC_CFG = 0x00200039,
@@ -314,17 +334,20 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_ROAM_OFFLOAD_APLIST = 0x00200043,
 	MLAN_OID_MISC_GET_TSF = 0x00200045,
 	MLAN_OID_MISC_GET_CHAN_REGION_CFG = 0x00200046,
-	MLAN_OID_MISC_CLOUD_KEEP_ALIVE = 0x00200048,
 	MLAN_OID_MISC_OPER_CLASS_CHECK = 0x00200049,
+	MLAN_OID_MISC_DRCS_CFG = 0x00200050,
 
 	MLAN_OID_MISC_CWMODE_CTRL = 0x00200051,
-	MLAN_OID_MISC_AGGR_CTRL = 0x00200052,
 	MLAN_OID_MISC_DYN_BW = 0x00200053,
 	MLAN_OID_MISC_FW_DUMP_EVENT = 0x00200054,
 	MLAN_OID_MISC_PER_PKT_CFG = 0x00200055,
 
 	MLAN_OID_MISC_ROBUSTCOEX = 0x00200056,
 	MLAN_OID_MISC_GET_TX_RX_HISTOGRAM = 0x00200057,
+	MLAN_OID_MISC_GET_CORRELATED_TIME = 0x00200058,
+	MLAN_OID_MISC_CONFIG_RTT = 0x00200059,
+	MLAN_OID_MISC_CANCEL_RTT = 0x0020005A,
+	MLAN_OID_MISC_RTT_RESPONDER_CFG = 0x0020005B,
 	MLAN_OID_MISC_CFP_INFO = 0x00200060,
 	MLAN_OID_MISC_BOOT_SLEEP = 0x00200061,
 #if defined(PCIE)
@@ -348,9 +371,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_CFP_TABLE = 0x0020007A,
 	MLAN_OID_MISC_RANGE_EXT = 0x0020007B,
 	MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG = 0x0020007C,
-	MLAN_OID_MISC_TP_STATE = 0x0020007D,
 	MLAN_OID_MISC_HAL_PHY_CFG = 0x0020007E,
 	MLAN_OID_MISC_RF_TEST_HE_POWER = 0X0020007F,
+	MLAN_OID_MISC_MULTI_AP_CFG = 0x00200080,
 #ifdef UAP_SUPPORT
 	MLAN_OID_MISC_WACP_MODE = 0x00200081,
 #endif
@@ -358,9 +381,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_GET_TSF_INFO = 0x00200083,
 	MLAN_OID_MISC_ASSOC_REQ = 0x00200084,
 	MLAN_OID_MISC_IPS_CFG = 0x00200085,
-	MLAN_OID_MISC_MC_AGGR_CFG = 0x00200086,
 	MLAN_OID_MISC_CH_LOAD = 0x00200087,
-	MLAN_OID_MISC_STATS = 0x00200088,
 	MLAN_OID_MISC_CH_LOAD_RESULTS = 0x00200089,
 };
 
@@ -401,6 +422,14 @@ enum _mlan_pass_to_act_scan {
 	MLAN_PASS_TO_ACT_SCAN_UNCHANGED = 0,
 	MLAN_PASS_TO_ACT_SCAN_EN,
 	MLAN_PASS_TO_ACT_SCAN_DIS
+};
+
+/** Enumeration for passive to active scan */
+enum _mlan_ext_scan {
+	MLAN_EXTENDED_SCAN_UNCHANGED = 0,
+	MLAN_LEGACY_SCAN,
+	MLAN_EXT_SCAN,
+	MLAN_EXT_SCAN_ENH
 };
 
 /** Max number of supported rates */
@@ -460,6 +489,16 @@ typedef MLAN_PACK_START struct _tx_status_event {
 	t_u8 tx_token_id;
 	/** 0--success, 1--fail, 2--watchdogtimeout */
 	t_u8 status;
+	/** t1 time stamp */
+	t_u64 t1_tstamp;
+	/** t4 time stamp */
+	t_u64 t4_tstamp;
+	/** t1 error */
+	t_u64 t1_error;
+	/** t4 error */
+	t_u64 t4_error;
+	/** egress time */
+	t_u64 egress_time;
 } MLAN_PACK_END tx_status_event;
 
 /**
@@ -645,7 +684,7 @@ typedef struct _mlan_multicast_list {
 } mlan_multicast_list, *pmlan_multicast_list;
 
 /** Max channel */
-#define MLAN_MAX_CHANNEL 177
+#define MLAN_MAX_CHANNEL 165
 /** Maximum number of channels in table */
 #define MLAN_MAX_CHANNEL_NUM 128
 
@@ -717,7 +756,7 @@ typedef struct _mlan_ds_misc_assoc_req {
 
 /** mlan_ds_assoc_info */
 typedef struct _mlan_ds_assoc_info {
-	/** Associate req buffer */
+    /** Associate req buffer */
 	t_u8 assoc_resp_buf[ASSOC_RSP_BUF_SIZE];
 	/** Response buffer length */
 	t_u32 assoc_resp_len;
@@ -755,26 +794,49 @@ typedef struct _mlan_ssid_bssid {
 	t_u8 host_mlme;
 	/** assoicate resp frame/ie from firmware */
 	mlan_ds_misc_assoc_rsp assoc_rsp;
+	t_u8 owe_transition_mode;
+	/** Transition SSID */
+	mlan_802_11_ssid trans_ssid;
+	/** Transition BSSID */
+	mlan_802_11_mac_addr trans_bssid;
 } mlan_ssid_bssid, *pmlan_ssid_bssid;
 
 /** Data structure of WMM ECW */
 typedef struct _wmm_ecw_t {
-	/** Minimum Ecw */
-	t_u8 ecw_min : 4;
+#ifdef BIG_ENDIAN_SUPPORT
 	/** Maximum Ecw */
-	t_u8 ecw_max : 4;
+	t_u8 ecw_max:4;
+	/** Minimum Ecw */
+	t_u8 ecw_min:4;
+#else
+	/** Minimum Ecw */
+	t_u8 ecw_min:4;
+	/** Maximum Ecw */
+	t_u8 ecw_max:4;
+#endif				/* BIG_ENDIAN_SUPPORT */
 } wmm_ecw_t, *pwmm_ecw_t;
 
 /** Data structure of WMM Aci/Aifsn */
 typedef struct _wmm_aci_aifsn_t {
-	/** Aifsn */
-	t_u8 aifsn : 4;
-	/** Acm */
-	t_u8 acm : 1;
-	/** Aci */
-	t_u8 aci : 2;
+#ifdef BIG_ENDIAN_SUPPORT
 	/** Reserved */
-	t_u8 reserved : 1;
+	t_u8 reserved:1;
+	/** Aci */
+	t_u8 aci:2;
+	/** Acm */
+	t_u8 acm:1;
+	/** Aifsn */
+	t_u8 aifsn:4;
+#else
+	/** Aifsn */
+	t_u8 aifsn:4;
+	/** Acm */
+	t_u8 acm:1;
+	/** Aci */
+	t_u8 aci:2;
+	/** Reserved */
+	t_u8 reserved:1;
+#endif				/* BIG_ENDIAN_SUPPORT */
 } wmm_aci_aifsn_t, *pwmm_aci_aifsn_t;
 
 /** Data structure of WMM AC parameters  */
@@ -843,7 +905,7 @@ typedef struct _mlan_deauth_param {
 #define MAX_GRP_TIMER 86400
 
 /** Maximum value of 4 byte configuration */
-#define MAX_VALID_DWORD 0x7FFFFFFF /*  (1 << 31) - 1 */
+#define MAX_VALID_DWORD 0x7FFFFFFF	/*  (1 << 31) - 1 */
 
 /** default UAP BAND 2.4G */
 #define DEFAULT_UAP_BAND 0
@@ -882,6 +944,8 @@ typedef struct _mlan_deauth_param {
 #define PROTOCOL_WAPI 0x80
 /** WPA3 SAE */
 #define PROTOCOL_WPA3_SAE 0x100
+/** OWE */
+#define PROTOCOL_OWE 0x200
 
 /** Key_mgmt_psk */
 #define KEY_MGMT_NONE 0x04
@@ -981,12 +1045,21 @@ typedef struct _wep_param {
 
 /** Data structure of WMM QoS information */
 typedef struct _wmm_qos_info_t {
-	/** Parameter set count */
-	t_u8 para_set_count : 4;
-	/** Reserved */
-	t_u8 reserved : 3;
+#ifdef BIG_ENDIAN_SUPPORT
 	/** QoS UAPSD */
-	t_u8 qos_uapsd : 1;
+	t_u8 qos_uapsd:1;
+	/** Reserved */
+	t_u8 reserved:3;
+	/** Parameter set count */
+	t_u8 para_set_count:4;
+#else
+	/** Parameter set count */
+	t_u8 para_set_count:4;
+	/** Reserved */
+	t_u8 reserved:3;
+	/** QoS UAPSD */
+	t_u8 qos_uapsd:1;
+#endif				/* BIG_ENDIAN_SUPPORT */
 } wmm_qos_info_t, *pwmm_qos_info_t;
 
 /** Data structure of WMM parameter IE  */
@@ -1004,6 +1077,20 @@ typedef struct _wmm_parameter_t {
 	/** AC Parameters Record WMM_AC_BE, WMM_AC_BK, WMM_AC_VI, WMM_AC_VO */
 	wmm_ac_parameters_t ac_params[MAX_AC_QUEUES];
 } wmm_parameter_t, *pwmm_parameter_t;
+
+/** IP address configuration for 11ai */
+typedef struct _ip_addr_cfg_t {
+	/** IP ADDR **/
+	t_u32 ip;
+	/** SUBNET Mask **/
+	t_u32 subnetMask;
+	/** Base IP **/
+	t_u32 baseIp;
+	/** DNS IP **/
+	t_u32 dnsIp;
+	/** MAX Clients **/
+	t_u16 maxClients;
+} ip_addr_cfg_t;
 
 /** MAX BG channel */
 #define MAX_BG_CHANNEL 14
@@ -1110,7 +1197,7 @@ typedef struct _mlan_uap_bss_param {
 #ifdef WIFI_DIRECT_SUPPORT
 	/* pre shared key */
 	t_u8 psk[MLAN_MAX_KEY_LENGTH];
-#endif /* WIFI_DIRECT_SUPPORT */
+#endif				/* WIFI_DIRECT_SUPPORT */
 	/** Number of channels in scan_channel_list */
 	t_u32 num_of_chan;
 	/** scan channel list in ACS mode */
@@ -1118,8 +1205,11 @@ typedef struct _mlan_uap_bss_param {
 	/** Wmm parameters */
 	wmm_parameter_t wmm_para;
 
+	ip_addr_cfg_t ip_cfg;
 	/** uap host based config */
 	t_u32 uap_host_based_config;
+    /** multi ap flag */
+	t_u8 multi_ap_flag;
 } mlan_uap_bss_param, *pmlan_uap_bss_param;
 
 /** mlan_uap_scan_channels */
@@ -1134,8 +1224,8 @@ typedef struct _mlan_uap_scan_channels {
 	scan_chan_list chan_list[MLAN_MAX_CHANNEL];
 } mlan_uap_scan_channels;
 
-#define MAX_NUM_PKTS 9
-#define DEF_NUM_PKTS 3
+#define MAX_NUM_PKTS    9
+#define DEF_NUM_PKTS    3
 /** mlan_chan_switch_param */
 typedef struct _mlan_action_chan_switch {
 	/** mode*/
@@ -1144,9 +1234,9 @@ typedef struct _mlan_action_chan_switch {
 	t_u8 chan_switch_mode;
 	/** oper class*/
 	t_u8 new_oper_class;
-	/** new channel */
+    /** new channel */
 	t_u8 new_channel_num;
-	/** chan_switch_count */
+    /** chan_switch_count */
 	t_u8 chan_switch_count;
 } mlan_action_chan_switch;
 
@@ -1263,7 +1353,7 @@ typedef struct _mlan_ds_bss {
 		wmm_parameter_t ap_wmm_para;
 		/** ap scan channels for MLAN_OID_UAP_SCAN_CHANNELS*/
 		mlan_uap_scan_channels ap_scan_channels;
-		/** channel switch for MLAN_OID_UAP_CHAN_SWITCH */
+	/** channel switch for MLAN_OID_UAP_CHAN_SWITCH */
 		mlan_action_chan_switch chanswitch;
 		/** ap channel for MLAN_OID_UAP_CHANNEL*/
 		chan_band_info ap_channel;
@@ -1298,8 +1388,8 @@ typedef MLAN_PACK_START struct _otp_region_info {
 	t_u8 country_code[2];
 	t_u8 region_code;
 	t_u8 environment;
-	t_u8 force_reg : 1;
-	t_u8 reserved : 7;
+	t_u8 force_reg:1;
+	t_u8 reserved:7;
 	t_u8 dfs_region;
 } MLAN_PACK_END otp_region_info_t;
 
@@ -1413,6 +1503,91 @@ typedef struct _mlan_ds_radio_cfg {
 	} param;
 } mlan_ds_radio_cfg, *pmlan_ds_radio_cfg;
 
+#ifdef MAC80211_SUPPORT
+
+/** mac80211 beacon configuration structure */
+typedef struct _mlan_ds_beacon_cfg {
+	// t_u32 sub_command;
+	/** enable/disable beacon */
+	t_u16 beacon_enable;
+	/** beacon interval */
+	t_u16 beacon_period;
+	/** channel */
+	t_u8 channel;
+	/** bandcfg */
+	Band_Config_t bandcfg;
+	/** beacon length */
+	t_u16 beacon_len;
+	/** beacon data */
+	t_u8 beacon_data[];
+} mlan_ds_beacon_cfg, *pmlan_ds_beacon_cfg;
+
+/** mac80211 station state structure */
+typedef struct _mlan_ds_sta_state {
+	/** to remove or add sta */
+	t_u32 add;
+	/** peer mac address */
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+	/** aid */
+	t_u16 aid;
+	/** bitmap of supported rates */
+	t_u32 bitmap_supp_rates;
+	/** supported bandwidth */
+	t_u8 bw;
+	/** wme */
+	t_u8 wme;
+	/** uapsd_queues */
+	t_u8 uapsd_queues;
+	/** Beacon Data */
+	t_u8 bcn_dtim_period;
+	t_u8 bcn_interval;
+	/** tlv len */
+	t_u16 tlv_len;
+	/** tlv start */
+	t_u8 tlv_buf[];
+} mlan_ds_sta_state, *pmlan_ds_sta_state;
+
+/** mac80211 station state structure */
+typedef struct _mlan_ds_ampdu_cfg {
+	mlan_802_11_mac_addr peer_addr;
+	t_u8 tid;
+	t_u16 seq_num;
+	t_u8 buf_size;
+	t_u16 timeout;
+	t_bool is_tx;
+} mlan_ds_ampdu_cfg, *pmlan_ds_ampdu_cfg;
+
+/** mac80211 based interface configuration structure */
+typedef struct _mlan_ds_mac80211_cfg {
+	/** sub command */
+	t_u32 sub_command;
+	union {
+#if defined(MAC80211_SUPPORT_UAP) || defined(MAC80211_SUPPORT_MESH)
+		/** mac80211 beacon configuration structure */
+		mlan_ds_beacon_cfg bcn_cfg;
+#endif
+		/** mac80211 station state structure */
+		mlan_ds_sta_state sta_state;
+		/** mac80211 station state structure */
+		mlan_ds_ampdu_cfg ampdu_cfg;
+		/** MAC address */
+		mlan_802_11_mac_addr mac_addr;
+	} params;
+} mlan_ds_mac80211_cfg, *pmlan_ds_mac80211_cfg;
+
+typedef MLAN_PACK_START struct _mac80211_tx_status_event {
+	/** packet type */
+	t_u8 packet_type;
+	/** tx_token_id */
+	t_u8 tx_token_id;
+	/** 0--success, 1--fail, 2--watchdogtimeout */
+	t_u8 status;
+	t_u8 final_rate_id;
+	t_u8 retry_count;
+} MLAN_PACK_END mac80211_tx_status_event;
+
+#endif
+
 enum COALESCE_OPERATION {
 	RECV_FILTER_MATCH_TYPE_EQ = 0x80,
 	RECV_FILTER_MATCH_TYPE_NE,
@@ -1425,9 +1600,9 @@ enum COALESCE_PACKET_TYPE {
 };
 
 #define COALESCE_MAX_RULES 8
-#define COALESCE_MAX_BYTESEQ 4 /* non-adjustable */
+#define COALESCE_MAX_BYTESEQ 4	/* non-adjustable */
 #define COALESCE_MAX_FILTERS 4
-#define MAX_COALESCING_DELAY 100 /* in msecs */
+#define MAX_COALESCING_DELAY 100	/* in msecs */
 #define MAX_PATTERN_LEN 20
 #define MAX_OFFSET_LEN 100
 
@@ -1645,55 +1820,63 @@ typedef struct _mlan_ds_get_stats {
 	t_u64 rx_octets_in_ampdu_cnt;
 	/** ampdu delimiter CRC error count */
 	t_u32 ampdu_delimiter_crc_error_cnt;
-	/** Rx Stuck Related Info*/
-	/** Rx Stuck Issue count */
+    /** Rx Stuck Related Info*/
+    /** Rx Stuck Issue count */
 	t_u32 rx_stuck_issue_cnt[2];
-	/** Rx Stuck Recovery count */
+    /** Rx Stuck Recovery count */
 	t_u32 rx_stuck_recovery_cnt;
-	/** Rx Stuck TSF */
+    /** Rx Stuck TSF */
 	t_u64 rx_stuck_tsf[2];
-	/** Tx Watchdog Recovery Related Info */
-	/** Tx Watchdog Recovery count */
+    /** Tx Watchdog Recovery Related Info */
+    /** Tx Watchdog Recovery count */
 	t_u32 tx_watchdog_recovery_cnt;
-	/** Tx Watchdog TSF */
+    /** Tx Watchdog TSF */
 	t_u64 tx_watchdog_tsf[2];
-	/** Channel Switch Related Info */
-	/** Channel Switch Announcement Sent */
+    /** Channel Switch Related Info */
+    /** Channel Switch Announcement Sent */
 	t_u32 channel_switch_ann_sent;
-	/** Channel Switch State */
+    /** Channel Switch State */
 	t_u32 channel_switch_state;
-	/** Register Class */
+    /** Register Class */
 	t_u32 reg_class;
-	/** Channel Number */
+    /** Channel Number */
 	t_u32 channel_number;
-	/** Channel Switch Mode */
+    /** Channel Switch Mode */
 	t_u32 channel_switch_mode;
-	/** Reset Rx Mac Count */
+    /** Reset Rx Mac Count */
 	t_u32 rx_reset_mac_recovery_cnt;
-	/** ISR2 Not Done Count*/
+    /** ISR2 Not Done Count*/
 	t_u32 rx_Isr2_NotDone_Cnt;
-	/** GDMA Abort Count */
+    /** GDMA Abort Count */
 	t_u32 gdma_abort_cnt;
-	/** Rx Reset MAC Count */
+    /** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
-	// Ownership error counters
-	/*Error Ownership error count*/
+	//Ownership error counters
+	/*Error Ownership error count */
 	t_u32 dwCtlErrCnt;
-	/*Control Ownership error count*/
+	/*Control Ownership error count */
 	t_u32 dwBcnErrCnt;
-	/*Control Ownership error count*/
+	/*Control Ownership error count */
 	t_u32 dwMgtErrCnt;
-	/*Control Ownership error count*/
+	/*Control Ownership error count */
 	t_u32 dwDatErrCnt;
-	/*BIGTK MME good count*/
+	/*BIGTK MME good count */
 	t_u32 bigtk_mmeGoodCnt;
-	/*BIGTK Replay error count*/
+	/*BIGTK Replay error count */
 	t_u32 bigtk_replayErrCnt;
-	/*BIGTK MIC error count*/
+	/*BIGTK MIC error count */
 	t_u32 bigtk_micErrCnt;
-	/*BIGTK MME not included count*/
+	/*BIGTK MME not included count */
 	t_u32 bigtk_mmeNotFoundCnt;
 } mlan_ds_get_stats, *pmlan_ds_get_stats;
+
+/** Type definition of mlan_ds_get_stats for MLAN_OID_GET_STATS */
+typedef struct _mlan_ds_get_correlated_time {
+	/** System time */
+	t_u64 sys_time;
+	/** FW time */
+	t_u64 hw_time;
+} mlan_ds_get_correlated_time, *pmlan_ds_get_correlated_time;
 
 /** Type definition of mlan_ds_uap_stats for MLAN_OID_GET_STATS */
 typedef struct _mlan_ds_uap_stats {
@@ -1880,6 +2063,8 @@ typedef struct _mlan_fw_info {
 	t_u8 prohibit_80mhz;
 	/** FW support beacon protection */
 	t_u8 fw_beacon_prot;
+    /** FW RTT support */
+	t_u8 rtt_support;
 
 	/* lower 8 bytes of uuid */
 	t_u64 uuid_lo;
@@ -1902,98 +2087,193 @@ typedef struct _mlan_ver_ext {
 	char version_str[MLAN_MAX_VER_STR_LEN];
 } mlan_ver_ext, *pmlan_ver_ext;
 
+#ifdef BIG_ENDIAN_SUPPORT
 /** Extended Capabilities Data */
 typedef struct MLAN_PACK_START _ExtCap_t {
 	/** Extended Capabilities value */
-	t_u8 BSS_CoexistSupport : 1; /* bit 0 */
-	t_u8 Reserved1 : 1; /* bit 1 */
-	t_u8 ExtChanSwitching : 1; /* bit 2 */
-	t_u8 RejectUnadmFrame : 1; /* bit 3 */
-	t_u8 PSMP_Capable : 1; /* bit 4 */
-	t_u8 Reserved5 : 1; /* bit 5 */
-	t_u8 SPSMP_Support : 1; /* bit 6 */
-	t_u8 Event : 1; /* bit 7  */
-	t_u8 Diagnostics : 1; /* bit 8  */
-	t_u8 MulticastDiagnostics : 1; /* bit 9  */
-	t_u8 LocationTracking : 1; /* bit 10 */
-	t_u8 FMS : 1; /* bit 11 */
-	t_u8 ProxyARPService : 1; /* bit 12 */
-	t_u8 CollocatedIntf : 1; /* bit 13 */
-	t_u8 CivicLocation : 1; /* bit 14 */
-	t_u8 GeospatialLocation : 1; /* bit 15 */
-	t_u8 TFS : 1; /* bit 16 */
-	t_u8 WNM_Sleep : 1; /* bit 17 */
-	t_u8 TIM_Broadcast : 1; /* bit 18 */
-	t_u8 BSS_Transition : 1; /* bit 19 */
-	t_u8 QoSTrafficCap : 1; /* bit 20 */
-	t_u8 AC_StationCount : 1; /* bit 21 */
-	t_u8 MultipleBSSID : 1; /* bit 22 */
-	t_u8 TimingMeasurement : 1; /* bit 23 */
-	t_u8 ChannelUsage : 1; /* bit 24 */
-	t_u8 SSID_List : 1; /* bit 25 */
-	t_u8 DMS : 1; /* bit 26 */
-	t_u8 UTC : 1; /* bit 27 */
-	t_u8 TDLSPeerUAPSDSupport : 1; /* bit 28 */
-	t_u8 TDLSPeerPSMSupport : 1; /* bit 29 */
-	t_u8 TDLSChannelSwitching : 1; /* bit 30 */
-	t_u8 Interworking : 1; /* bit 31 */
-	t_u8 Qos_Map : 1; /* bit 32 */
-	t_u8 EBR : 1; /* bit 33 */
-	t_u8 SSPN_Interface : 1; /* bit 34 */
-	t_u8 Reserved35 : 1; /* bit 35 */
-	t_u8 MSGCF_Capa : 1; /* bit 36 */
-	t_u8 TDLSSupport : 1; /* bit 37 */
-	t_u8 TDLSProhibited : 1; /* bit 38 */
-	t_u8 TDLSChlSwitchProhib : 1; /* bit 39 */
-	t_u8 rsvdBit40 : 1; /* bit 40 */
-	t_u8 rsvdBit41 : 1; /* bit 41 */
-	t_u8 rsvdBit42 : 1; /* bit 42 */
-	t_u8 rsvdBit43 : 1; /* bit 43 */
-	t_u8 rsvdBit44 : 1; /* bit 44 */
-	t_u8 rsvdBit45 : 1; /* bit 45 */
-	t_u8 rsvdBit46 : 1; /* bit 46 */
-	t_u8 rsvdBit47 : 1; /* bit 47 */
-	t_u8 rsvdBit48 : 1; /* bit 48 */
-	t_u8 rsvdBit49 : 1; /* bit 49 */
-	t_u8 rsvdBit50 : 1; /* bit 50 */
-	t_u8 rsvdBit51 : 1; /* bit 51 */
-	t_u8 rsvdBit52 : 1; /* bit 52 */
-	t_u8 rsvdBit53 : 1; /* bit 53 */
-	t_u8 rsvdBit54 : 1; /* bit 54 */
-	t_u8 rsvdBit55 : 1; /* bit 55 */
-	t_u8 rsvdBit56 : 1; /* bit 56 */
-	t_u8 rsvdBit57 : 1; /* bit 57 */
-	t_u8 rsvdBit58 : 1; /* bit 58 */
-	t_u8 rsvdBit59 : 1; /* bit 59 */
-	t_u8 rsvdBit60 : 1; /* bit 60 */
-	t_u8 TDLSWildBandwidth : 1; /* bit 61 */
-	t_u8 OperModeNtf : 1; /* bit 62 */
-	t_u8 MaxAMSDU0 : 1; /* bit 63 */
-	t_u8 MaxAMSDU1 : 1; /* bit 64 */
-	t_u8 chanSchedMgnt : 1; /* bit 65 */
-	t_u8 rsvdBit66 : 1; /* bit 66 */
-	t_u8 NCC : 1; /* bit 67 */
-	t_u8 rsvdBit68 : 1; /* bit 68 */
-	t_u8 CAQ : 1; /* bit 69 */
-	t_u8 FTMR : 1; /* bit 70 */
-	t_u8 FTMI : 1; /* bit 71 */
-	t_u8 FILS : 1; /* bit 72 */
-	t_u8 rsvdBit73 : 1; /* bit 73 */
-	t_u8 rsvdBit74 : 1; /* bit 74 */
-	t_u8 rsvdBit75 : 1; /* bit 75 */
-	t_u8 rsvdBit76 : 1; /* bit 76 */
-	t_u8 TWTReq : 1; /* bit 77 */
-	t_u8 TWTResp : 1; /* bit 78 */
-	t_u8 rsvdBit79 : 1; /* bit 79 */
-	t_u8 rsvdBit80 : 1; /* bit 80 */
-	t_u8 rsvdBit81 : 1; /* bit 81 */
-	t_u8 rsvdBit82 : 1; /* bit 82 */
-	t_u8 rsvdBit83 : 1; /* bit 83 */
-	t_u8 beacon_prot : 1; /* bit 84 */
-	t_u8 rsvdBit85 : 1; /* bit 85 */
-	t_u8 rsvdBit86 : 1; /* bit 86 */
-	t_u8 rsvdBit87 : 1; /* bit 87 */
+	t_u8 rsvdBit87:1;	/* bit 87 */
+	t_u8 rsvdBit86:1;	/* bit 86 */
+	t_u8 rsvdBit85:1;	/* bit 85 */
+	t_u8 beacon_prot:1;	/* bit 84 */
+	t_u8 rsvdBit83:1;	/* bit 83 */
+	t_u8 rsvdBit82:1;	/* bit 82 */
+	t_u8 rsvdBit81:1;	/* bit 81 */
+	t_u8 rsvdBit80:1;	/* bit 80 */
+	t_u8 rsvdBit79:1;	/* bit 79 */
+	t_u8 TWTResp:1;		/* bit 78 */
+	t_u8 TWTReq:1;		/* bit 77 */
+	t_u8 rsvdBit76:1;	/* bit 76 */
+	t_u8 rsvdBit75:1;	/* bit 75 */
+	t_u8 rsvdBit74:1;	/* bit 74 */
+	t_u8 rsvdBit73:1;	/* bit 73 */
+	t_u8 FILS:1;		/* bit 72 */
+	t_u8 FTMI:1;		/* bit 71 */
+	t_u8 FTMR:1;		/* bit 70 */
+	t_u8 CAQ:1;		/* bit 69 */
+	t_u8 rsvdBit68:1;	/* bit 68 */
+	t_u8 NCC:1;		/* bit 67 */
+	t_u8 rsvdBit66:1;	/* bit 66 */
+	t_u8 chanSchedMgnt:1;	/* bit 65 */
+	t_u8 MaxAMSDU1:1;	/* bit 64 */
+	t_u8 MaxAMSDU0:1;	/* bit 63 */
+	t_u8 OperModeNtf:1;	/* bit 62 */
+	t_u8 TDLSWildBandwidth:1;	/* bit 61 */
+	t_u8 rsvdBit60:1;	/* bit 60 */
+	t_u8 rsvdBit59:1;	/* bit 59 */
+	t_u8 rsvdBit58:1;	/* bit 58 */
+	t_u8 rsvdBit57:1;	/* bit 57 */
+	t_u8 rsvdBit56:1;	/* bit 56 */
+	t_u8 rsvdBit55:1;	/* bit 55 */
+	t_u8 rsvdBit54:1;	/* bit 54 */
+	t_u8 rsvdBit53:1;	/* bit 53 */
+	t_u8 rsvdBit52:1;	/* bit 52 */
+	t_u8 rsvdBit51:1;	/* bit 51 */
+	t_u8 rsvdBit50:1;	/* bit 50 */
+	t_u8 rsvdBit49:1;	/* bit 49 */
+	t_u8 rsvdBit48:1;	/* bit 48 */
+	t_u8 rsvdBit47:1;	/* bit 47 */
+	t_u8 rsvdBit46:1;	/* bit 46 */
+	t_u8 rsvdBit45:1;	/* bit 45 */
+	t_u8 rsvdBit44:1;	/* bit 44 */
+	t_u8 rsvdBit43:1;	/* bit 43 */
+	t_u8 rsvdBit42:1;	/* bit 42 */
+	t_u8 rsvdBit41:1;	/* bit 41 */
+	t_u8 rsvdBit40:1;	/* bit 40 */
+	t_u8 TDLSChlSwitchProhib:1;	/* bit 39 */
+	t_u8 TDLSProhibited:1;	/* bit 38 */
+	t_u8 TDLSSupport:1;	/* bit 37 */
+	t_u8 MSGCF_Capa:1;	/* bit 36 */
+	t_u8 Reserved35:1;	/* bit 35 */
+	t_u8 SSPN_Interface:1;	/* bit 34 */
+	t_u8 EBR:1;		/* bit 33 */
+	t_u8 Qos_Map:1;		/* bit 32 */
+	t_u8 Interworking:1;	/* bit 31 */
+	t_u8 TDLSChannelSwitching:1;	/* bit 30 */
+	t_u8 TDLSPeerPSMSupport:1;	/* bit 29 */
+	t_u8 TDLSPeerUAPSDSupport:1;	/* bit 28 */
+	t_u8 UTC:1;		/* bit 27 */
+	t_u8 DMS:1;		/* bit 26 */
+	t_u8 SSID_List:1;	/* bit 25 */
+	t_u8 ChannelUsage:1;	/* bit 24 */
+	t_u8 TimingMeasurement:1;	/* bit 23 */
+	t_u8 MultipleBSSID:1;	/* bit 22 */
+	t_u8 AC_StationCount:1;	/* bit 21 */
+	t_u8 QoSTrafficCap:1;	/* bit 20 */
+	t_u8 BSS_Transition:1;	/* bit 19 */
+	t_u8 TIM_Broadcast:1;	/* bit 18 */
+	t_u8 WNM_Sleep:1;	/* bit 17 */
+	t_u8 TFS:1;		/* bit 16 */
+	t_u8 GeospatialLocation:1;	/* bit 15 */
+	t_u8 CivicLocation:1;	/* bit 14 */
+	t_u8 CollocatedIntf:1;	/* bit 13 */
+	t_u8 ProxyARPService:1;	/* bit 12 */
+	t_u8 FMS:1;		/* bit 11 */
+	t_u8 LocationTracking:1;	/* bit 10 */
+	t_u8 MulticastDiagnostics:1;	/* bit 9  */
+	t_u8 Diagnostics:1;	/* bit 8  */
+	t_u8 Event:1;		/* bit 7  */
+	t_u8 SPSMP_Support:1;	/* bit 6 */
+	t_u8 Reserved5:1;	/* bit 5 */
+	t_u8 PSMP_Capable:1;	/* bit 4 */
+	t_u8 RejectUnadmFrame:1;	/* bit 3 */
+	t_u8 ExtChanSwitching:1;	/* bit 2 */
+	t_u8 Reserved1:1;	/* bit 1 */
+	t_u8 BSS_CoexistSupport:1;	/* bit 0 */
 } MLAN_PACK_END ExtCap_t, *pExtCap_t;
+#else
+/** Extended Capabilities Data */
+typedef struct MLAN_PACK_START _ExtCap_t {
+	/** Extended Capabilities value */
+	t_u8 BSS_CoexistSupport:1;	/* bit 0 */
+	t_u8 Reserved1:1;	/* bit 1 */
+	t_u8 ExtChanSwitching:1;	/* bit 2 */
+	t_u8 RejectUnadmFrame:1;	/* bit 3 */
+	t_u8 PSMP_Capable:1;	/* bit 4 */
+	t_u8 Reserved5:1;	/* bit 5 */
+	t_u8 SPSMP_Support:1;	/* bit 6 */
+	t_u8 Event:1;		/* bit 7  */
+	t_u8 Diagnostics:1;	/* bit 8  */
+	t_u8 MulticastDiagnostics:1;	/* bit 9  */
+	t_u8 LocationTracking:1;	/* bit 10 */
+	t_u8 FMS:1;		/* bit 11 */
+	t_u8 ProxyARPService:1;	/* bit 12 */
+	t_u8 CollocatedIntf:1;	/* bit 13 */
+	t_u8 CivicLocation:1;	/* bit 14 */
+	t_u8 GeospatialLocation:1;	/* bit 15 */
+	t_u8 TFS:1;		/* bit 16 */
+	t_u8 WNM_Sleep:1;	/* bit 17 */
+	t_u8 TIM_Broadcast:1;	/* bit 18 */
+	t_u8 BSS_Transition:1;	/* bit 19 */
+	t_u8 QoSTrafficCap:1;	/* bit 20 */
+	t_u8 AC_StationCount:1;	/* bit 21 */
+	t_u8 MultipleBSSID:1;	/* bit 22 */
+	t_u8 TimingMeasurement:1;	/* bit 23 */
+	t_u8 ChannelUsage:1;	/* bit 24 */
+	t_u8 SSID_List:1;	/* bit 25 */
+	t_u8 DMS:1;		/* bit 26 */
+	t_u8 UTC:1;		/* bit 27 */
+	t_u8 TDLSPeerUAPSDSupport:1;	/* bit 28 */
+	t_u8 TDLSPeerPSMSupport:1;	/* bit 29 */
+	t_u8 TDLSChannelSwitching:1;	/* bit 30 */
+	t_u8 Interworking:1;	/* bit 31 */
+	t_u8 Qos_Map:1;		/* bit 32 */
+	t_u8 EBR:1;		/* bit 33 */
+	t_u8 SSPN_Interface:1;	/* bit 34 */
+	t_u8 Reserved35:1;	/* bit 35 */
+	t_u8 MSGCF_Capa:1;	/* bit 36 */
+	t_u8 TDLSSupport:1;	/* bit 37 */
+	t_u8 TDLSProhibited:1;	/* bit 38 */
+	t_u8 TDLSChlSwitchProhib:1;	/* bit 39 */
+	t_u8 rsvdBit40:1;	/* bit 40 */
+	t_u8 rsvdBit41:1;	/* bit 41 */
+	t_u8 rsvdBit42:1;	/* bit 42 */
+	t_u8 rsvdBit43:1;	/* bit 43 */
+	t_u8 rsvdBit44:1;	/* bit 44 */
+	t_u8 rsvdBit45:1;	/* bit 45 */
+	t_u8 rsvdBit46:1;	/* bit 46 */
+	t_u8 rsvdBit47:1;	/* bit 47 */
+	t_u8 rsvdBit48:1;	/* bit 48 */
+	t_u8 rsvdBit49:1;	/* bit 49 */
+	t_u8 rsvdBit50:1;	/* bit 50 */
+	t_u8 rsvdBit51:1;	/* bit 51 */
+	t_u8 rsvdBit52:1;	/* bit 52 */
+	t_u8 rsvdBit53:1;	/* bit 53 */
+	t_u8 rsvdBit54:1;	/* bit 54 */
+	t_u8 rsvdBit55:1;	/* bit 55 */
+	t_u8 rsvdBit56:1;	/* bit 56 */
+	t_u8 rsvdBit57:1;	/* bit 57 */
+	t_u8 rsvdBit58:1;	/* bit 58 */
+	t_u8 rsvdBit59:1;	/* bit 59 */
+	t_u8 rsvdBit60:1;	/* bit 60 */
+	t_u8 TDLSWildBandwidth:1;	/* bit 61 */
+	t_u8 OperModeNtf:1;	/* bit 62 */
+	t_u8 MaxAMSDU0:1;	/* bit 63 */
+	t_u8 MaxAMSDU1:1;	/* bit 64 */
+	t_u8 chanSchedMgnt:1;	/* bit 65 */
+	t_u8 rsvdBit66:1;	/* bit 66 */
+	t_u8 NCC:1;		/* bit 67 */
+	t_u8 rsvdBit68:1;	/* bit 68 */
+	t_u8 CAQ:1;		/* bit 69 */
+	t_u8 FTMR:1;		/* bit 70 */
+	t_u8 FTMI:1;		/* bit 71 */
+	t_u8 FILS:1;		/* bit 72 */
+	t_u8 rsvdBit73:1;	/* bit 73 */
+	t_u8 rsvdBit74:1;	/* bit 74 */
+	t_u8 rsvdBit75:1;	/* bit 75 */
+	t_u8 rsvdBit76:1;	/* bit 76 */
+	t_u8 TWTReq:1;		/* bit 77 */
+	t_u8 TWTResp:1;		/* bit 78 */
+	t_u8 rsvdBit79:1;	/* bit 79 */
+	t_u8 rsvdBit80:1;	/* bit 80 */
+	t_u8 rsvdBit81:1;	/* bit 81 */
+	t_u8 rsvdBit82:1;	/* bit 82 */
+	t_u8 rsvdBit83:1;	/* bit 83 */
+	t_u8 beacon_prot:1;	/* bit 84 */
+	t_u8 rsvdBit85:1;	/* bit 85 */
+	t_u8 rsvdBit86:1;	/* bit 86 */
+	t_u8 rsvdBit87:1;	/* bit 87 */
+} MLAN_PACK_END ExtCap_t, *pExtCap_t;
+#endif
 
 /** ExtCap : TDLS prohibited */
 #define IS_EXTCAP_TDLS_PROHIBITED(ext_cap) (ext_cap.TDLSProhibited)
@@ -2049,7 +2329,7 @@ typedef struct _mlan_bss_info {
 	t_u8 peer_supp_rates[MLAN_SUPPORTED_RATES];
 	/** extend capability for AP */
 	ExtCap_t ext_cap;
-#endif /* STA_SUPPORT */
+#endif				/* STA_SUPPORT */
 	/** Mobility Domain ID */
 	t_u16 mdid;
 	/** FT Capability policy */
@@ -2094,11 +2374,6 @@ typedef struct {
 
 /** Debug command number */
 #define DBG_CMD_NUM 10
-
-#ifdef SDIO
-/** sdio mp debug number */
-#define SDIO_MP_DBG_NUM 10
-#endif
 
 /** Maximum size of IEEE Information Elements */
 #define IEEE_MAX_IE_SIZE 256
@@ -2227,56 +2502,6 @@ typedef struct _mlan_debug_info {
 	t_u32 num_alloc_buffer_failure;
 	/** Number of pkt dropped */
 	t_u32 num_pkt_dropped;
-#ifdef SDIO
-	/** Number of card to host command/event failures */
-	t_u32 num_cmdevt_card_to_host_failure;
-	/** Number of card to host Rx failures */
-	t_u32 num_rx_card_to_host_failure;
-	/** Number of interrupt read failures */
-	t_u32 num_int_read_failure;
-	/** Last interrupt status */
-	t_u32 last_int_status;
-	/** number of interrupt receive */
-	t_u32 num_of_irq;
-	/** flag for sdio rx aggr */
-	t_u8 sdio_rx_aggr;
-	/** FW update port number */
-	t_u32 mp_update[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX * 2];
-	/** Invalid port update count */
-	t_u32 mp_invalid_update;
-	/** Number of packets tx aggr */
-	t_u32 mpa_tx_count[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
-	/** no more packets count*/
-	t_u32 mpa_sent_last_pkt;
-	/** no write_ports count */
-	t_u32 mpa_sent_no_ports;
-	/** last recv wr_bitmap */
-	t_u32 last_recv_wr_bitmap;
-	/** last recv rd_bitmap */
-	t_u32 last_recv_rd_bitmap;
-	/** mp_data_port_mask */
-	t_u32 mp_data_port_mask;
-	/** last mp_wr_bitmap */
-	t_u32 last_mp_wr_bitmap[SDIO_MP_DBG_NUM];
-	/** last ports for cmd53 write data */
-	t_u32 last_mp_wr_ports[SDIO_MP_DBG_NUM];
-	/** last len for cmd53 write data */
-	t_u32 last_mp_wr_len[SDIO_MP_DBG_NUM];
-	/** last curr_wr_port */
-	t_u8 last_curr_wr_port[SDIO_MP_DBG_NUM];
-	/** length info for cmd53 write data */
-	t_u16 last_mp_wr_info[SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
-	/** last mp_index */
-	t_u8 last_mp_index;
-	/** buffer for mp debug */
-	t_u8 *mpa_buf;
-	/** length info for mp buf size */
-	t_u32 mpa_buf_size;
-	/** Number of packets rx aggr */
-	t_u32 mpa_rx_count[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
-	/** mp aggr_pkt limit */
-	t_u8 mp_aggr_pkt_limit;
-#endif
 	/** Number of deauthentication events */
 	t_u32 num_event_deauth;
 	/** Number of disassosiation events */
@@ -2459,6 +2684,8 @@ enum _mlan_auth_mode {
 	MLAN_AUTH_MODE_SHARED = 0x01,
 	MLAN_AUTH_MODE_FT = 0x02,
 	MLAN_AUTH_MODE_SAE = 0x03,
+	MLAN_AUTH_MODE_OWE = 0x04,
+	MLAN_AUTH_MODE_FILS = 0x05,
 	MLAN_AUTH_MODE_NETWORKEAP = 0x80,
 	MLAN_AUTH_MODE_AUTO = 0xFF,
 };
@@ -2470,7 +2697,9 @@ typedef enum {
 	AssocAgentAuth_FastBss,
 	AssocAgentAuth_FastBss_Skip,
 	AssocAgentAuth_Network_EAP,
+	AssocAgentAuth_FILS = 5,
 	AssocAgentAuth_Wpa3Sae = 6,
+	AssocAgentAuth_Owe = 7,
 	AssocAgentAuth_Auto,
 } AssocAgentAuthType_e;
 
@@ -2531,6 +2760,10 @@ enum _mlan_psk_type {
 #define KEY_FLAG_SET_TX_KEY 0x00000008
 /** key flag for mcast IGTK */
 #define KEY_FLAG_AES_MCAST_IGTK 0x00000010
+#ifdef MAC80211_SUPPORT_MESH
+/** key flag for mesh group Rx key */
+#define KEY_FLAG_SET_GRP_TX_KEY 0x00000100
+#endif
 /** key flag for remove key */
 #define KEY_FLAG_REMOVE_KEY 0x80000000
 /** key flag for GCMP */
@@ -2919,18 +3152,15 @@ typedef struct _mlan_ds_band_steer_cfg {
 	t_u8 max_btm_req_allowed;
 } mlan_ds_band_steer_cfg, *pmlan_ds_band_steer_cfg;
 
-/** Type definition of mlan_ds_beacon_stuck_param_cfg for MLAN_IOCTL_POWER_CFG
- */
+/** Type definition of mlan_ds_beacon_stuck_param_cfg for MLAN_IOCTL_POWER_CFG */
 typedef struct _mlan_ds_beacon_stuck_param_cfg {
-	/** subcmd */
+    /** subcmd */
 	t_u32 subcmd;
-	/** Set/Get */
+    /** Set/Get */
 	t_u8 action;
-	/** No of beacon interval after which firmware will check if beacon Tx
-	 * is going fine */
+    /** No of beacon interval after which firmware will check if beacon Tx is going fine */
 	t_u8 beacon_stuck_detect_count;
-	/** Upon performing MAC reset, no of beacon interval after which
-	 * firmware will check if recovery was successful */
+    /** Upon performing MAC reset, no of beacon interval after which firmware will check if recovery was successful */
 	t_u8 recovery_confirm_count;
 } mlan_ds_beacon_stuck_param_cfg, *pmlan_ds_beacon_stuck_param_cfg;
 
@@ -3000,7 +3230,7 @@ typedef struct _mlan_ds_hs_cfg {
 	t_u8 ext_gap;
 	/** GPIO wave level for extend hscfg*/
 	t_u8 gpio_wave;
-	/** Minimum delay between HsActive and HostWake (in msec) */
+    /** Minimum delay between HsActive and HostWake (in msec) */
 	t_u16 min_wake_holdoff;
 } mlan_ds_hs_cfg, *pmlan_ds_hs_cfg;
 
@@ -3385,7 +3615,7 @@ typedef struct {
 	/** Type definition of mlan_ds_wmm_queue_stats
 	 *  for MLAN_OID_WMM_CFG_QUEUE_STATS
 	 */
-	mlan_ds_wmm_queue_stats, *pmlan_ds_wmm_queue_stats;
+mlan_ds_wmm_queue_stats, *pmlan_ds_wmm_queue_stats;
 
 /**
  *  @brief IOCTL sub structure for a specific WMM AC Status
@@ -3417,7 +3647,7 @@ typedef struct {
 	/** Type definition of mlan_ds_wmm_queue_status
 	 *  for MLAN_OID_WMM_CFG_QUEUE_STATUS
 	 */
-	mlan_ds_wmm_queue_status, *pmlan_ds_wmm_queue_status;
+mlan_ds_wmm_queue_status, *pmlan_ds_wmm_queue_status;
 
 /** Type definition of mlan_ds_wmm_addts for MLAN_OID_WMM_CFG_ADDTS */
 typedef struct _mlan_ds_wmm_addts {
@@ -3994,7 +4224,7 @@ typedef struct MLAN_PACK_START _mlan_ds_twt_setup {
 	t_u8 twt_exponent;
 	/** TWT Mantissa Range: [0-sizeof(UINT16)] */
 	t_u16 twt_mantissa;
-	/** TWT Request Type, 0: REQUEST_TWT, 1: SUGGEST_TWT*/
+    /** TWT Request Type, 0: REQUEST_TWT, 1: SUGGEST_TWT*/
 	t_u8 twt_request;
 } MLAN_PACK_END mlan_ds_twt_setup, *pmlan_ds_twt_setup;
 
@@ -4044,14 +4274,14 @@ typedef struct _mlan_ds_subband_set_t {
 	t_u8 max_tx_pwr;
 } mlan_ds_subband_set_t;
 
-#define NXP_DFS_UNSET 0
-#define NXP_DFS_FCC 1
-#define NXP_DFS_ETSI 2
-#define NXP_DFS_JP 3
+#define NXP_DFS_UNSET	 0
+#define NXP_DFS_FCC      1
+#define NXP_DFS_ETSI	 2
+#define NXP_DFS_JP		 3
 #define NXP_DFS_UNKNOWN 0xFF
 /** Domain regulatory information */
 typedef struct _mlan_ds_11d_domain_info {
-	/** DFS region code */
+    /** DFS region code */
 	t_u8 dfs_region;
 	/** Country Code */
 	t_u8 country_code[COUNTRY_CODE_LEN];
@@ -4072,15 +4302,23 @@ typedef struct _mlan_ds_11d_cfg {
 #ifdef STA_SUPPORT
 		/** Enable for MLAN_OID_11D_CFG_ENABLE */
 		t_u32 enable_11d;
-#endif /* STA_SUPPORT */
+#endif				/* STA_SUPPORT */
 		/** Domain info for MLAN_OID_11D_DOMAIN_INFO_EXT */
 		mlan_ds_11d_domain_info domain_info;
 #ifdef UAP_SUPPORT
 		/** tlv data for MLAN_OID_11D_DOMAIN_INFO */
 		t_u8 domain_tlv[MAX_IE_SIZE];
-#endif /* UAP_SUPPORT */
+#endif				/* UAP_SUPPORT */
 	} param;
 } mlan_ds_11d_cfg, *pmlan_ds_11d_cfg;
+
+typedef struct _mlan_ds_11k_cfg {
+	/** Sub-command */
+	t_u32 sub_command;
+	union {
+		t_u32 enable_11k;
+	} param;
+} mlan_ds_11k_cfg;
 
 /*-----------------------------------------------------------------*/
 /** Register Memory Access Group */
@@ -4099,15 +4337,10 @@ enum _mlan_reg_type {
 	MLAN_REG_CAU = 5,
 	MLAN_REG_PSU = 6,
 	MLAN_REG_BCA = 7,
-#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SDNW62X) ||           \
-	defined(PCIENW62X) || defined(USBNW62X) || defined(SD9097) ||          \
-	defined(SD9177)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	MLAN_REG_CIU = 8,
 #endif
-#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SDNW62X) ||           \
-	defined(PCIENW62X) || defined(USBNW62X) || defined(SD9097)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	MLAN_REG_MAC2 = 0x81,
 	MLAN_REG_BBP2 = 0x82,
 	MLAN_REG_RF2 = 0x83,
@@ -4167,6 +4400,7 @@ typedef struct _mlan_ds_reg_mem {
 /*-----------------------------------------------------------------*/
 /** 802.11h Configuration Group */
 /*-----------------------------------------------------------------*/
+#if defined(DFS_TESTING_SUPPORT)
 /** Type definition of mlan_ds_11h_dfs_testing for MLAN_OID_11H_DFS_TESTING */
 typedef struct _mlan_ds_11h_dfs_testing {
 	/** User-configured CAC period in milliseconds, 0 to use default */
@@ -4188,11 +4422,22 @@ typedef struct _mlan_ds_11h_chan_nop_info {
 	t_u8 curr_chan;
 	/** channel_width */
 	t_u8 chan_width;
+    /** check new channel flag */
+	t_u8 check_new_chan;
 	/** flag for chan under nop */
 	t_bool chan_under_nop;
 	/** chan_ban_info for new channel */
 	chan_band_info new_chan;
 } mlan_ds_11h_chan_nop_info, *pmlan_ds_11h_chan_nop_info;
+
+/** Type definition of mlan_ds_11h_nop_chan_list for MLAN_OID_11H_NOP_CHAN_LIST */
+typedef struct _mlan_ds_11h_nop_chan_list {
+	/** number of nop channel */
+	t_u8 num_chan;
+	/** chan list array */
+	t_u8 chan_list[20];
+} mlan_ds_11h_nop_chan_list, *pmlan_ds_11h_nop_chan_list;
+#endif
 
 typedef struct _mlan_ds_11h_chan_rep_req {
 	t_u16 startFreq;
@@ -4206,7 +4451,7 @@ typedef struct _mlan_ds_11h_chan_rep_req {
 typedef struct _mlan_ds_11h_chan_dfs_state {
 	/** channel */
 	t_u8 channel;
-	/** is dfs channel */
+    /** is dfs channel */
 	t_u8 dfs_required;
 	/** dfs state */
 	dfs_state_t dfs_state;
@@ -4225,10 +4470,14 @@ typedef struct _mlan_ds_11h_cfg {
 		/** Local power constraint for
 		 * MLAN_OID_11H_LOCAL_POWER_CONSTRAINT */
 		t_s8 usr_local_power_constraint;
+#if defined(DFS_TESTING_SUPPORT)
 		/** User-configuation for MLAN_OID_11H_DFS_TESTING */
 		mlan_ds_11h_dfs_testing dfs_testing;
 		/** channel NOP information for MLAN_OID_11H_CHAN_NOP_INFO */
 		mlan_ds_11h_chan_nop_info ch_nop_info;
+		/** NOP channel list for MLAN_OID_11H_NOP_CHAN_LIST */
+		mlan_ds_11h_nop_chan_list nop_chan_list;
+#endif
 		/** channel report req for MLAN_OID_11H_CHAN_REPORT_REQUEST */
 		mlan_ds_11h_chan_rep_req chan_rpt_req;
 		/** channel switch count for MLAN_OID_11H_CHAN_SWITCH_COUNT*/
@@ -4236,6 +4485,8 @@ typedef struct _mlan_ds_11h_cfg {
 		/** channel dfs state for MLAN_OID_11H_CHAN_DFS_STATE */
 		mlan_ds_11h_chan_dfs_state ch_dfs_state;
 		mlan_ds_11h_dfs_w53_cfg dfs_w53_cfg;
+		/** dfs_mode for MLAN_OID_11H_DFS_MODE */
+		t_u8 dfs_mode;
 	} param;
 } mlan_ds_11h_cfg, *pmlan_ds_11h_cfg;
 
@@ -4268,26 +4519,6 @@ typedef struct _mlan_ds_misc_gen_ie {
 	/** IE buffer */
 	t_u8 ie_data[MAX_IE_SIZE];
 } mlan_ds_misc_gen_ie;
-
-#ifdef SDIO
-/** Type definition of mlan_ds_misc_sdio_mpa_ctrl
- *  for MLAN_OID_MISC_SDIO_MPA_CTRL
- */
-typedef struct _mlan_ds_misc_sdio_mpa_ctrl {
-	/** SDIO MP-A TX enable/disable */
-	t_u16 tx_enable;
-	/** SDIO MP-A RX enable/disable */
-	t_u16 rx_enable;
-	/** SDIO MP-A TX buf size */
-	t_u16 tx_buf_size;
-	/** SDIO MP-A RX buf size */
-	t_u16 rx_buf_size;
-	/** SDIO MP-A TX Max Ports */
-	t_u16 tx_max_ports;
-	/** SDIO MP-A RX Max Ports */
-	t_u16 rx_max_ports;
-} mlan_ds_misc_sdio_mpa_ctrl;
-#endif
 
 /** Type definition of mlan_ds_misc_cmd for MLAN_OID_MISC_HOST_CMD */
 typedef struct _mlan_ds_misc_cmd {
@@ -4454,14 +4685,6 @@ typedef struct _mlan_ds_misc_ipaddr_cfg {
 	t_u8 ip_addr[MAX_IPADDR][IPADDR_LEN];
 } mlan_ds_misc_ipaddr_cfg;
 
-/** Type definnition of mlan_ds_misc_ipv6_ra_offload for
- * MLAN_OID_MISC_IPV6_RA_OFFLOAD*/
-typedef struct _mlan_ds_misc_ipv6_ra_offload {
-	/** 0: disable; 1: enable*/
-	t_u8 enable;
-	t_u8 ipv6_addr[16];
-} mlan_ds_misc_ipv6_ra_offload;
-
 /* MEF configuration disable */
 #define MEF_CFG_DISABLE 0
 /* MEF configuration Rx filter enable */
@@ -4498,16 +4721,6 @@ typedef struct _mlan_ds_misc_arb_cfg {
 	t_u32 arb_mode;
 } mlan_ds_misc_arb_cfg;
 
-/** Type definition of mlan_ds_misc_tp_state
- *  for MLAN_OID_MISC_TP_STATE
- */
-typedef struct _mlan_ds_misc_tp_state {
-	/** TP account mode 0-disable 1-enable */
-	t_u32 on;
-	/** Packet drop point */
-	t_u32 drop_point;
-} mlan_ds_misc_tp_state;
-
 /** Type definition of mlan_ds_misc_country_code
  *  for MLAN_OID_MISC_COUNTRY_CODE
  */
@@ -4515,6 +4728,16 @@ typedef struct _mlan_ds_misc_country_code {
 	/** Country Code */
 	t_u8 country_code[COUNTRY_CODE_LEN];
 } mlan_ds_misc_country_code;
+
+/** Type definition of mlan_ds_host_clock  */
+typedef struct _mlan_ds_host_clock {
+	/** host time in secs */
+	t_u64 time;
+	/** fw time */
+	t_u64 fw_time;
+	/** host-bbu clock delta */
+	t_u64 host_bbu_clk_delta;
+} mlan_ds_host_clock;
 
 /** action for set */
 #define SUBSCRIBE_EVT_ACT_BITWISE_SET 0x0002
@@ -4613,7 +4836,7 @@ typedef struct _mlan_ds_subscribe_evt {
 	 *  N -- report only happend > N consecutive times
 	 */
 	t_u8 data_high_snr_freq;
-	/* Link SNR threshold (dB)*/
+	/* Link SNR threshold (dB) */
 	t_u16 link_snr;
 	/* Link SNR frequency */
 	t_u16 link_snr_freq;
@@ -4643,52 +4866,6 @@ typedef struct _mlan_ds_misc_otp_user_data {
 	/** User data buffer */
 	t_u8 user_data[MAX_OTP_USER_DATA_LEN];
 } mlan_ds_misc_otp_user_data;
-
-typedef struct _aggr_ctrl_cfg {
-	/** Enable */
-	t_u16 enable;
-	/** Aggregation alignment */
-	t_u16 aggr_align;
-	/** Aggregation max size */
-	t_u16 aggr_max_size;
-	/** Aggregation max packet number */
-	t_u16 aggr_max_num;
-	/** Aggrgation timeout, in microseconds */
-	t_u16 aggr_tmo;
-} aggr_ctrl_cfg;
-
-/** Type definition of mlan_ds_misc_aggr_ctrl
- *  for MLAN_OID_MISC_AGGR_CTRL
- */
-typedef struct _mlan_ds_misc_aggr_ctrl {
-	/** Tx aggregation control */
-	aggr_ctrl_cfg tx;
-} mlan_ds_misc_aggr_ctrl;
-
-#ifdef USB
-typedef struct _usb_aggr_ctrl_cfg {
-	/** Enable */
-	t_u16 enable;
-	/** Aggregation mode */
-	t_u16 aggr_mode;
-	/** Aggregation alignment */
-	t_u16 aggr_align;
-	/** Aggregation max packet/size */
-	t_u16 aggr_max;
-	/** Aggrgation timeout, in microseconds */
-	t_u16 aggr_tmo;
-} usb_aggr_ctrl_cfg;
-
-/** Type definition of mlan_ds_misc_usb_aggr_ctrl
- *  for MLAN_OID_MISC_USB_AGGR_CTRL
- */
-typedef struct _mlan_ds_misc_usb_aggr_ctrl {
-	/** Tx aggregation control */
-	usb_aggr_ctrl_cfg tx_aggr_ctrl;
-	/** Rx deaggregation control */
-	usb_aggr_ctrl_cfg rx_deaggr_ctrl;
-} mlan_ds_misc_usb_aggr_ctrl;
-#endif
 
 #ifdef WIFI_DIRECT_SUPPORT
 /** flag for NOA */
@@ -4720,15 +4897,15 @@ typedef struct _mlan_ds_wifi_direct_config {
 
 /** Type definition of mlan_ds_gpio_tsf_latch */
 typedef struct _mlan_ds_gpio_tsf_latch {
-	/**clock sync Mode */
+    /**clock sync Mode */
 	t_u8 clock_sync_mode;
-	/**clock sync Role */
+    /**clock sync Role */
 	t_u8 clock_sync_Role;
-	/**clock sync GPIO Pin Number */
+    /**clock sync GPIO Pin Number */
 	t_u8 clock_sync_gpio_pin_number;
-	/**clock sync GPIO Level or Toggle */
+    /**clock sync GPIO Level or Toggle */
 	t_u8 clock_sync_gpio_level_toggle;
-	/**clock sync GPIO Pulse Width */
+    /**clock sync GPIO Pulse Width */
 	t_u16 clock_sync_gpio_pulse_width;
 } mlan_ds_gpio_tsf_latch;
 
@@ -4740,8 +4917,7 @@ typedef struct _mlan_ds_tsf_info {
 	t_u16 tsf_info;
 	/**tsf */
 	t_u64 tsf;
-	/**Positive or negative offset in microsecond from Beacon TSF to GPIO
-	 * toggle TSF  */
+	/**Positive or negative offset in microsecond from Beacon TSF to GPIO toggle TSF  */
 	t_s32 tsf_offset;
 } mlan_ds_tsf_info;
 
@@ -4753,6 +4929,31 @@ typedef struct _mlan_ds_misc_pmfcfg {
 	t_u8 mfpr;
 } mlan_ds_misc_pmfcfg;
 #endif
+
+typedef MLAN_PACK_START struct _mlan_ds_multi_chan_cfg {
+	/** Channel Time */
+	t_u32 channel_time;
+	/** Buffer Weight */
+	t_u8 buffer_weight;
+	/** tlv len */
+	t_u16 tlv_len;
+	/** TLV buffer */
+	t_u8 tlv_buf[];
+} MLAN_PACK_END mlan_ds_multi_chan_cfg;
+
+typedef MLAN_PACK_START struct _mlan_ds_drcs_cfg {
+	/** Channel Index*/
+	t_u16 chan_idx;
+	/** Channel time (in TU) for chan_idx */
+	t_u8 chantime;
+	/** Channel swith time (in TU) for chan_idx */
+	t_u8 switchtime;
+	/** Undoze time (in TU) for chan_idx */
+	t_u8 undozetime;
+	/** Rx traffic control scheme when channel switch*/
+	/** only valid for GC/STA interface*/
+	t_u8 mode;
+} MLAN_PACK_END mlan_ds_drcs_cfg;
 
 #define MAX_SSID_NUM 16
 #define MAX_AP_LIST 8
@@ -4799,39 +5000,39 @@ typedef enum _roam_offload_trigger_mode {
 
 /** mlan_ds_misc_ees_cfg structure */
 typedef MLAN_PACK_START struct _mlan_ds_misc_ees_cfg {
-	/* EES mode*/
+	/* EES mode */
 	t_u16 ees_mode;
-	/* EES report condition*/
+	/* EES report condition */
 	t_u16 ees_rpt_condition;
-	/* High scan period(milliseconds)*/
+	/* High scan period(milliseconds) */
 	t_u16 high_scan_period;
-	/* High scan count*/
+	/* High scan count */
 	t_u16 high_scan_count;
-	/* Middle scan period(milliseconds)*/
+	/* Middle scan period(milliseconds) */
 	t_u16 mid_scan_period;
-	/* Middle scan count*/
+	/* Middle scan count */
 	t_u16 mid_scan_count;
-	/* Low scan period(milliseconds)*/
+	/* Low scan period(milliseconds) */
 	t_u16 low_scan_period;
-	/* Low scan count*/
+	/* Low scan count */
 	t_u16 low_scan_count;
 } MLAN_PACK_END mlan_ds_misc_ees_cfg;
 
 /** mlan_ds_misc_bgscan_cfg structure */
 typedef MLAN_PACK_START struct _mlan_ds_misc_bgscan_cfg {
-	/* BSS Type  0x1-bss independent, 0x2-bss infrastructure, 0x3-bss any*/
+	/* BSS Type  0x1-bss independent, 0x2-bss infrastructure, 0x3-bss any */
 	t_u8 bss_type;
-	/* Number of channels scanned for each scan*/
+	/* Number of channels scanned for each scan */
 	t_u8 channels_per_scan;
-	/* Interval between consective scans*/
+	/* Interval between consective scans */
 	t_u32 scan_interval;
-	/* Conditons to trigger report to host*/
+	/* Conditons to trigger report to host */
 	t_u32 bg_rpt_condition;
 } MLAN_PACK_END mlan_ds_misc_bgscan_cfg;
 
 /** mlan_ds_misc_band_rssi structure */
 typedef MLAN_PACK_START struct _mlan_ds_misc_band_rssi {
-	/* RSSI hysteresis*/
+	/* RSSI hysteresis */
 	t_u8 rssi_hysteresis;
 	/*  Preferred channel band for fw roaming
 	 *  0:2.4G band; 1: 5G band; 2:4G band; 0xFF:band not set(invalid)
@@ -4841,9 +5042,9 @@ typedef MLAN_PACK_START struct _mlan_ds_misc_band_rssi {
 
 /** mlan_ds_misc_ssid_list structure */
 typedef MLAN_PACK_START struct _mlan_ds_misc_ssid_list {
-	/* SSID number*/
+	/* SSID number */
 	t_u8 ssid_num;
-	/* SSID for fw roaming/auto_reconnect*/
+	/* SSID for fw roaming/auto_reconnect */
 	mlan_802_11_ssid ssids[MAX_SSID_NUM];
 } MLAN_PACK_END mlan_ds_misc_ssid_list;
 
@@ -4891,29 +5092,29 @@ typedef MLAN_PACK_START struct _mlan_ds_misc_roam_offload {
 	mlan_ds_misc_roam_offload_para_rssi para_rssi;
 	/** BSSID of reconnection**/
 	mlan_802_11_mac_addr bssid_reconnect;
-	/* SSID List(White list)*/
+	/* SSID List(White list) */
 	mlan_ds_misc_ssid_list ssid_list;
-	/* Black list(BSSID list)*/
+	/* Black list(BSSID list) */
 	mlan_ds_misc_roam_offload_aplist black_list;
-	/* BAND and RSSI_HYSTERESIS set flag*/
+	/* BAND and RSSI_HYSTERESIS set flag */
 	t_u8 band_rssi_flag;
 	mlan_ds_misc_band_rssi band_rssi;
 
-	/* BGSCAN params set flag*/
+	/* BGSCAN params set flag */
 	t_u8 bgscan_set_flag;
 	mlan_ds_misc_bgscan_cfg bgscan_cfg;
 
-	/* EES mode params set flag*/
+	/* EES mode params set flag */
 	t_u8 ees_param_set_flag;
 	mlan_ds_misc_ees_cfg ees_cfg;
 
-	/* Beacon miss threshold*/
+	/* Beacon miss threshold */
 	t_u8 bcn_miss_threshold;
 
-	/* Beacon miss threshold*/
+	/* Beacon miss threshold */
 	t_u8 pre_bcn_miss_threshold;
 
-	/* Scan repeat count*/
+	/* Scan repeat count */
 	t_u16 repeat_count;
 } MLAN_PACK_END mlan_ds_misc_roam_offload;
 
@@ -4970,7 +5171,7 @@ typedef struct _mlan_ds_misc_tdls_oper {
 /** flag for TDLS SETUP */
 #define TDLS_IE_FLAGS_SETUP 0x0100
 #define TDLS_IE_FLAGS_HECAP 0x0200
-#define TDLS_IE_FLAGS_HEOP 0x0400
+#define TDLS_IE_FLAGS_HEOP  0x0400
 
 /** TDLS ie buffer */
 typedef struct _mlan_ds_misc_tdls_ies {
@@ -5021,118 +5222,6 @@ typedef struct _mlan_ds_misc_dfs_repeater {
 #define WOWLAN_MAX_PATTERN_LEN 20
 #define WOWLAN_MAX_OFFSET_LEN 50
 #define MAX_NUM_FILTERS 10
-#define MEF_MODE_HOST_SLEEP (1 << 0)
-#define MEF_MODE_NON_HOST_SLEEP (1 << 1)
-#define MEF_ACTION_WAKE (1 << 0)
-#define MEF_ACTION_ALLOW (1 << 1)
-#define MEF_ACTION_ALLOW_AND_WAKEUP_HOST 3
-#define MEF_AUTO_ARP 0x10
-#define MEF_AUTO_PING 0x20
-#define MEF_NS_RESP 0x40
-#define MEF_MAGIC_PKT 0x80
-#define CRITERIA_BROADCAST BIT(0)
-#define CRITERIA_UNICAST BIT(1)
-#define CRITERIA_MULTICAST BIT(3)
-
-#define MAX_NUM_ENTRIES 8
-#define MAX_NUM_BYTE_SEQ 6
-#define MAX_NUM_MASK_SEQ 6
-
-#define OPERAND_DNUM 1
-#define OPERAND_BYTE_SEQ 2
-
-#define MAX_OPERAND 0x40
-#define TYPE_BYTE_EQ (MAX_OPERAND + 1)
-#define TYPE_DNUM_EQ (MAX_OPERAND + 2)
-#define TYPE_BIT_EQ (MAX_OPERAND + 3)
-
-#define RPN_TYPE_AND (MAX_OPERAND + 4)
-#define RPN_TYPE_OR (MAX_OPERAND + 5)
-
-#define ICMP_OF_IP_PROTOCOL 0x01
-#define TCP_OF_IP_PROTOCOL 0x06
-#define UDP_OF_IP_PROTOCOL 0x11
-
-#define IPV4_PKT_OFFSET 20
-#define IP_PROTOCOL_OFFSET 31
-#define PORT_PROTOCOL_OFFSET 44
-
-#define FILLING_TYPE MBIT(0)
-#define FILLING_PATTERN MBIT(1)
-#define FILLING_OFFSET MBIT(2)
-#define FILLING_NUM_BYTES MBIT(3)
-#define FILLING_REPEAT MBIT(4)
-#define FILLING_BYTE_SEQ MBIT(5)
-#define FILLING_MASK_SEQ MBIT(6)
-
-/** Type definition of filter_item
- *  Support three match methods:
- *  <1>Byte comparison type=0x41
- *  <2>Decimal comparison type=0x42
- *  <3>Bit comparison type=0x43
- */
-typedef struct _mef_filter_t {
-	/** flag*/
-	t_u32 fill_flag;
-	/** BYTE 0X41; Decimal 0X42; Bit 0x43*/
-	t_u16 type;
-	/** value*/
-	t_u32 pattern;
-	/** offset*/
-	t_u16 offset;
-	/** number of bytes*/
-	t_u16 num_bytes;
-	/** repeat*/
-	t_u16 repeat;
-	/** byte number*/
-	t_u8 num_byte_seq;
-	/** array*/
-	t_u8 byte_seq[MAX_NUM_BYTE_SEQ];
-	/** mask numbers*/
-	t_u8 num_mask_seq;
-	/** array*/
-	t_u8 mask_seq[MAX_NUM_MASK_SEQ];
-} mef_filter_t;
-
-typedef struct _mef_entry_t {
-	/** mode: bit0--hostsleep mode; bit1--non hostsleep mode */
-	t_u8 mode;
-	/** action: 0--discard and not wake host;
-		    1--discard and wake host;
-		    3--allow and wake host;*/
-	t_u8 action;
-	/** filter number */
-	t_u8 filter_num;
-	/** filter array*/
-	mef_filter_t filter_item[MAX_NUM_FILTERS];
-	/** rpn array*/
-	t_u8 rpn[MAX_NUM_FILTERS];
-} mef_entry_t;
-
-/** Type definition of mlan_ds_nvflt_mef_entry
- *for MLAN_OID_MISC_MEF_FLT_CFG
- */
-typedef struct _mlan_ds_misc_mef_flt_cfg {
-	/** Type of action*/
-	int mef_act_type;
-	/** Operation code*/
-	t_u32 op_code;
-	/** NV Filter Criteria*/
-	t_u32 criteria;
-	/** NV MEF entry*/
-	mef_entry_t mef_entry;
-} mlan_ds_misc_mef_flt_cfg;
-
-/** Enumeration for action type*/
-enum _mlan_act_mef_act_type {
-	MEF_ACT_ADD = 1,
-	MEF_ACT_ENABLE,
-	MEF_ACT_DISABLE,
-	MEF_ACT_CANCEL,
-	MEF_ACT_AUTOARP,
-	MEF_ACT_WOWLAN,
-	MEF_ACT_IPV6_NS,
-};
 
 typedef struct _mlan_ds_sensor_temp {
 	t_u32 temperature;
@@ -5151,7 +5240,7 @@ typedef struct _mlan_ds_misc_gtk_rekey_data {
 	t_u8 replay_ctr[MLAN_REPLAY_CTR_LEN];
 } mlan_ds_misc_gtk_rekey_data;
 typedef struct _mlan_ds_bw_chan_oper {
-	/* bandwidth 20:20M 40:40M 80:80M*/
+	/* bandwidth 20:20M 40:40M 80:80M */
 	t_u8 bandwidth;
 	/* channel number */
 	t_u8 channel;
@@ -5167,25 +5256,6 @@ typedef struct _mlan_ds_ind_rst_cfg {
 	/** gpio pin */
 	t_u8 gpio_pin;
 } mlan_ds_ind_rst_cfg;
-
-#define MKEEP_ALIVE_IP_PKT_MAX 256
-typedef struct _mlan_ds_misc_keep_alive {
-	t_u8 mkeep_alive_id;
-	t_u8 enable;
-	/** enable/disable tcp reset*/
-	t_u8 reset;
-	/**True means saved in driver, false means not saved or download*/
-	t_u8 cached;
-	t_u32 send_interval;
-	t_u16 retry_interval;
-	t_u16 retry_count;
-	t_u8 dst_mac[MLAN_MAC_ADDR_LENGTH];
-	t_u8 src_mac[MLAN_MAC_ADDR_LENGTH];
-	t_u16 pkt_len;
-	t_u8 packet[MKEEP_ALIVE_IP_PKT_MAX];
-	/** Ethernet type */
-	t_u16 ether_type;
-} mlan_ds_misc_keep_alive, *pmlan_ds_misc_keep_alive;
 
 /** TX and RX histogram statistic parameters*/
 typedef MLAN_PACK_START struct _mlan_ds_misc_tx_rx_histogram {
@@ -5203,9 +5273,9 @@ typedef MLAN_PACK_START struct _mlan_ds_cw_mode_ctrl {
 	/** Mode of Operation 0: Disable 1: Tx Continuous Packet 2: Tx
 	 * Continuous Wave */
 	t_u8 mode;
-	/*channel*/
+	/*channel */
 	t_u8 channel;
-	/* channel info*/
+	/* channel info */
 	t_u8 chanInfo;
 	/** Tx Power level in dBm */
 	t_u16 txPower;
@@ -5240,6 +5310,115 @@ typedef struct _mlan_ds_misc_robustcoex_params {
 	/** Polarity of GPIO */
 	t_u8 gpio_polarity;
 } mlan_ds_misc_robustcoex_params;
+
+/** RTT configuration */
+typedef struct _mlan_rtt_config {
+	/** peer device mac address */
+	t_u8 addr[MLAN_MAC_ADDR_LENGTH];
+	/** 1-sided or 2-sided RTT */
+	t_u8 type;
+	/** optional - peer device hint (STA, P2P, AP) */
+	t_u8 peer;
+	/** Required for STA-AP mode, optional for P2P, NBD etc. */
+	t_u8 channel;
+	/** Required for STA-AP mode, optional for P2P, NBD etc. */
+	Band_Config_t bandcfg;
+	/** Time interval between bursts (units: 100 ms).
+	 * Applies to 1-sided and 2-sided RTT multi-burst requests.
+	 * Range: 0-31, 0: no preference by initiator (2-sided RTT) */
+	t_u8 burst_period;
+	/** Total number of RTT bursts to be executed. It will be
+	 * specified in the same way as the parameter "Number of
+	 * Burst Exponent" found in the FTM frame format. It
+	 * applies to both: 1-sided RTT and 2-sided RTT. Valid
+	 * values are 0 to 15 as defined in 802.11mc std.
+	 * 0 means single shot
+	 * The implication of this parameter on the maximum
+	 * number of RTT results is the following:
+	 * for 1-sided RTT: max num of RTT results =
+	 * (2^num_burst)*(num_frames_per_burst)
+	 * for 2-sided RTT: max num of RTT results =
+	 * (2^num_burst)*(num_frames_per_burst - 1) */
+	t_u8 num_burst;
+	/** num of frames per burst.
+	 * Minimum value = 1, Maximum value = 31
+	 * For 2-sided this equals the number of FTM frames
+	 * to be attempted in a single burst. This also
+	 * equals the number of FTM frames that the
+	 * initiator will request that the responder send
+	 * in a single frame. */
+	t_u8 num_frames_per_burst;
+	/** number of retries for a failed RTT frame. Applies
+	 * to 1-sided RTT only. Minimum value = 0, Maximum value = 3 */
+	t_u8 num_retries_per_rtt_frame;
+
+	/** following fields are only valid for 2-side RTT */
+	/** Maximum number of retries that the initiator can
+	 * retry an FTMR frame.
+	 * Minimum value = 0, Maximum value = 3 */
+	t_u8 num_retries_per_ftmr;
+	/** 1: request LCI, 0: do not request LCI */
+	t_u8 LCI_request;
+	/** 1: request LCR, 0: do not request LCR */
+	t_u8 LCR_request;
+	/** Applies to 1-sided and 2-sided RTT. Valid values will
+	 * be 2-11 and 15 as specified by the 802.11mc std for
+	 * the FTM parameter burst duration. In a multi-burst
+	 * request, if responder overrides with larger value,
+	 * the initiator will return failure. In a single-burst
+	 * request if responder overrides with larger value,
+	 * the initiator will sent TMR_STOP to terminate RTT
+	 * at the end of the burst_duration it requested. */
+	t_u8 burst_duration;
+	/** RTT preamble to be used in the RTT frames */
+	t_u8 preamble;
+	/** RTT BW to be used in the RTT frames */
+	t_u8 bw;
+} mlan_rtt_config, *pmlan_rtt_config;
+
+/** RTT config params */
+typedef struct _mlan_rtt_config_params {
+	t_u8 rtt_config_num;
+	mlan_rtt_config rtt_config[MAX_RTT_CONFIG_NUM];
+} mlan_rtt_config_params;
+
+/** RTT cancel params */
+typedef struct _mlan_rtt_cancel_params {
+	t_u8 rtt_cancel_num;
+	t_u8 rtt_cancel[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH];
+} mlan_rtt_cancel_params;
+
+/** RTT responder info */
+typedef struct _rtt_responder_info {
+	t_u8 channel;
+	Band_Config_t bandcfg;
+	t_u8 preamble;
+} rtt_responder_info;
+
+/** RTT responder enable configure */
+typedef struct _rtt_responder_encfg {
+	t_u8 channel;
+	Band_Config_t bandcfg;
+	t_u32 max_dur_sec;
+} rtt_responder_encfg;
+
+/** Define for mlan_rtt_responder.action */
+#define RTT_GET_RESPONDER_INFO 0
+#define RTT_SET_RESPONDER_ENABLE 1
+#define RTT_SET_RESPONDER_DISABLE 2
+#define RTT_SET_RESPONDER_LCI 3
+#define RTT_SET_RESPONDER_LCR 4
+
+/** RTT responder configure for MLAN_OID_MISC_RTT_RESPONDER_CFG */
+typedef struct _mlan_rtt_responder {
+	t_u8 action;
+	union {
+		rtt_responder_info info;
+		rtt_responder_encfg encfg;
+		wifi_lci_information lci;
+		wifi_lcr_information lcr;
+	} u;
+} mlan_rtt_responder;
 
 #if defined(PCIE)
 typedef struct _mlan_ds_ssu_params {
@@ -5337,18 +5516,18 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 	t_u8 trpc_buf[2048];
 } mlan_ds_misc_chan_trpc_cfg;
 
-#define MFG_CMD_SET_TEST_MODE 1
+#define MFG_CMD_SET_TEST_MODE   1
 #define MFG_CMD_UNSET_TEST_MODE 0
-#define MFG_CMD_TX_ANT 0x1004
-#define MFG_CMD_RX_ANT 0x1005
-#define MFG_CMD_TX_CONT 0x1009
-#define MFG_CMD_RF_CHAN 0x100A
-#define MFG_CMD_CLR_RX_ERR 0x1010
-#define MFG_CMD_TX_FRAME 0x1021
-#define MFG_CMD_RFPWR 0x1033
-#define MFG_CMD_RF_BAND_AG 0x1034
-#define MFG_CMD_RF_CHANNELBW 0x1044
-#define MFG_CMD_RADIO_MODE_CFG 0x1211
+#define MFG_CMD_TX_ANT          0x1004
+#define MFG_CMD_RX_ANT          0x1005
+#define MFG_CMD_TX_CONT         0x1009
+#define MFG_CMD_RF_CHAN         0x100A
+#define MFG_CMD_CLR_RX_ERR      0x1010
+#define MFG_CMD_TX_FRAME        0x1021
+#define MFG_CMD_RFPWR           0x1033
+#define MFG_CMD_RF_BAND_AG      0x1034
+#define MFG_CMD_RF_CHANNELBW    0x1044
+#define MFG_CMD_RADIO_MODE_CFG  0x1211
 #define MFG_CMD_CONFIG_MAC_HE_TB_TX 0x110A
 /** MFG CMD generic cfg */
 struct MLAN_PACK_START mfg_cmd_generic_cfg {
@@ -5408,19 +5587,19 @@ struct MLAN_PACK_START mfg_cmd_tx_frame2 {
 	t_u32 stbc;
 	/** power id */
 	t_u32 rsvd[2];
-	/** NumPkt */
+    /** NumPkt */
 	t_u32 NumPkt;
-	/** MaxPE */
+    /** MaxPE */
 	t_u32 MaxPE;
-	/** BeamChange */
+    /** BeamChange */
 	t_u32 BeamChange;
-	/** Dcm */
+    /** Dcm */
 	t_u32 Dcm;
-	/** Doppler */
+    /** Doppler */
 	t_u32 Doppler;
-	/** MidP */
+    /** MidP */
 	t_u32 MidP;
-	/** QNum */
+    /** QNum */
 	t_u32 QNum;
 
 } MLAN_PACK_END;
@@ -5452,23 +5631,23 @@ struct MLAN_PACK_START mfg_cmd_tx_cont {
 } MLAN_PACK_END;
 
 struct MLAN_PACK_START mfg_Cmd_HE_TBTx_t {
-	/** MFG command code */
+    /** MFG command code */
 	t_u32 mfg_cmd;
-	/** Action */
+    /** Action */
 	t_u16 action;
-	/** Device ID */
+    /** Device ID */
 	t_u16 device_id;
-	/** MFG Error code */
+    /** MFG Error code */
 	t_u32 error;
-	/** Enable Tx */
+    /** Enable Tx */
 	t_u16 enable;
-	/** Q num */
+    /** Q num */
 	t_u16 qnum;
-	/** AID */
+    /** AID */
 	t_u16 aid;
-	/** AXQ Mu Timer */
+    /** AXQ Mu Timer */
 	t_u16 axq_mu_timer;
-	/** Tx Power */
+    /** Tx Power */
 	t_u16 tx_power;
 } MLAN_PACK_END;
 
@@ -5489,41 +5668,12 @@ typedef struct _mlan_ds_misc_cfp_tbl {
 	chan_freq_power_t cfp_tbl[];
 } mlan_ds_misc_cfp_tbl;
 
-/** mlan_ds_mc_aggr_cfg for MLAN_OID_MISC_MC_AGGR_CFG */
-typedef struct _mlan_ds_mc_aggr_cfg {
-	/** action */
-	t_u8 action;
-	/* 1 enable, 0 disable
-	 * bit 0 MC aggregation
-	 * bit 1 packet expiry
-	 * bit 2 CTS2Self
-	 * bit 3 CTS2Self duration offset*/
-	t_u8 enable_bitmap;
-	/* 1 valid, 0 invalid
-	 * bit 0 MC aggregation
-	 * bit 1 packet expiry
-	 * bit 2 CTS2Self
-	 * bit 3 CTS2Self duration offset*/
-	t_u8 mask_bitmap;
-	/** CTS2Self duration offset */
-	t_u16 cts2self_offset;
-} mlan_ds_mc_aggr_cfg;
-
-/** mlan_ds_stats */
-typedef struct _mlan_ds_stats {
-	/** action */
-	t_u16 action;
-	/** tlv len */
-	t_u16 tlv_len;
-	/** TLV buffer */
-	t_u8 tlv_buf[1];
-} mlan_ds_stats;
-
 typedef struct _mlan_ds_ch_load {
 	/** action */
 	t_u8 action;
 	t_u16 ch_load_param;
 	t_s16 noise;
+	t_u16 rx_quality;
 	t_u16 duration;
 } mlan_ds_ch_load;
 
@@ -5537,10 +5687,6 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_gen_ie gen_ie;
 		/** Region code for MLAN_OID_MISC_REGION */
 		t_u32 region_code;
-#ifdef SDIO
-		/** SDIO MP-A Ctrl command for MLAN_OID_MISC_SDIO_MPA_CTRL */
-		mlan_ds_misc_sdio_mpa_ctrl mpa_ctrl;
-#endif
 		/** Hostcmd for MLAN_OID_MISC_HOST_CMD */
 		mlan_ds_misc_cmd hostcmd;
 		/** System clock for MLAN_OID_MISC_SYS_CLOCK */
@@ -5572,8 +5718,6 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_tx_datapause tx_datapause;
 		/** IP address configuration */
 		mlan_ds_misc_ipaddr_cfg ipaddr_cfg;
-		/** IPv6 Router Advertisement offload configuration */
-		mlan_ds_misc_ipv6_ra_offload ipv6_ra_offload;
 		/** MAC control for MLAN_OID_MISC_MAC_CONTROL */
 		t_u32 mac_ctrl;
 		/** MEF configuration for MLAN_OID_MISC_MEF_CFG */
@@ -5594,21 +5738,24 @@ typedef struct _mlan_ds_misc_cfg {
 #endif
 		/** Hotspot config param set */
 		t_u32 hotspot_cfg;
+		/** Multi AP flag */
+		t_u8 multi_ap_flag;
 #ifdef STA_SUPPORT
 		ExtCap_t ext_cap;
 #endif
 		mlan_ds_misc_otp_user_data otp_user_data;
-#ifdef USB
-		/** USB aggregation parameters for MLAN_OID_MISC_USB_AGGR_CTRL
-		 */
-		mlan_ds_misc_usb_aggr_ctrl usb_aggr_params;
-#endif
-		mlan_ds_misc_aggr_ctrl aggr_params;
 		/** Tx control */
 		t_u32 tx_control;
 #if defined(STA_SUPPORT)
 		mlan_ds_misc_pmfcfg pmfcfg;
 #endif
+		/** Multi-channel config for MLAN_OID_MISC_MULTI_CHAN_CFG */
+		mlan_ds_multi_chan_cfg multi_chan_cfg;
+		/** Multi-channel policy for MLAN_OID_MISC_MULTI_CHAN_POLICY */
+		t_u16 multi_chan_policy;
+		/** channel drcs time slicing config for MLAN_OID_MISC_DRCS_CFG
+		 */
+		mlan_ds_drcs_cfg drcs_cfg[2];
 #ifdef WIFI_DIRECT_SUPPORT
 		mlan_ds_wifi_direct_config p2p_config;
 #endif
@@ -5616,8 +5763,6 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_tsf_info tsf_info;
 		mlan_ds_coalesce_cfg coalesce_cfg;
 		t_u8 low_pwr_mode;
-		/** MEF-FLT-CONFIG for MLAN_OID_MISC_NV_FLT_CFG */
-		mlan_ds_misc_mef_flt_cfg mef_flt_cfg;
 		mlan_ds_misc_dfs_repeater dfs_repeater;
 #ifdef RX_PACKET_COALESCE
 		mlan_ds_misc_rx_packet_coalesce rx_coalesce;
@@ -5633,16 +5778,22 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_roam_offload roam_offload;
 		t_u64 misc_tsf;
 		mlan_ds_custom_reg_domain custom_reg_domain;
-		mlan_ds_misc_keep_alive keep_alive;
 		mlan_ds_misc_tx_rx_histogram tx_rx_histogram;
 		mlan_ds_cw_mode_ctrl cwmode;
 		/**  Tx/Rx per-packet control */
 		t_u8 txrx_pkt_ctrl;
 		mlan_ds_misc_robustcoex_params robustcoexparams;
+		/** config RTT for MLAN_OID_MISC_CONFIG_RTT */
+		mlan_rtt_config_params rtt_params;
+		/** cancel RTT for MLAN_OID_MISC_CANCEL_RTT */
+		mlan_rtt_cancel_params rtt_cancel;
+		/** config RTT responder for MLAN_OID_MISC_RTT_RESPONDER_CFG */
+		mlan_rtt_responder rtt_rsp_cfg;
 #if defined(PCIE)
 		mlan_ds_ssu_params ssu_params;
 #endif
 		mlan_ds_csi_params csi_params;
+		mlan_ds_host_clock host_clock;
 		/** boot sleep enable or disable */
 		t_u16 boot_sleep;
 		/** Mapping Policy */
@@ -5666,10 +5817,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;
 		mlan_ds_misc_dot11mc_unassoc_ftm_cfg dot11mc_unassoc_ftm_cfg;
-		mlan_ds_misc_tp_state tp_state;
 		mlan_ds_hal_phy_cfg_params hal_phy_cfg_params;
-		mlan_ds_mc_aggr_cfg mc_aggr_cfg;
-		mlan_ds_stats stats;
 #ifdef UAP_SUPPORT
 		t_u8 wacp_mode;
 #endif

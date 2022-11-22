@@ -80,7 +80,7 @@ moal-y += mlinux/moal_proc.o \
 ccflags-y += -DMLAN_64BIT
 
 # non-option
-ccflags-y += -DLINUX -DFPNUM='"92"'
+ccflags-y += -DLINUX -DFPNUM='"68"'
 moal-y += mlinux/moal_main.o \
                 mlinux/moal_ioctl.o \
                 mlinux/moal_shim.o \
