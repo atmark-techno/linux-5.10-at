@@ -195,7 +195,7 @@ uap_process_cmdresp_error(mlan_private *pmpriv,
 
 	ENTER();
 	if (resp->command != HostCmd_CMD_WMM_PARAM_CONFIG
-	    || resp->command != HostCmd_CMD_CHAN_REGION_CFG)
+	    && resp->command != HostCmd_CMD_CHAN_REGION_CFG)
 		PRINTM(MERROR, "CMD_RESP: cmd %#x error, result=%#x\n",
 		       resp->command, resp->result);
 	if (pioctl_buf)
