@@ -2217,6 +2217,77 @@ static struct attribute_group imx_pcie_attrgroup = {
 	.attrs	= imx_pcie_rc_attrs,
 };
 
+#define DIS_SLEEP_JITTER 100
+static ssize_t dis1_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long dis1;
+	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
+
+	ret = kstrtoul(buf, 0, &dis1);
+	if (ret < 0 || dis1 > ULONG_MAX - DIS_SLEEP_JITTER)
+		return -EINVAL;
+	if (!gpio_is_valid(imx6_pcie->dis_gpio)) {
+		dev_info(dev, "dis1 not valid\n");
+		return -EINVAL;
+	}
+	dev_info(dev, "resetting dis1 for %ld us.\n", dis1);
+
+	gpio_set_value_cansleep(imx6_pcie->dis_gpio,
+				imx6_pcie->dis_gpio_active_high);
+	usleep_range(dis1, dis1 + DIS_SLEEP_JITTER);
+	gpio_set_value_cansleep(imx6_pcie->dis_gpio,
+				!imx6_pcie->dis_gpio_active_high);
+
+	return count;
+}
+static DEVICE_ATTR_WO(dis1);
+
+static struct attribute *imx_pcie_dis1_attrs[] = {
+	&dev_attr_dis1.attr,
+	NULL
+};
+
+static struct attribute_group imx_pcie_dis1_attrgroup = {
+	.attrs	= imx_pcie_dis1_attrs,
+};
+
+static ssize_t dis2_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long dis2;
+	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
+
+	ret = kstrtoul(buf, 0, &dis2);
+	if (ret < 0 || dis2 > ULONG_MAX - DIS_SLEEP_JITTER)
+		return -EINVAL;
+	if (!gpio_is_valid(imx6_pcie->dis2_gpio)) {
+		dev_info(dev, "dis2 not valid\n");
+		return -EINVAL;
+	}
+	dev_info(dev, "resetting dis2 for %ld us.\n", dis2);
+
+	gpio_set_value_cansleep(imx6_pcie->dis2_gpio,
+				imx6_pcie->dis_gpio_active_high);
+	usleep_range(dis2, dis2 + DIS_SLEEP_JITTER);
+	gpio_set_value_cansleep(imx6_pcie->dis2_gpio,
+				!imx6_pcie->dis_gpio_active_high);
+
+	return count;
+}
+static DEVICE_ATTR_WO(dis2);
+
+static struct attribute *imx_pcie_dis2_attrs[] = {
+	&dev_attr_dis2.attr,
+	NULL
+};
+
+static struct attribute_group imx_pcie_dis2_attrgroup = {
+	.attrs	= imx_pcie_dis2_attrs,
+};
+
 static void imx6_pcie_clkreq_enable(struct imx6_pcie *imx6_pcie)
 {
 	/*
@@ -2498,6 +2569,9 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "unable to get disable gpio\n");
 			return ret;
 		}
+		ret = sysfs_create_group(&pdev->dev.kobj, &imx_pcie_dis1_attrgroup);
+		if (ret)
+			dev_warn(&pdev->dev, "unable to create sysfs group for dis1 gpio\n");
 	} else if (imx6_pcie->dis_gpio == -EPROBE_DEFER) {
 		return imx6_pcie->dis_gpio;
 	}
@@ -2512,6 +2586,9 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "unable to get disable gpio2\n");
 			return ret;
 		}
+		ret = sysfs_create_group(&pdev->dev.kobj, &imx_pcie_dis2_attrgroup);
+		if (ret)
+			dev_warn(&pdev->dev, "unable to create sysfs group for dis2 gpio\n");
 	} else if (imx6_pcie->dis2_gpio == -EPROBE_DEFER) {
 		return imx6_pcie->dis2_gpio;
 	}
