@@ -314,7 +314,7 @@
 	pinctrl-0 = <&pinctrl_eqos>;
 	pinctrl-1 = <&pinctrl_eqos_sleep>;
 	phy-mode = "rgmii-id";
-	phy-handle = <&ethphy0>;
+	phy-handle = <&eqosphy0>;
 	snps,reset-gpio = <&gpio4 22 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 15000 150000>; // hold reset 15ms and wait 150ms after reset for reinit
@@ -325,13 +325,26 @@
 		compatible = "snps,dwmac-mdio";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		ethphy0: ethernet-phy@0 {
+		eqosphy0: eqos-phy@3 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			eee-broken-1000t;
 			eee-broken-100tx;
 			reg = <3>;
 			micrel,ksz9031-led1-mode = <KSZ9131_LINK_ACTIVITY>;
 			micrel,ksz9031-led2-mode = <KSZ9131_LINK100>;
+		};
+
+		eqosphy1: eqos-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			eee-broken-1000t;
+			eee-broken-100tx;
+			reg = <0>;
+
+			/* marvell,reg-init = <reg-page reg mask value>; */
+			marvell,reg-init =
+				<3 16 0xff00 0x73>,
+				<3 17 0xfff0 0xa>,
+				<18 20 0xfff8 0x0>;
 		};
 	};
 };
@@ -341,7 +354,7 @@
 	pinctrl-0 = <&pinctrl_fec>;
 	pinctrl-1 = <&pinctrl_fec_sleep>;
 	phy-mode = "rgmii-id";
-	phy-handle = <&ethphy1>;
+	phy-handle = <&fecphy0>;
 	phy-supply = <&reg_enet1_ldo_en>;
 	fsl,magic-packet;
 	phy-reset-gpios = <&gpio4 2 GPIO_ACTIVE_LOW>;
@@ -353,11 +366,22 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		ethphy1: ethernet-phy@1 {
+		fecphy0: fec-phy@3 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <3>;
 			micrel,ksz9031-led1-mode = <KSZ9131_LINK_ACTIVITY>;
 			micrel,ksz9031-led2-mode = <KSZ9131_LINK100>;
+		};
+
+		fecphy1: fec-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+
+			/* marvell,reg-init = <reg-page reg mask value>; */
+			marvell,reg-init =
+				<3 16 0xff00 0x73>,
+				<3 17 0xfff0 0xa>,
+				<18 20 0xfff8 0x0>;
 		};
 	};
 };
