@@ -59,14 +59,13 @@ struct imx_fsb_s400_fuse {
 	struct mutex lock;
 };
 
-static int read_words_via_s400_api(u32 *buf, unsigned int fuse_base)
+static int read_words_via_s400_api(u32 *buf, unsigned int fuse_base, unsigned int num)
 {
 	unsigned int i;
 	int err = 0;
 
-	for (i = 0; i < 8; i++) {
+	for (i = 0; i < num; i++)
 		err = read_common_fuse(fuse_base + i, buf + i);
-	}
 
 	return err;
 }
@@ -117,12 +116,12 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 		case 0:
 			break;
 		case LOCK_CFG:
-			err = read_words_via_s400_api(&buf[8], 8);
+			err = read_words_via_s400_api(&buf[8], 8, 8);
 			if (err)
 				goto ret;
 			break;
 		case ECID:
-			err = read_words_via_s400_api(&buf[16], 16);
+			err = read_words_via_s400_api(&buf[16], 16, 8);
 			if (err)
 				goto ret;
 			break;
@@ -133,6 +132,29 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 			break;
 		case OTFAD_CFG:
 			err = read_common_fuse(OTFAD_CONFIG, &buf[184]);
+			if (err)
+				goto ret;
+			break;
+		case 25:
+		case 26:
+		case 27:
+			err = read_words_via_s400_api(&buf[200], 200, 24);
+			if (err)
+				goto ret;
+			break;
+		case 32:
+		case 33:
+		case 34:
+		case 35:
+		case 36:
+			err = read_words_via_s400_api(&buf[256], 256, 40);
+			if (err)
+				goto ret;
+			break;
+		case 49:
+		case 50:
+		case 51:
+			err = read_words_via_s400_api(&buf[392], 392, 24);
 			if (err)
 				goto ret;
 			break;
