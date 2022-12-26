@@ -87,7 +87,7 @@ Change log:
 #define UAP_CHAN_SWITCH_COUNT_CFG 23
 #define UAP_BAND_STEER 24
 
-#define UAP_BEACON_STUCK_DETECT      25
+#define UAP_BEACON_STUCK_DETECT 25
 
 /** Private command ID to Power Mode */
 #define UAP_POWER_MODE (SIOCDEVPRIVATE + 3)
@@ -205,7 +205,7 @@ typedef struct _skip_cac_para {
 	t_u16 skip_cac;
 	/** channel */
 	t_u8 channel;
-    /** bandwidth */
+	/** bandwidth */
 	t_u8 bw;
 } skip_cac_para;
 
@@ -416,13 +416,15 @@ typedef struct _band_steer_para {
 
 /** beacon stuck detect mechanism parameters */
 typedef struct _beacon_stuck_detect_para {
-    /** subcmd */
+	/** subcmd */
 	t_u32 subcmd;
-    /** Set/Get */
+	/** Set/Get */
 	t_u8 action;
-    /** No of beacon interval after which firmware will check if beacon Tx is going fine */
+	/** No of beacon interval after which firmware will check if beacon Tx
+	 * is going fine */
 	t_u8 beacon_stuck_detect_count;
-    /** Upon performing MAC reset, no of beacon interval after which firmware will check if recovery was successful */
+	/** Upon performing MAC reset, no of beacon interval after which
+	 * firmware will check if recovery was successful */
 	t_u8 recovery_confirm_count;
 } beacon_stuck_detect_para;
 
@@ -523,12 +525,11 @@ typedef struct _domain_info_param {
 /** DOMAIN_INFO param size of dfs_region */
 #define DFS_REGION_LEN 1
 /** MAX reg domain TLV length*/
-#define MAX_REG_DOMAIN_TLV_LEN \
-	(TLV_HEADER_LEN + DFS_REGION_LEN)
+#define MAX_REG_DOMAIN_TLV_LEN (TLV_HEADER_LEN + DFS_REGION_LEN)
 
 /** Get/Set channel DFS state */
 int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
-			    mlan_ds_11h_chan_dfs_state * ch_dfs_state);
+			    mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
@@ -542,7 +543,7 @@ void woal_uap_set_multicast_list(struct net_device *dev);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req,
-		      void __user * data, int cmd);
+		      void __user *data, int cmd);
 #else
 int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 #endif
@@ -556,7 +557,7 @@ int woal_uap_get_channel_nop_info(moal_private *priv, t_u8 wait_option,
 
 mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 				    t_u8 wait_option,
-				    chan_band_info * uap_channel);
+				    chan_band_info *uap_channel);
 #ifdef CONFIG_PROC_FS
 void woal_uap_get_version(moal_private *priv, char *version, int max_len);
 #endif
@@ -587,10 +588,9 @@ int woal_uap_set_get_multi_ap_mode(moal_private *priv, struct iwreq *wrq);
 
 int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
 			     IEEEtypes_VHTCap_t *vhtcap_ie);
-int woal_11ax_cfg(moal_private *priv, t_u8 action,
-		  mlan_ds_11ax_he_cfg * he_cfg);
+int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg);
 int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
-			     IEEEtypes_HECap_t * hecap_ie);
+			     IEEEtypes_HECap_t *hecap_ie);
 int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg,
 			   t_u16 ht_cap, t_u8 en);
 mlan_status woal_uap_set_11n_status(moal_private *priv,

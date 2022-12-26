@@ -37,8 +37,7 @@ Change log:
  *
  *  @return             TID
  */
-static INLINE t_u32
-wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
+static INLINE t_u32 wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
 {
 	pmlan_buffer mbuf;
 
@@ -48,7 +47,7 @@ wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
 	LEAVE();
 
 	if (!mbuf) {
-		return 0;	// The default TID,BE
+		return 0; // The default TID,BE
 	} else
 		return mbuf->priority;
 }
@@ -60,8 +59,7 @@ wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
  *
  *  @return             Length of list
  */
-static INLINE t_u32
-wlan_wmm_list_len(pmlan_list_head head)
+static INLINE t_u32 wlan_wmm_list_len(pmlan_list_head head)
 {
 	pmlan_linked_list pos;
 	t_u32 count = 0;
@@ -86,8 +84,7 @@ wlan_wmm_list_len(pmlan_list_head head)
  *
  *  @return             N/A
  */
-static INLINE t_void
-wlan_request_ralist_lock(pmlan_private priv)
+static INLINE t_void wlan_request_ralist_lock(pmlan_private priv)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
@@ -109,8 +106,7 @@ wlan_request_ralist_lock(pmlan_private priv)
  *
  *  @return             N/A
  */
-static INLINE t_void
-wlan_release_ralist_lock(pmlan_private priv)
+static INLINE t_void wlan_release_ralist_lock(pmlan_private priv)
 {
 	mlan_adapter *pmadapter = priv->adapter;
 	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
@@ -158,8 +154,8 @@ extern void wlan_wmm_setup_queues(pmlan_private priv);
 void wlan_wmm_default_queue_priorities(pmlan_private priv);
 /* process wmm_param_config command */
 mlan_status wlan_cmd_wmm_param_config(pmlan_private pmpriv,
-				      HostCmd_DS_COMMAND *cmd,
-				      t_u8 cmd_action, t_void *pdata_buf);
+				      HostCmd_DS_COMMAND *cmd, t_u8 cmd_action,
+				      t_void *pdata_buf);
 
 /* process wmm_param_config command response */
 mlan_status wlan_ret_wmm_param_config(pmlan_private pmpriv,

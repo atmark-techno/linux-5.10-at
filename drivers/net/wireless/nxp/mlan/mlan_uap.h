@@ -40,8 +40,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 				     t_u16 cmd_action, t_u32 cmd_oid,
-				     t_void *pioctl_buf,
-				     t_void *pdata_buf, t_void *pcmd_buf);
+				     t_void *pioctl_buf, t_void *pdata_buf,
+				     t_void *pcmd_buf);
 
 mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 					 t_void *pcmd_buf, t_void *pioctl);

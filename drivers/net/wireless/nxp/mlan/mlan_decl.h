@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "366.p3"
+#define MLAN_RELEASE_VERSION "366.p7"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -271,7 +271,7 @@ typedef t_s32 t_sval;
 /** pcie card reset */
 #define FW_RELOAD_PCIE_RESET 4
 #endif
-#define FW_RELOAD_SDIO_HW_RESET   5
+#define FW_RELOAD_SDIO_HW_RESET 5
 
 /** MLAN MAC Address Length */
 #define MLAN_MAC_ADDR_LENGTH (6)
@@ -377,7 +377,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_PCIEIW629 "PCIEIW629"
 #endif
 
-#define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct) & 0xf))
+#define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct)&0xf))
 #define IS_CARD8887(ct) (CARD_TYPE_8887 == ((ct)&0xf))
 #define IS_CARD8897(ct) (CARD_TYPE_8897 == ((ct)&0xf))
 #define IS_CARD8977(ct) (CARD_TYPE_8977 == ((ct)&0xf))
@@ -449,7 +449,7 @@ typedef enum {
 #define MLAN_BUF_FLAG_RATE_ADAPT_PROBE_PKT MBIT(15)
 #endif
 
-#define MLAN_BUF_FLAG_EASYMESH    MBIT(16)
+#define MLAN_BUF_FLAG_EASYMESH MBIT(16)
 
 #ifdef DEBUG_LEVEL1
 /** Debug level bit definition */
@@ -532,17 +532,17 @@ typedef enum _mlan_buf_type {
 	MLAN_BUF_TYPE_RAW_DATA,
 } mlan_buf_type;
 
-#define SCAN_STATE_SCAN_START				MBIT(0)
-#define SCAN_STATE_EXT_SCAN                 MBIT(1)
-#define SCAN_STATE_EXT_SCAN_ENH             MBIT(2)
-#define SCAN_STATE_EXT_SCAN_CANCEL          MBIT(3)
-#define SCAN_STATE_EXT_SCAN_CMDRESP         MBIT(4)
-#define SCAN_STATE_EXT_SCAN_ENH_CMDRESP     MBIT(5)
-#define SCAN_STATE_EXT_SCAN_CANCEL_CMDRESP  MBIT(6)
-#define SCAN_STATE_EXT_SCAN_RESULT          MBIT(7)
-#define SCAN_STATE_LAST_EXT_SCAN_RESULT     MBIT(8)
-#define SCAN_STATE_EXT_SCAN_STATUS          MBIT(9)
-#define SCAN_STATE_SCAN_COMPLETE			MBIT(10)
+#define SCAN_STATE_SCAN_START MBIT(0)
+#define SCAN_STATE_EXT_SCAN MBIT(1)
+#define SCAN_STATE_EXT_SCAN_ENH MBIT(2)
+#define SCAN_STATE_EXT_SCAN_CANCEL MBIT(3)
+#define SCAN_STATE_EXT_SCAN_CMDRESP MBIT(4)
+#define SCAN_STATE_EXT_SCAN_ENH_CMDRESP MBIT(5)
+#define SCAN_STATE_EXT_SCAN_CANCEL_CMDRESP MBIT(6)
+#define SCAN_STATE_EXT_SCAN_RESULT MBIT(7)
+#define SCAN_STATE_LAST_EXT_SCAN_RESULT MBIT(8)
+#define SCAN_STATE_EXT_SCAN_STATUS MBIT(9)
+#define SCAN_STATE_SCAN_COMPLETE MBIT(10)
 
 /** MLAN BSS type */
 typedef enum _mlan_bss_type {
@@ -712,7 +712,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
 
 #define OID_TYPE_CAL 0x2
 #define OID_TYPE_DPD 0xa
-#define UNKNOW_DPD_LENGTH   0xffffffff
+#define UNKNOW_DPD_LENGTH 0xffffffff
 
 /** Custom data structure */
 typedef struct _mlan_init_param {
@@ -742,29 +742,28 @@ enum mlan_channel_type {
 
 /** channel band */
 enum { BAND_2GHZ = 0,
-	BAND_5GHZ = 1,
-	BAND_6GHZ = 2,
-	BAND_4GHZ = 3,
+       BAND_5GHZ = 1,
+       BAND_6GHZ = 2,
+       BAND_4GHZ = 3,
 };
 
 /** channel offset */
 enum { SEC_CHAN_NONE = 0,
-	SEC_CHAN_ABOVE = 1,
-	SEC_CHAN_5MHZ = 2,
-	SEC_CHAN_BELOW = 3
-};
+       SEC_CHAN_ABOVE = 1,
+       SEC_CHAN_5MHZ = 2,
+       SEC_CHAN_BELOW = 3 };
 
 /** channel bandwidth */
 enum { CHAN_BW_20MHZ = 0,
-	CHAN_BW_10MHZ,
-	CHAN_BW_40MHZ,
-	CHAN_BW_80MHZ,
+       CHAN_BW_10MHZ,
+       CHAN_BW_40MHZ,
+       CHAN_BW_80MHZ,
 };
 
 /** scan mode */
 enum { SCAN_MODE_MANUAL = 0,
-	SCAN_MODE_ACS,
-	SCAN_MODE_USER,
+       SCAN_MODE_ACS,
+       SCAN_MODE_USER,
 };
 
 /** DFS state */
@@ -797,7 +796,8 @@ typedef enum _dfs_w53_cfg_t {
 typedef enum _dfs_moe_t {
 	/** driver default DFS behavior */
 	DFS_MODE_DEFAULT = 0,
-	/* disable DFS master when uap and station operate in same DFS channel */
+	/* disable DFS master when uap and station operate in same DFS channel
+	 */
 	DFS_MODE_ENH = 1,
 } dfs_mode_t;
 
@@ -805,22 +805,22 @@ typedef enum _dfs_moe_t {
 typedef MLAN_PACK_START struct _Band_Config_t {
 #ifdef BIG_ENDIAN_SUPPORT
 	/** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
-	t_u8 scanMode:2;
+	t_u8 scanMode : 2;
 	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
-	t_u8 chan2Offset:2;
+	t_u8 chan2Offset : 2;
 	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
-	t_u8 chanWidth:2;
+	t_u8 chanWidth : 2;
 	/** Band Info - (00)=2.4GHz, (01)=5GHz */
-	t_u8 chanBand:2;
+	t_u8 chanBand : 2;
 #else
 	/** Band Info - (00)=2.4GHz, (01)=5GHz */
-	t_u8 chanBand:2;
+	t_u8 chanBand : 2;
 	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
-	t_u8 chanWidth:2;
+	t_u8 chanWidth : 2;
 	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
-	t_u8 chan2Offset:2;
+	t_u8 chan2Offset : 2;
 	/** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
-	t_u8 scanMode:2;
+	t_u8 scanMode : 2;
 #endif
 } MLAN_PACK_END Band_Config_t;
 
@@ -900,13 +900,13 @@ typedef struct _mlan_event {
 
 /** mlan_cmdresp_event data structure */
 typedef struct _mlan_cmdresp_event {
-    /** BSS index number for multiple BSS support */
+	/** BSS index number for multiple BSS support */
 	t_u32 bss_index;
-    /** Event ID */
+	/** Event ID */
 	mlan_event_id event_id;
-    /** Event length */
+	/** Event length */
 	t_u32 event_len;
-    /** resp buffer pointer */
+	/** resp buffer pointer */
 	t_u8 *resp;
 } mlan_cmdresp_event, *pmlan_cmdresp_event;
 
@@ -1027,20 +1027,20 @@ typedef MLAN_PACK_START struct {
 	/** Host tx power ctrl:
 	     0x0: use fw setting for TX power
 	     0x1: value specified in bit[6] and bit[5:0] are valid */
-	t_u8 hostctl:1;
+	t_u8 hostctl : 1;
 	/** Sign of the power specified in bit[5:0] */
-	t_u8 sign:1;
+	t_u8 sign : 1;
 	/** Power to be used for transmission(in dBm) */
-	t_u8 abs_val:6;
+	t_u8 abs_val : 6;
 #else
 	/** Power to be used for transmission(in dBm) */
-	t_u8 abs_val:6;
+	t_u8 abs_val : 6;
 	/** Sign of the power specified in bit[5:0] */
-	t_u8 sign:1;
+	t_u8 sign : 1;
 	/** Host tx power ctrl:
 	     0x0: use fw setting for TX power
 	     0x1: value specified in bit[6] and bit[5:0] are valid */
-	t_u8 hostctl:1;
+	t_u8 hostctl : 1;
 #endif
 } MLAN_PACK_END tx_power_t;
 /* pkt_txctrl */
@@ -1113,7 +1113,7 @@ typedef struct _mlan_buffer {
 	t_u32 out_ts_usec;
 	/** tx_seq_num */
 	t_u32 tx_seq_num;
-    /** When TX ra mac address,  When Rx Ta mac address*/
+	/** When TX ra mac address,  When Rx Ta mac address*/
 	t_u8 mac[MLAN_MAC_ADDR_LENGTH];
 	/** Fields below are valid for MLAN module only */
 	/** Pointer to parent mlan_buffer */
@@ -1187,8 +1187,8 @@ typedef MLAN_PACK_START enum _mlan_wmm_queue_stats_action_e {
 	MLAN_WMM_STATS_ACTION_START = 0,
 	MLAN_WMM_STATS_ACTION_STOP = 1,
 	MLAN_WMM_STATS_ACTION_GET_CLR = 2,
-	MLAN_WMM_STATS_ACTION_SET_CFG = 3,	/* Not currently used */
-	MLAN_WMM_STATS_ACTION_GET_CFG = 4,	/* Not currently used */
+	MLAN_WMM_STATS_ACTION_SET_CFG = 3, /* Not currently used */
+	MLAN_WMM_STATS_ACTION_GET_CFG = 4, /* Not currently used */
 	MLAN_WMM_STATS_ACTION_MAX
 } MLAN_PACK_END mlan_wmm_queue_stats_action_e;
 
@@ -1214,7 +1214,7 @@ typedef MLAN_PACK_START struct {
 } MLAN_PACK_END wlan_ioctl_wmm_ts_status_t,
 	/** Type definition of mlan_ds_wmm_ts_status for
 	   MLAN_OID_WMM_CFG_TS_STATUS */
-mlan_ds_wmm_ts_status, *pmlan_ds_wmm_ts_status;
+	mlan_ds_wmm_ts_status, *pmlan_ds_wmm_ts_status;
 
 /** Max Ie length */
 #define MAX_IE_SIZE 256
@@ -1531,17 +1531,17 @@ typedef struct {
 /** wifi rate */
 typedef struct {
 	/** 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
-	t_u32 preamble:3;
+	t_u32 preamble : 3;
 	/** 0:1x1, 1:2x2, 3:3x3, 4:4x4 */
-	t_u32 nss:2;
+	t_u32 nss : 2;
 	/** 0:20MHz, 1:40Mhz, 2:80Mhz, 3:160Mhz */
-	t_u32 bw:3;
+	t_u32 bw : 3;
 	/** OFDM/CCK rate code would be as per ieee std in the units of 0.5mbps
 	 */
 	/** HT/VHT it would be mcs index */
-	t_u32 rateMcsIdx:8;
+	t_u32 rateMcsIdx : 8;
 	/** reserved */
-	t_u32 reserved:16;
+	t_u32 reserved : 16;
 	/** units of 100 Kbps */
 	t_u32 bitrate;
 } wifi_rate;
@@ -1664,7 +1664,7 @@ typedef struct {
 	t_u32 reserved0;
 	/** TBD: tx_time_per_levels: pointer to an array of radio transmit per
 	 * power levels in msecs accured over time */
-	/* t_u32 *reserved1; */
+	/* t_u32 *reserved1;*/
 	/** msecs the radio is in active receive (32 bits number accruing over
 	 * time) */
 	t_u32 rx_time;
@@ -1774,7 +1774,7 @@ typedef struct {
 /** interface statistics */
 typedef struct {
 	/** wifi interface */
-	/* wifi_interface_handle iface; */
+	/* wifi_interface_handle iface;*/
 	/** current state of the interface */
 	mlan_interface_link_layer_info info;
 	/** access point beacon received count from connected AP */
@@ -2167,159 +2167,145 @@ typedef struct _sta_stats {
 /** mlan_callbacks data structure */
 typedef struct _mlan_callbacks {
 	/** moal_get_fw_data */
-	mlan_status (*moal_get_fw_data) (t_void *pmoal,
-					 t_u32 offset, t_u32 len, t_u8 *pbuf);
-	mlan_status (*moal_get_vdll_data) (t_void *pmoal, t_u32 len,
-					   t_u8 *pbuf);
+	mlan_status (*moal_get_fw_data)(t_void *pmoal, t_u32 offset, t_u32 len,
+					t_u8 *pbuf);
+	mlan_status (*moal_get_vdll_data)(t_void *pmoal, t_u32 len, t_u8 *pbuf);
 	/** moal_get_hw_spec_complete */
-	mlan_status (*moal_get_hw_spec_complete) (t_void *pmoal,
-						  mlan_status status,
-						  pmlan_hw_info phw,
-						  pmlan_bss_tbl ptbl);
+	mlan_status (*moal_get_hw_spec_complete)(t_void *pmoal,
+						 mlan_status status,
+						 pmlan_hw_info phw,
+						 pmlan_bss_tbl ptbl);
 	/** moal_init_fw_complete */
-	mlan_status (*moal_init_fw_complete) (t_void *pmoal,
-					      mlan_status status);
+	mlan_status (*moal_init_fw_complete)(t_void *pmoal, mlan_status status);
 	/** moal_shutdown_fw_complete */
-	mlan_status (*moal_shutdown_fw_complete) (t_void *pmoal,
-						  mlan_status status);
+	mlan_status (*moal_shutdown_fw_complete)(t_void *pmoal,
+						 mlan_status status);
 	/** moal_send_packet_complete */
-	mlan_status (*moal_send_packet_complete) (t_void *pmoal,
-						  pmlan_buffer pmbuf,
-						  mlan_status status);
+	mlan_status (*moal_send_packet_complete)(t_void *pmoal,
+						 pmlan_buffer pmbuf,
+						 mlan_status status);
 	/** moal_recv_complete */
-	mlan_status (*moal_recv_complete) (t_void *pmoal,
-					   pmlan_buffer pmbuf, t_u32 port,
-					   mlan_status status);
+	mlan_status (*moal_recv_complete)(t_void *pmoal, pmlan_buffer pmbuf,
+					  t_u32 port, mlan_status status);
 	/** moal_recv_packet */
-	mlan_status (*moal_recv_packet) (t_void *pmoal, pmlan_buffer pmbuf);
-    /** moal_recv_amsdu_packet */
-	mlan_status (*moal_recv_amsdu_packet) (t_void *pmoal,
-					       pmlan_buffer pmbuf);
+	mlan_status (*moal_recv_packet)(t_void *pmoal, pmlan_buffer pmbuf);
+	/** moal_recv_amsdu_packet */
+	mlan_status (*moal_recv_amsdu_packet)(t_void *pmoal,
+					      pmlan_buffer pmbuf);
 	/** moal_recv_event */
-	mlan_status (*moal_recv_event) (t_void *pmoal, pmlan_event pmevent);
+	mlan_status (*moal_recv_event)(t_void *pmoal, pmlan_event pmevent);
 	/** moal_ioctl_complete */
-	mlan_status (*moal_ioctl_complete) (t_void *pmoal,
-					    pmlan_ioctl_req pioctl_req,
-					    mlan_status status);
+	mlan_status (*moal_ioctl_complete)(t_void *pmoal,
+					   pmlan_ioctl_req pioctl_req,
+					   mlan_status status);
 
 	/** moal_alloc_mlan_buffer */
-	mlan_status (*moal_alloc_mlan_buffer) (t_void *pmoal,
-					       t_u32 size, ppmlan_buffer pmbuf);
+	mlan_status (*moal_alloc_mlan_buffer)(t_void *pmoal, t_u32 size,
+					      ppmlan_buffer pmbuf);
 	/** moal_free_mlan_buffer */
-	mlan_status (*moal_free_mlan_buffer) (t_void *pmoal,
-					      pmlan_buffer pmbuf);
+	mlan_status (*moal_free_mlan_buffer)(t_void *pmoal, pmlan_buffer pmbuf);
 
 #if defined(PCIE)
 	/** moal_write_reg */
-	mlan_status (*moal_write_reg) (t_void *pmoal, t_u32 reg, t_u32 data);
+	mlan_status (*moal_write_reg)(t_void *pmoal, t_u32 reg, t_u32 data);
 	/** moal_read_reg */
-	mlan_status (*moal_read_reg) (t_void *pmoal, t_u32 reg, t_u32 *data);
-#endif				/* SDIO || PCIE */
+	mlan_status (*moal_read_reg)(t_void *pmoal, t_u32 reg, t_u32 *data);
+#endif /* SDIO || PCIE */
 	/** moal_write_data_sync */
-	mlan_status (*moal_write_data_sync) (t_void *pmoal,
-					     pmlan_buffer pmbuf,
-					     t_u32 port, t_u32 timeout);
-	/** moal_read_data_sync */
-	mlan_status (*moal_read_data_sync) (t_void *pmoal,
-					    pmlan_buffer pmbuf,
+	mlan_status (*moal_write_data_sync)(t_void *pmoal, pmlan_buffer pmbuf,
 					    t_u32 port, t_u32 timeout);
+	/** moal_read_data_sync */
+	mlan_status (*moal_read_data_sync)(t_void *pmoal, pmlan_buffer pmbuf,
+					   t_u32 port, t_u32 timeout);
 	/** moal_malloc */
-	mlan_status (*moal_malloc) (t_void *pmoal, t_u32 size,
-				    t_u32 flag, t_u8 **ppbuf);
+	mlan_status (*moal_malloc)(t_void *pmoal, t_u32 size, t_u32 flag,
+				   t_u8 **ppbuf);
 	/** moal_mfree */
-	mlan_status (*moal_mfree) (t_void *pmoal, t_u8 *pbuf);
+	mlan_status (*moal_mfree)(t_void *pmoal, t_u8 *pbuf);
 	/** moal_vmalloc */
-	mlan_status (*moal_vmalloc) (t_void *pmoal, t_u32 size, t_u8 **ppbuf);
+	mlan_status (*moal_vmalloc)(t_void *pmoal, t_u32 size, t_u8 **ppbuf);
 	/** moal_vfree */
-	mlan_status (*moal_vfree) (t_void *pmoal, t_u8 *pbuf);
+	mlan_status (*moal_vfree)(t_void *pmoal, t_u8 *pbuf);
 #ifdef PCIE
 	/** moal_malloc_consistent */
-	mlan_status (*moal_malloc_consistent) (t_void *pmoal,
-					       t_u32 size, t_u8 **ppbuf,
-					       t_u64 *pbuf_pa);
+	mlan_status (*moal_malloc_consistent)(t_void *pmoal, t_u32 size,
+					      t_u8 **ppbuf, t_u64 *pbuf_pa);
 	/** moal_mfree_consistent */
-	mlan_status (*moal_mfree_consistent) (t_void *pmoal,
-					      t_u32 size, t_u8 *pbuf,
-					      t_u64 buf_pa);
+	mlan_status (*moal_mfree_consistent)(t_void *pmoal, t_u32 size,
+					     t_u8 *pbuf, t_u64 buf_pa);
 	/** moal_map_memory */
-	mlan_status (*moal_map_memory) (t_void *pmoal, t_u8 *pbuf,
-					t_u64 *pbuf_pa, t_u32 size, t_u32 flag);
+	mlan_status (*moal_map_memory)(t_void *pmoal, t_u8 *pbuf,
+				       t_u64 *pbuf_pa, t_u32 size, t_u32 flag);
 	/** moal_unmap_memory */
-	mlan_status (*moal_unmap_memory) (t_void *pmoal, t_u8 *pbuf,
-					  t_u64 buf_pa, t_u32 size, t_u32 flag);
-#endif				/* PCIE */
+	mlan_status (*moal_unmap_memory)(t_void *pmoal, t_u8 *pbuf,
+					 t_u64 buf_pa, t_u32 size, t_u32 flag);
+#endif /* PCIE */
 	/** moal_memset */
-	t_void *(*moal_memset) (t_void *pmoal, t_void *pmem,
-				t_u8 byte, t_u32 num);
+	t_void *(*moal_memset)(t_void *pmoal, t_void *pmem, t_u8 byte,
+			       t_u32 num);
 	/** moal_memcpy */
-	t_void *(*moal_memcpy) (t_void *pmoal, t_void *pdest,
-				const t_void *psrc, t_u32 num);
+	t_void *(*moal_memcpy)(t_void *pmoal, t_void *pdest, const t_void *psrc,
+			       t_u32 num);
 	/** moal_memcpy_ext */
-	t_void *(*moal_memcpy_ext) (t_void *pmoal, t_void *pdest,
-				    const t_void *psrc, t_u32 num,
-				    t_u32 dest_size);
+	t_void *(*moal_memcpy_ext)(t_void *pmoal, t_void *pdest,
+				   const t_void *psrc, t_u32 num,
+				   t_u32 dest_size);
 	/** moal_memmove */
-	t_void *(*moal_memmove) (t_void *pmoal, t_void *pdest,
-				 const t_void *psrc, t_u32 num);
+	t_void *(*moal_memmove)(t_void *pmoal, t_void *pdest,
+				const t_void *psrc, t_u32 num);
 	/** moal_memcmp */
-	t_s32 (*moal_memcmp) (t_void *pmoal, const t_void *pmem1,
-			      const t_void *pmem2, t_u32 num);
+	t_s32 (*moal_memcmp)(t_void *pmoal, const t_void *pmem1,
+			     const t_void *pmem2, t_u32 num);
 	/** moal_udelay */
-	t_void (*moal_udelay) (t_void *pmoal, t_u32 udelay);
+	t_void (*moal_udelay)(t_void *pmoal, t_u32 udelay);
 	/** moal_usleep_range */
-	t_void (*moal_usleep_range) (t_void *pmoal,
-				     t_u32 min_delay, t_u32 max_delay);
+	t_void (*moal_usleep_range)(t_void *pmoal, t_u32 min_delay,
+				    t_u32 max_delay);
 	/** moal_get_boot_ktime */
-	mlan_status (*moal_get_boot_ktime) (t_void *pmoal, t_u64 *pnsec);
+	mlan_status (*moal_get_boot_ktime)(t_void *pmoal, t_u64 *pnsec);
 	/** moal_get_system_time */
-	mlan_status (*moal_get_system_time) (t_void *pmoal,
-					     t_u32 *psec, t_u32 *pusec);
+	mlan_status (*moal_get_system_time)(t_void *pmoal, t_u32 *psec,
+					    t_u32 *pusec);
 	/** moal_init_timer*/
-	mlan_status (*moal_init_timer) (t_void *pmoal,
-					t_void **pptimer,
-					IN t_void (*callback) (t_void
-							       *pcontext),
-					t_void *pcontext);
+	mlan_status (*moal_init_timer)(t_void *pmoal, t_void **pptimer,
+				       IN t_void (*callback)(t_void *pcontext),
+				       t_void *pcontext);
 	/** moal_free_timer */
-	mlan_status (*moal_free_timer) (t_void *pmoal, t_void *ptimer);
+	mlan_status (*moal_free_timer)(t_void *pmoal, t_void *ptimer);
 	/** moal_start_timer*/
-	mlan_status (*moal_start_timer) (t_void *pmoal,
-					 t_void *ptimer, t_u8 periodic,
-					 t_u32 msec);
+	mlan_status (*moal_start_timer)(t_void *pmoal, t_void *ptimer,
+					t_u8 periodic, t_u32 msec);
 	/** moal_stop_timer*/
-	mlan_status (*moal_stop_timer) (t_void *pmoal, t_void *ptimer);
+	mlan_status (*moal_stop_timer)(t_void *pmoal, t_void *ptimer);
 	/** moal_init_lock */
-	mlan_status (*moal_init_lock) (t_void *pmoal, t_void **pplock);
+	mlan_status (*moal_init_lock)(t_void *pmoal, t_void **pplock);
 	/** moal_free_lock */
-	mlan_status (*moal_free_lock) (t_void *pmoal, t_void *plock);
+	mlan_status (*moal_free_lock)(t_void *pmoal, t_void *plock);
 	/** moal_spin_lock */
-	mlan_status (*moal_spin_lock) (t_void *pmoal, t_void *plock);
+	mlan_status (*moal_spin_lock)(t_void *pmoal, t_void *plock);
 	/** moal_spin_unlock */
-	mlan_status (*moal_spin_unlock) (t_void *pmoal, t_void *plock);
+	mlan_status (*moal_spin_unlock)(t_void *pmoal, t_void *plock);
 	/** moal_print */
-	t_void (*moal_print) (t_void *pmoal, t_u32 level,
-			      char *pformat, IN ...);
+	t_void (*moal_print)(t_void *pmoal, t_u32 level, char *pformat, IN...);
 	/** moal_print_netintf */
-	t_void (*moal_print_netintf) (t_void *pmoal,
-				      t_u32 bss_index, t_u32 level);
+	t_void (*moal_print_netintf)(t_void *pmoal, t_u32 bss_index,
+				     t_u32 level);
 	/** moal_assert */
-	t_void (*moal_assert) (t_void *pmoal, t_u32 cond);
+	t_void (*moal_assert)(t_void *pmoal, t_u32 cond);
 
 	/** moal_hist_data_add */
-	t_void (*moal_hist_data_add) (t_void *pmoal,
-				      t_u32 bss_index, t_u16 rx_rate,
-				      t_s8 snr, t_s8 nflr, t_u8 antenna);
-	t_void (*moal_updata_peer_signal) (t_void *pmoal,
-					   t_u32 bss_index,
-					   t_u8 *peer_addr, t_s8 snr,
-					   t_s8 nflr);
-	mlan_status (*moal_get_host_time_ns) (t_u64 *time);
-	t_u64 (*moal_do_div) (t_u64 num, t_u32 base);
+	t_void (*moal_hist_data_add)(t_void *pmoal, t_u32 bss_index,
+				     t_u16 rx_rate, t_s8 snr, t_s8 nflr,
+				     t_u8 antenna);
+	t_void (*moal_updata_peer_signal)(t_void *pmoal, t_u32 bss_index,
+					  t_u8 *peer_addr, t_s8 snr, t_s8 nflr);
+	mlan_status (*moal_get_host_time_ns)(t_u64 *time);
+	t_u64 (*moal_do_div)(t_u64 num, t_u32 base);
 #if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-	mlan_status (*moal_wait_hostcmd_complete) (t_void *pmoal,
-						   t_u32 bss_index);
-	mlan_status (*moal_notify_hostcmd_complete) (t_void *pmoal,
-						     t_u32 bss_index);
+	mlan_status (*moal_wait_hostcmd_complete)(t_void *pmoal,
+						  t_u32 bss_index);
+	mlan_status (*moal_notify_hostcmd_complete)(t_void *pmoal,
+						    t_u32 bss_index);
 #endif
 } mlan_callbacks, *pmlan_callbacks;
 
@@ -2420,9 +2406,9 @@ typedef struct _mlan_device {
 	t_u32 drv_mode;
 	/** dfs w53 cfg */
 	t_u8 dfs53cfg;
-    /** dfs_offload */
+	/** dfs_offload */
 	t_u8 dfs_offload;
-    /** extend enhance scan */
+	/** extend enhance scan */
 	t_u8 ext_scan;
 	/* mcs32 setting */
 	t_u8 mcs32;

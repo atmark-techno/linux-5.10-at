@@ -136,7 +136,7 @@ Change log:
 /** DMA cfg3 register */
 #define ADMA_DMA_CFG3 0x0040
 /** ADMA Queue pointer clear */
-#define ADMA_Q_PTR_CLR  MBIT(0)
+#define ADMA_Q_PTR_CLR MBIT(0)
 /** source rd ptr address low */
 #define ADMA_SRC_RD_PTR_LOW 0x0044
 /** source rd ptr address high */
@@ -369,23 +369,23 @@ Change log:
 
 #ifdef PCIE8997
 /* PCIE read data pointer for queue 0 and 1 */
-#define PCIE8997_RD_DATA_PTR_Q0_Q1 0xC1A4	/* 0x8000C1A4 */
+#define PCIE8997_RD_DATA_PTR_Q0_Q1 0xC1A4 /* 0x8000C1A4 */
 /* PCIE read data pointer for queue 2 and 3 */
-#define PCIE8997_RD_DATA_PTR_Q2_Q3 0xC1A8	/* 0x8000C1A8 */
+#define PCIE8997_RD_DATA_PTR_Q2_Q3 0xC1A8 /* 0x8000C1A8 */
 /* PCIE write data pointer for queue 0 and 1 */
-#define PCIE8997_WR_DATA_PTR_Q0_Q1 0xC174	/* 0x8000C174 */
+#define PCIE8997_WR_DATA_PTR_Q0_Q1 0xC174 /* 0x8000C174 */
 /* PCIE write data pointer for queue 2 and 3 */
-#define PCIE8997_WR_DATA_PTR_Q2_Q3 0xC178	/* 0x8000C178 */
+#define PCIE8997_WR_DATA_PTR_Q2_Q3 0xC178 /* 0x8000C178 */
 #endif
 #ifdef PCIE8897
 /* PCIE read data pointer for queue 0 and 1 */
-#define PCIE8897_RD_DATA_PTR_Q0_Q1 0xC08C	/* 0x8000C08C */
+#define PCIE8897_RD_DATA_PTR_Q0_Q1 0xC08C /* 0x8000C08C */
 /* PCIE read data pointer for queue 2 and 3 */
-#define PCIE8897_RD_DATA_PTR_Q2_Q3 0xC090	/* 0x8000C090 */
+#define PCIE8897_RD_DATA_PTR_Q2_Q3 0xC090 /* 0x8000C090 */
 /* PCIE write data pointer for queue 0 and 1 */
-#define PCIE8897_WR_DATA_PTR_Q0_Q1 0xC05C	/* 0x8000C05C */
+#define PCIE8897_WR_DATA_PTR_Q0_Q1 0xC05C /* 0x8000C05C */
 /* PCIE write data pointer for queue 2 and 3 */
-#define PCIE8897_WR_DATA_PTR_Q2_Q3 0xC060	/* 0x8000C060 */
+#define PCIE8897_WR_DATA_PTR_Q2_Q3 0xC060 /* 0x8000C060 */
 #endif
 
 /** Download ready interrupt for CPU */

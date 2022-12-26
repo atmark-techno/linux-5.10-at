@@ -54,8 +54,7 @@ Change log:
  *
  *  @return          0 --success, otherwise fail
  */
-int
-woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
+int woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	struct iwreq *wrq = (struct iwreq *)req;
@@ -103,9 +102,9 @@ woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_WL_FW_RELOAD:
 			break;
 		case WOAL_AP_SET_CFG:
-			ret = woal_uap_set_ap_cfg(priv,
-						  (t_u8 __force *)wrq->u.data.
-						  pointer, wrq->u.data.length);
+			ret = woal_uap_set_ap_cfg(
+				priv, (t_u8 __force *)wrq->u.data.pointer,
+				wrq->u.data.length);
 			break;
 		default:
 			ret = -EINVAL;
@@ -174,8 +173,7 @@ woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
  *
  *  @return         N/A
  */
-void
-woal_ioctl_get_uap_info_resp(moal_private *priv, mlan_ds_get_info *info)
+void woal_ioctl_get_uap_info_resp(moal_private *priv, mlan_ds_get_info *info)
 {
 	ENTER();
 	switch (info->sub_command) {

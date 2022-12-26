@@ -33,7 +33,7 @@ Change log:
 #define WOAL_2K_BYTES 2000
 
 /** PRIVATE CMD ID */
-#define WOAL_IOCTL (SIOCIWFIRSTPRIV)	/* 0x8BE0 defined in wireless.h */
+#define WOAL_IOCTL (SIOCIWFIRSTPRIV) /* 0x8BE0 defined in wireless.h */
 
 /** Private command ID to set one int/get word char */
 #define WOAL_SETONEINT_GETWORDCHAR (WOAL_IOCTL + 1)

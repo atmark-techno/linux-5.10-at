@@ -58,8 +58,7 @@ Change Log:
  *
  *   @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status
-wlan_handle_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
+mlan_status wlan_handle_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private priv = MNULL;
@@ -101,8 +100,8 @@ done:
  *  @return         MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success, otherwise
  * failure
  */
-mlan_status
-wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf, mlan_tx_param *tx_param)
+mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
+			    mlan_tx_param *tx_param)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_adapter pmadapter = priv->adapter;
@@ -180,9 +179,8 @@ done:
  *
  *  @return			MLAN_STATUS_SUCCESS
  */
-mlan_status
-wlan_write_data_complete(pmlan_adapter pmadapter,
-			 pmlan_buffer pmbuf, mlan_status status)
+mlan_status wlan_write_data_complete(pmlan_adapter pmadapter,
+				     pmlan_buffer pmbuf, mlan_status status)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb;
@@ -223,9 +221,8 @@ wlan_write_data_complete(pmlan_adapter pmadapter,
  *
  *  @return			MLAN_STATUS_SUCCESS
  */
-mlan_status
-wlan_recv_packet_complete(pmlan_adapter pmadapter,
-			  pmlan_buffer pmbuf, mlan_status status)
+mlan_status wlan_recv_packet_complete(pmlan_adapter pmadapter,
+				      pmlan_buffer pmbuf, mlan_status status)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
@@ -258,8 +255,7 @@ wlan_recv_packet_complete(pmlan_adapter pmadapter,
  *
  *  @return         N/A
  */
-t_void
-wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
+t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
 {
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
 	ENTER();
@@ -283,8 +279,7 @@ wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
  *
  *  @return         MFALSE if not empty; MTRUE if empty
  */
-INLINE t_u8
-wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
+INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 {
 	return (pmadapter->bypass_pkt_count) ? MFALSE : MTRUE;
 }
@@ -296,8 +291,7 @@ wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
  *
  *  @return      N/A
  */
-t_void
-wlan_cleanup_bypass_txq(mlan_private *priv)
+t_void wlan_cleanup_bypass_txq(mlan_private *priv)
 {
 	pmlan_buffer pmbuf;
 	mlan_adapter *pmadapter = priv->adapter;
@@ -324,8 +318,7 @@ wlan_cleanup_bypass_txq(mlan_private *priv)
  *
  *  @return        N/A
  */
-t_void
-wlan_process_bypass_tx(pmlan_adapter pmadapter)
+t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 {
 	pmlan_buffer pmbuf;
 	mlan_tx_param tx_param;
@@ -337,69 +330,51 @@ wlan_process_bypass_tx(pmlan_adapter pmadapter)
 		for (j = 0; j < pmadapter->priv_num; ++j) {
 			priv = pmadapter->priv[j];
 			if (priv) {
-				pmbuf = (pmlan_buffer)
-					util_dequeue_list(pmadapter->
-							  pmoal_handle,
-							  &priv->bypass_txq,
-							  pmadapter->callbacks.
-							  moal_spin_lock,
-							  pmadapter->callbacks.
-							  moal_spin_unlock);
+				pmbuf = (pmlan_buffer)util_dequeue_list(
+					pmadapter->pmoal_handle,
+					&priv->bypass_txq,
+					pmadapter->callbacks.moal_spin_lock,
+					pmadapter->callbacks.moal_spin_unlock);
 				if (pmbuf) {
-					pmadapter->callbacks.
-						moal_spin_lock(pmadapter->
-							       pmoal_handle,
-							       priv->bypass_txq.
-							       plock);
+					pmadapter->callbacks.moal_spin_lock(
+						pmadapter->pmoal_handle,
+						priv->bypass_txq.plock);
 					pmadapter->bypass_pkt_count--;
-					pmadapter->callbacks.
-						moal_spin_unlock(pmadapter->
-								 pmoal_handle,
-								 priv->
-								 bypass_txq.
-								 plock);
+					pmadapter->callbacks.moal_spin_unlock(
+						pmadapter->pmoal_handle,
+						priv->bypass_txq.plock);
 					PRINTM(MINFO,
 					       "Dequeuing bypassed packet %p\n",
 					       pmbuf);
-					if (wlan_bypass_tx_list_empty
-					    (pmadapter))
+					if (wlan_bypass_tx_list_empty(
+						    pmadapter))
 						tx_param.next_pkt_len = 0;
 					else
 						tx_param.next_pkt_len =
 							pmbuf->data_len;
-					status = wlan_process_tx(pmadapter->
-								 priv[pmbuf->
-								      bss_index],
-								 pmbuf,
-								 &tx_param);
+					status = wlan_process_tx(
+						pmadapter->priv[pmbuf->bss_index],
+						pmbuf, &tx_param);
 
 					if (status == MLAN_STATUS_RESOURCE) {
 						/* Queue the packet again so
 						 * that it will be TX'ed later
 						 */
-						pmadapter->callbacks.
-							moal_spin_lock
-							(pmadapter->
-							 pmoal_handle,
-							 priv->bypass_txq.
-							 plock);
+						pmadapter->callbacks.moal_spin_lock(
+							pmadapter->pmoal_handle,
+							priv->bypass_txq.plock);
 						pmadapter->bypass_pkt_count++;
-						util_enqueue_list_head
-							(pmadapter->
-							 pmoal_handle,
-							 &priv->bypass_txq,
-							 (pmlan_linked_list)
-							 pmbuf,
-							 pmadapter->callbacks.
-							 moal_spin_lock,
-							 pmadapter->callbacks.
-							 moal_spin_unlock);
-						pmadapter->callbacks.
-							moal_spin_unlock
-							(pmadapter->
-							 pmoal_handle,
-							 priv->bypass_txq.
-							 plock);
+						util_enqueue_list_head(
+							pmadapter->pmoal_handle,
+							&priv->bypass_txq,
+							(pmlan_linked_list)pmbuf,
+							pmadapter->callbacks
+								.moal_spin_lock,
+							pmadapter->callbacks
+								.moal_spin_unlock);
+						pmadapter->callbacks.moal_spin_unlock(
+							pmadapter->pmoal_handle,
+							priv->bypass_txq.plock);
 					}
 					break;
 				} else {
@@ -414,7 +389,7 @@ wlan_process_bypass_tx(pmlan_adapter pmadapter)
 
 /**
  *  @brief This function will convert 802.11 header to 802.3 header
-           and save the backhaul station aid to pmbuf
+	   and save the backhaul station aid to pmbuf
  *
  *  @param priv    A pointer to mlan_private
  *  @param pmbuf   A pointer to mlan_buffer
@@ -422,8 +397,8 @@ wlan_process_bypass_tx(pmlan_adapter pmadapter)
  *
  *  @return	MLAN_STATUS_PENDING --success, otherwise fail
  */
-mlan_status
-wlan_check_easymesh_pkt(mlan_private *priv, pmlan_buffer pmbuf, RxPD *prx_pd)
+mlan_status wlan_check_easymesh_pkt(mlan_private *priv, pmlan_buffer pmbuf,
+				    RxPD *prx_pd)
 {
 	Eth803Hdr_t *eth_header = MNULL;
 	sta_node *sta_ptr = MNULL;
@@ -458,9 +433,8 @@ wlan_check_easymesh_pkt(mlan_private *priv, pmlan_buffer pmbuf, RxPD *prx_pd)
 		/* Save station aid to pmbuf and send it to moal */
 		tmp = (t_u32)sta_ptr->aid;
 		pmbuf->priority |= (tmp << 24);
-		PRINTM(MDAT_D, "Easymesh: Rx for VLAN " FULL_MACSTR
-		       "\n", FULL_MAC2STR(prx_pd->ta_mac));
-
+		PRINTM(MDAT_D, "Easymesh: Rx for VLAN " FULL_MACSTR "\n",
+		       FULL_MAC2STR(prx_pd->ta_mac));
 	}
 done:
 	LEAVE();

@@ -128,7 +128,7 @@ mlan_operations *mlan_ops[] = {
 };
 
 /** Global moal_assert callback */
-t_void (*assert_callback) (t_pvoid pmoal_handle, t_u32 cond) = MNULL;
+t_void (*assert_callback)(t_pvoid pmoal_handle, t_u32 cond) = MNULL;
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
 #define DEFAULT_DEBUG_MASK (0xffffffff)
@@ -137,12 +137,12 @@ t_void (*assert_callback) (t_pvoid pmoal_handle, t_u32 cond) = MNULL;
 #endif
 
 /** Global moal_print callback */
-t_void (*print_callback) (t_pvoid pmoal_handle, t_u32 level,
-			  char *pformat, IN ...) = MNULL;
+t_void (*print_callback)(t_pvoid pmoal_handle, t_u32 level, char *pformat,
+			 IN...) = MNULL;
 
 /** Global moal_get_system_time callback */
-mlan_status (*get_sys_time_callback) (t_pvoid pmoal_handle, t_pu32 psec,
-				      t_pu32 pusec) = MNULL;
+mlan_status (*get_sys_time_callback)(t_pvoid pmoal_handle, t_pu32 psec,
+				     t_pu32 pusec) = MNULL;
 
 /** Global driver debug mit masks */
 t_u32 mlan_drvdbg = DEFAULT_DEBUG_MASK;
@@ -157,8 +157,7 @@ t_u32 mlan_drvdbg = DEFAULT_DEBUG_MASK;
  *  @param pmadapter  A pointer to mlan_adapter structure
  *
  */
-static void
-wlan_process_pending_ioctl(mlan_adapter *pmadapter)
+static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 {
 	pmlan_ioctl_req pioctl_buf;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -173,11 +172,9 @@ wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 
 	pcb = &pmadapter->callbacks;
 
-	while ((pioctl_buf =
-		(pmlan_ioctl_req)util_dequeue_list(pmadapter->pmoal_handle,
-						   &pmadapter->ioctl_pending_q,
-						   pcb->moal_spin_lock,
-						   pcb->moal_spin_unlock))) {
+	while ((pioctl_buf = (pmlan_ioctl_req)util_dequeue_list(
+			pmadapter->pmoal_handle, &pmadapter->ioctl_pending_q,
+			pcb->moal_spin_lock, pcb->moal_spin_unlock))) {
 		switch (pioctl_buf->req_id) {
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		case MLAN_IOCTL_BSS:
@@ -209,7 +206,6 @@ wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 	}
 	LEAVE();
 }
-
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -241,8 +237,7 @@ wlan_process_pending_ioctl(mlan_adapter *pmadapter)
  * See Also
  *   mlan_unregister
  */
-mlan_status
-mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
+mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_adapter pmadapter = MNULL;
@@ -552,8 +547,7 @@ exit_register:
  *  @return                MLAN_STATUS_SUCCESS
  *                             The deregistration succeeded.
  */
-mlan_status
-mlan_unregister(t_void *padapter)
+mlan_status mlan_unregister(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -603,8 +597,7 @@ mlan_unregister(t_void *padapter)
  *                         MLAN_STATUS_FAILURE
  *                             The firmware download failed.
  */
-mlan_status
-mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
+mlan_status mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -637,8 +630,7 @@ mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
  *                         MLAN_STATUS_FAILURE
  *                             The firmware download failed.
  */
-mlan_status
-mlan_disable_host_int(t_void *padapter)
+mlan_status mlan_disable_host_int(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -672,8 +664,7 @@ mlan_disable_host_int(t_void *padapter)
  *                         MLAN_STATUS_FAILURE
  *                             The firmware download failed.
  */
-mlan_status
-mlan_enable_host_int(t_void *padapter)
+mlan_status mlan_enable_host_int(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -706,8 +697,7 @@ mlan_enable_host_int(t_void *padapter)
  *  @return               MLAN_STATUS_SUCCESS
  *
  */
-mlan_status
-mlan_set_init_param(t_void *padapter, pmlan_init_param pparam)
+mlan_status mlan_set_init_param(t_void *padapter, pmlan_init_param pparam)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -747,8 +737,7 @@ mlan_set_init_param(t_void *padapter, pmlan_init_param pparam)
  *                         MLAN_STATUS_FAILURE
  *                             The firmware initialization failed.
  */
-mlan_status
-mlan_init_fw(t_void *padapter)
+mlan_status mlan_init_fw(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -778,8 +767,7 @@ mlan_init_fw(t_void *padapter)
  *              MLAN_STATUS_FAILURE
  *                              The firmware shutdown call failed.
  */
-mlan_status
-mlan_shutdown_fw(t_void *padapter)
+mlan_status mlan_shutdown_fw(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_PENDING;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -819,21 +807,17 @@ mlan_shutdown_fw(t_void *padapter)
 
 	pcb = &pmadapter->callbacks;
 	/** cancel pending ioctl */
-	while ((pioctl_buf =
-		(pmlan_ioctl_req)util_dequeue_list(pmadapter->pmoal_handle,
-						   &pmadapter->ioctl_pending_q,
-						   pcb->moal_spin_lock,
-						   pcb->moal_spin_unlock))) {
+	while ((pioctl_buf = (pmlan_ioctl_req)util_dequeue_list(
+			pmadapter->pmoal_handle, &pmadapter->ioctl_pending_q,
+			pcb->moal_spin_lock, pcb->moal_spin_unlock))) {
 		pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
 		pcb->moal_ioctl_complete(pmadapter->pmoal_handle, pioctl_buf,
 					 MLAN_STATUS_FAILURE);
 	}
 
-	while ((pmbuf =
-		(pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
-						&pmadapter->rx_data_queue,
-						pcb->moal_spin_lock,
-						pcb->moal_spin_unlock))) {
+	while ((pmbuf = (pmlan_buffer)util_dequeue_list(
+			pmadapter->pmoal_handle, &pmadapter->rx_data_queue,
+			pcb->moal_spin_lock, pcb->moal_spin_unlock))) {
 #if defined(PCIE)
 		if (!IS_USB(pmadapter->card_type))
 			wlan_free_mlan_buffer(pmadapter, pmbuf);
@@ -861,8 +845,7 @@ mlan_shutdown_fw(t_void *padapter)
  *
  *  @return			N/A
  */
-static t_void
-mlan_queue_main_work(mlan_adapter *pmadapter)
+static t_void mlan_queue_main_work(mlan_adapter *pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	ENTER();
@@ -891,8 +874,7 @@ mlan_queue_main_work(mlan_adapter *pmadapter)
  *
  *  @return			N/A
  */
-static t_void
-mlan_queue_rx_work(mlan_adapter *pmadapter)
+static t_void mlan_queue_rx_work(mlan_adapter *pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	ENTER();
@@ -922,8 +904,7 @@ mlan_queue_rx_work(mlan_adapter *pmadapter)
  *
  *  @return			N/A
  */
-void
-mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block)
+void mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
@@ -938,10 +919,9 @@ mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block)
 			pcb->moal_spin_unlock(pmadapter->pmoal_handle,
 					      pmadapter->pmain_proc_lock);
 			PRINTM(MEVENT, "wlan: wait main work done...\n");
-			wlan_recv_event(wlan_get_priv
-					(pmadapter, MLAN_BSS_ROLE_ANY),
-					MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK,
-					MNULL);
+			wlan_recv_event(
+				wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY),
+				MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK, MNULL);
 		} else {
 			pcb->moal_spin_unlock(pmadapter->pmoal_handle,
 					      pmadapter->pmain_proc_lock);
@@ -957,8 +937,7 @@ mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block)
  *
  *  @return			N/A
  */
-void
-mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block)
+void mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pmadapter->prx_proc_lock);
@@ -990,8 +969,7 @@ mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block)
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status
-mlan_rx_process(t_void *padapter, t_u8 *rx_pkts)
+mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -1023,14 +1001,12 @@ rx_process_start:
 	while (MTRUE) {
 #ifdef DRV_EMBEDDED_AUTHENTICATOR
 		if (pmadapter->authenticator_priv) {
-			if (IsAuthenticatorEnabled
-			    (pmadapter->authenticator_priv->psapriv)) {
-				AuthenticatorKeyMgmtInit(pmadapter->
-							 authenticator_priv->
-							 psapriv,
-							 pmadapter->
-							 authenticator_priv->
-							 curr_addr);
+			if (IsAuthenticatorEnabled(
+				    pmadapter->authenticator_priv->psapriv)) {
+				AuthenticatorKeyMgmtInit(
+					pmadapter->authenticator_priv->psapriv,
+					pmadapter->authenticator_priv
+						->curr_addr);
 				pmadapter->authenticator_priv = MNULL;
 			}
 		}
@@ -1039,26 +1015,23 @@ rx_process_start:
 			pmadapter->flush_data = MFALSE;
 			wlan_flush_rxreorder_tbl(pmadapter);
 		}
-		pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
-						    pmadapter->rx_data_queue.
-						    plock);
-		pmbuf = (pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
-							&pmadapter->
-							rx_data_queue, MNULL,
-							MNULL);
+		pmadapter->callbacks.moal_spin_lock(
+			pmadapter->pmoal_handle,
+			pmadapter->rx_data_queue.plock);
+		pmbuf = (pmlan_buffer)util_dequeue_list(
+			pmadapter->pmoal_handle, &pmadapter->rx_data_queue,
+			MNULL, MNULL);
 		if (!pmbuf) {
-			pmadapter->callbacks.moal_spin_unlock(pmadapter->
-							      pmoal_handle,
-							      pmadapter->
-							      rx_data_queue.
-							      plock);
+			pmadapter->callbacks.moal_spin_unlock(
+				pmadapter->pmoal_handle,
+				pmadapter->rx_data_queue.plock);
 			break;
 		}
 		pmadapter->rx_pkts_queued--;
 		rx_num++;
-		pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
-						      pmadapter->rx_data_queue.
-						      plock);
+		pmadapter->callbacks.moal_spin_unlock(
+			pmadapter->pmoal_handle,
+			pmadapter->rx_data_queue.plock);
 
 		if (pmadapter->delay_task_flag &&
 		    (pmadapter->rx_pkts_queued < LOW_RX_PENDING)) {
@@ -1094,8 +1067,7 @@ exit_rx_proc:
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status
-mlan_main_process(t_void *padapter)
+mlan_status mlan_main_process(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -1134,9 +1106,8 @@ process_start:
 		}
 		if (pmadapter->pending_disconnect_priv) {
 			PRINTM(MEVENT, "Reset connect state\n");
-			wlan_reset_connect_state(pmadapter->
-						 pending_disconnect_priv,
-						 MTRUE);
+			wlan_reset_connect_state(
+				pmadapter->pending_disconnect_priv, MTRUE);
 			pmadapter->pending_disconnect_priv = MNULL;
 		}
 #if defined(PCIE)
@@ -1169,25 +1140,24 @@ process_start:
 			pmadapter->pm_wakeup_fw_try = MTRUE;
 			continue;
 		}
-		if (IS_CARD_RX_RCVD(pmadapter)
-		    ||
-		    (!pmadapter->cmd_sent && pmadapter->vdll_ctrl.pending_block)
-			) {
+		if (IS_CARD_RX_RCVD(pmadapter) ||
+		    (!pmadapter->cmd_sent &&
+		     pmadapter->vdll_ctrl.pending_block)) {
 			pmadapter->data_received = MFALSE;
 			if (pmadapter->hs_activated == MTRUE) {
 				pmadapter->is_hs_configured = MFALSE;
-				wlan_host_sleep_activated_event(wlan_get_priv
-								(pmadapter,
-								 MLAN_BSS_ROLE_ANY),
-								MFALSE);
+				wlan_host_sleep_activated_event(
+					wlan_get_priv(pmadapter,
+						      MLAN_BSS_ROLE_ANY),
+					MFALSE);
 			}
 			pmadapter->pm_wakeup_fw_try = MFALSE;
 			if (pmadapter->ps_state == PS_STATE_SLEEP)
 				pmadapter->ps_state = PS_STATE_AWAKE;
 			if (pmadapter->wakeup_fw_timer_is_set) {
-				pcb->moal_stop_timer(pmadapter->pmoal_handle,
-						     pmadapter->
-						     pwakeup_fw_timer);
+				pcb->moal_stop_timer(
+					pmadapter->pmoal_handle,
+					pmadapter->pwakeup_fw_timer);
 				pmadapter->wakeup_fw_timer_is_set = MFALSE;
 			}
 		} else {
@@ -1197,24 +1167,24 @@ process_start:
 			/* Check if we need to confirm Sleep Request received
 			 * previously */
 			if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
-				if (!pmadapter->cmd_sent && !pmadapter->curr_cmd
-				    && !pmadapter->vdll_ctrl.pending_block)
+				if (!pmadapter->cmd_sent &&
+				    !pmadapter->curr_cmd &&
+				    !pmadapter->vdll_ctrl.pending_block)
 					wlan_check_ps_cond(pmadapter);
 			if (pmadapter->ps_state != PS_STATE_AWAKE ||
 			    (pmadapter->tx_lock_flag == MTRUE))
 				break;
 
-			if (pmadapter->data_sent
-			    || wlan_is_tdls_link_chan_switching(pmadapter->
-								tdls_status)
-			    || (wlan_bypass_tx_list_empty(pmadapter) &&
-				wlan_wmm_lists_empty(pmadapter))
-			    || wlan_11h_radar_detected_tx_blocked(pmadapter)
-				) {
+			if (pmadapter->data_sent ||
+			    wlan_is_tdls_link_chan_switching(
+				    pmadapter->tdls_status) ||
+			    (wlan_bypass_tx_list_empty(pmadapter) &&
+			     wlan_wmm_lists_empty(pmadapter)) ||
+			    wlan_11h_radar_detected_tx_blocked(pmadapter)) {
 				if (pmadapter->cmd_sent ||
 				    pmadapter->curr_cmd ||
-				    !wlan_is_send_cmd_allowed(pmadapter->
-							      tdls_status) ||
+				    !wlan_is_send_cmd_allowed(
+					    pmadapter->tdls_status) ||
 				    !wlan_is_cmd_pending(pmadapter)) {
 					break;
 				}
@@ -1230,7 +1200,8 @@ process_start:
 			wlan_process_cmdresp(pmadapter);
 
 			/* call moal back when init_fw is done */
-			if (pmadapter->hw_status == WlanHardwareStatusInitdone) {
+			if (pmadapter->hw_status ==
+			    WlanHardwareStatusInitdone) {
 				pmadapter->hw_status = WlanHardwareStatusReady;
 				wlan_init_fw_complete(pmadapter);
 			} else if (pmadapter->hw_status ==
@@ -1252,8 +1223,8 @@ process_start:
 		/* Check if we need to confirm Sleep Request received previously
 		 */
 		if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
-			if (!pmadapter->cmd_sent && !pmadapter->curr_cmd
-			    && !pmadapter->vdll_ctrl.pending_block)
+			if (!pmadapter->cmd_sent && !pmadapter->curr_cmd &&
+			    !pmadapter->vdll_ctrl.pending_block)
 				wlan_check_ps_cond(pmadapter);
 
 		/*
@@ -1261,25 +1232,22 @@ process_start:
 		 * Sleep Request event.
 		 */
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) ||
-		    (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
-		    || (pmadapter->ps_state == PS_STATE_SLEEP_CFM) ||
-		    (pmadapter->tx_lock_flag == MTRUE)
-			) {
+		    (pmadapter->ps_state == PS_STATE_PRE_SLEEP) ||
+		    (pmadapter->ps_state == PS_STATE_SLEEP_CFM) ||
+		    (pmadapter->tx_lock_flag == MTRUE)) {
 			continue;
 		}
 
 		/* in a case of race condition, download the VDLL block here */
-		if (!pmadapter->cmd_sent && pmadapter->vdll_ctrl.pending_block) {
-			wlan_download_vdll_block(pmadapter,
-						 pmadapter->vdll_ctrl.
-						 pending_block,
-						 pmadapter->vdll_ctrl.
-						 pending_block_len);
+		if (!pmadapter->cmd_sent &&
+		    pmadapter->vdll_ctrl.pending_block) {
+			wlan_download_vdll_block(
+				pmadapter, pmadapter->vdll_ctrl.pending_block,
+				pmadapter->vdll_ctrl.pending_block_len);
 			pmadapter->vdll_ctrl.pending_block = MNULL;
 		}
-		if (!pmadapter->cmd_sent && !pmadapter->curr_cmd
-		    && wlan_is_send_cmd_allowed(pmadapter->tdls_status)
-			) {
+		if (!pmadapter->cmd_sent && !pmadapter->curr_cmd &&
+		    wlan_is_send_cmd_allowed(pmadapter->tdls_status)) {
 			if (wlan_exec_next_cmd(pmadapter) ==
 			    MLAN_STATUS_FAILURE) {
 				ret = MLAN_STATUS_FAILURE;
@@ -1295,35 +1263,35 @@ process_start:
 			wlan_process_bypass_tx(pmadapter);
 			if (pmadapter->hs_activated == MTRUE) {
 				pmadapter->is_hs_configured = MFALSE;
-				wlan_host_sleep_activated_event(wlan_get_priv
-								(pmadapter,
-								 MLAN_BSS_ROLE_ANY),
-								MFALSE);
+				wlan_host_sleep_activated_event(
+					wlan_get_priv(pmadapter,
+						      MLAN_BSS_ROLE_ANY),
+					MFALSE);
 			}
 		}
 
-		if (!pmadapter->data_sent && !wlan_wmm_lists_empty(pmadapter)
-		    && !wlan_11h_radar_detected_tx_blocked(pmadapter)
-		    && !wlan_is_tdls_link_chan_switching(pmadapter->tdls_status)
-			) {
+		if (!pmadapter->data_sent && !wlan_wmm_lists_empty(pmadapter) &&
+		    !wlan_11h_radar_detected_tx_blocked(pmadapter) &&
+		    !wlan_is_tdls_link_chan_switching(pmadapter->tdls_status)) {
 			wlan_wmm_process_tx(pmadapter);
 			if (pmadapter->hs_activated == MTRUE) {
 				pmadapter->is_hs_configured = MFALSE;
-				wlan_host_sleep_activated_event(wlan_get_priv
-								(pmadapter,
-								 MLAN_BSS_ROLE_ANY),
-								MFALSE);
+				wlan_host_sleep_activated_event(
+					wlan_get_priv(pmadapter,
+						      MLAN_BSS_ROLE_ANY),
+					MFALSE);
 			}
 		}
+
 #ifdef STA_SUPPORT
 		if (pmadapter->delay_null_pkt && !pmadapter->cmd_sent &&
 		    !pmadapter->curr_cmd && !wlan_is_cmd_pending(pmadapter) &&
 		    wlan_bypass_tx_list_empty(pmadapter) &&
 		    wlan_wmm_lists_empty(pmadapter)) {
-			if (wlan_send_null_packet
-			    (wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA),
-			     MRVDRV_TxPD_POWER_MGMT_NULL_PACKET |
-			     MRVDRV_TxPD_POWER_MGMT_LAST_PACKET) ==
+			if (wlan_send_null_packet(
+				    wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA),
+				    MRVDRV_TxPD_POWER_MGMT_NULL_PACKET |
+					    MRVDRV_TxPD_POWER_MGMT_LAST_PACKET) ==
 			    MLAN_STATUS_SUCCESS) {
 				pmadapter->delay_null_pkt = MFALSE;
 			}
@@ -1360,8 +1328,7 @@ exit_main_proc:
  *
  *  @return			MLAN_STATUS_PENDING
  */
-mlan_status
-mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
+mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 {
 	mlan_status ret = MLAN_STATUS_PENDING;
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
@@ -1388,17 +1355,17 @@ mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	}
 #endif
 
-	eth_type = mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
-						     MLAN_ETHER_PKT_TYPE_OFFSET]);
+	eth_type =
+		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
+						  MLAN_ETHER_PKT_TYPE_OFFSET]);
 	if (((pmadapter->priv[pmbuf->bss_index]->port_ctrl_mode == MTRUE) &&
-	     ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL)
-	      || (eth_type == MLAN_ETHER_PKT_TYPE_ARP)
-	      || (eth_type == MLAN_ETHER_PKT_TYPE_WAPI)
-	     ))
-	    || (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION)
-	    || (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
+	     ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
+	      (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
+	      (eth_type == MLAN_ETHER_PKT_TYPE_WAPI))) ||
+	    (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) ||
+	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
 
-		) {
+	) {
 		if (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) {
 			memcpy_ext(pmadapter, ra,
 				   pmbuf->pbuf + pmbuf->data_offset,
@@ -1415,7 +1382,7 @@ mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 		}
 		wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
 	} else {
-		/* Transmit the packet */
+		/* Transmit the packet*/
 		wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
 	}
 
@@ -1432,8 +1399,7 @@ mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
  *  @return		MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success,
  * otherwise fail
  */
-mlan_status
-mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
+mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_adapter pmadapter = (pmlan_adapter)adapter;
@@ -1467,9 +1433,8 @@ exit:
  *
  *  @return			MLAN_STATUS_SUCCESS
  */
-mlan_status
-mlan_recv_packet_complete(t_void *padapter,
-			  pmlan_buffer pmbuf, mlan_status status)
+mlan_status mlan_recv_packet_complete(t_void *padapter, pmlan_buffer pmbuf,
+				      mlan_status status)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 
@@ -1488,8 +1453,7 @@ mlan_recv_packet_complete(t_void *padapter,
  *
  *  @return			wmm queue priority (0 - 3)
  */
-t_u8
-mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
+t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_private pmpriv = pmadapter->priv[bss_num];
@@ -1509,8 +1473,7 @@ mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
  *
  *  @return			N/A
  */
-void
-mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
+void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	mlan_private *pmpriv;
@@ -1518,23 +1481,23 @@ mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 
 	*drop = MFALSE;
 	pmpriv = pmadapter->priv[pmbuf->bss_index];
-	eth_type = mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
-						     MLAN_ETHER_PKT_TYPE_OFFSET]);
+	eth_type =
+		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
+						  MLAN_ETHER_PKT_TYPE_OFFSET]);
 	switch (eth_type) {
 	case MLAN_ETHER_PKT_TYPE_EAPOL:
 		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");
 		if (pmpriv->sec_info.ewpa_enabled) {
 			*drop = MTRUE;
-			if (MLAN_STATUS_FAILURE == wlan_prepare_cmd(pmpriv,
-								    HostCmd_CMD_802_11_EAPOL_PKT,
-								    0, 0, MNULL,
-								    pmbuf)) {
+			if (MLAN_STATUS_FAILURE ==
+			    wlan_prepare_cmd(pmpriv,
+					     HostCmd_CMD_802_11_EAPOL_PKT, 0, 0,
+					     MNULL, pmbuf)) {
 				PRINTM(MERROR, "Preparing the CMD failed\n");
 			}
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_DRV_DEFER_HANDLING,
 					MNULL);
-
 		}
 		break;
 	case MLAN_ETHER_PKT_TYPE_TDLS_ACTION:
@@ -1559,8 +1522,7 @@ mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
  *  @param adapter  A pointer to mlan_adapter structure
  *  @return         MLAN_STATUS_FAILURE -- if the intererupt is not for us
  */
-mlan_status
-mlan_interrupt(t_u16 msg_id, t_void *adapter)
+mlan_status mlan_interrupt(t_u16 msg_id, t_void *adapter)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
 	mlan_status ret;
@@ -1579,8 +1541,7 @@ mlan_interrupt(t_u16 msg_id, t_void *adapter)
  *  @param keep_wakeup   keep wake up flag
  *  @return         N/A
  */
-t_void
-mlan_pm_wakeup_card(t_void *adapter, t_u8 keep_wakeup)
+t_void mlan_pm_wakeup_card(t_void *adapter, t_u8 keep_wakeup)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
 
@@ -1598,8 +1559,7 @@ mlan_pm_wakeup_card(t_void *adapter, t_u8 keep_wakeup)
  *  @param adapter  A pointer to mlan_adapter structure
  *  @return         MTRUE/MFALSE
  */
-t_u8
-mlan_is_main_process_running(t_void *adapter)
+t_u8 mlan_is_main_process_running(t_void *adapter)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
@@ -1628,8 +1588,7 @@ mlan_is_main_process_running(t_void *adapter)
  *  @param func_num PCIE function num
  *  @return         N/A
  */
-t_void
-mlan_set_int_mode(t_void *adapter, t_u32 int_mode, t_u8 func_num)
+t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode, t_u8 func_num)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
 	ENTER();

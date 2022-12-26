@@ -82,7 +82,7 @@ Change log:
 #ifdef PCIE8897
 #define PCIE8897_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8897_combo.bin"
 #define PCIE8897_DEFAULT_WLAN_FW_NAME "nxp/pcie8897_wlan.bin"
-#endif /* PCIE8897 */
+#endif /* PCIE8897*/
 
 #ifdef PCIE9098
 #define PCIE9098_Z1Z2 0x00

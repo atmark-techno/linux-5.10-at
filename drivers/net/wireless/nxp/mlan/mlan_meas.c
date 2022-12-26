@@ -60,8 +60,7 @@ static const char *meas_type_str[WLAN_MEAS_NUM_TYPES] = {
  *
  *  @return         Constant string representing measurement type
  */
-static const char *
-wlan_meas_get_meas_type_str(MeasType_t meas_type)
+static const char *wlan_meas_get_meas_type_str(MeasType_t meas_type)
 {
 	if (meas_type <= WLAN_MEAS_11H_MAX_TYPE)
 		return meas_type_str[meas_type];
@@ -193,9 +192,8 @@ wlan_meas_dump_meas_rpt(const HostCmd_DS_MEASUREMENT_REPORT *pmeas_rpt)
  *
  *  @return     MLAN_STATUS_SUCCESS
  */
-static int
-wlan_meas_cmdresp_get_report(mlan_private *pmpriv,
-			     const HostCmd_DS_COMMAND *resp)
+static int wlan_meas_cmdresp_get_report(mlan_private *pmpriv,
+					const HostCmd_DS_COMMAND *resp)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	const HostCmd_DS_MEASUREMENT_REPORT *pmeas_rpt = &resp->params.meas_rpt;
@@ -248,9 +246,9 @@ wlan_meas_cmdresp_get_report(mlan_private *pmpriv,
  *
  *  @return          MLAN_STATUS_SUCCESS
  */
-static int
-wlan_meas_cmd_request(mlan_private *pmpriv,
-		      HostCmd_DS_COMMAND *pcmd_ptr, const void *pinfo_buf)
+static int wlan_meas_cmd_request(mlan_private *pmpriv,
+				 HostCmd_DS_COMMAND *pcmd_ptr,
+				 const void *pinfo_buf)
 {
 	const HostCmd_DS_MEASUREMENT_REQUEST *pmeas_req =
 		(HostCmd_DS_MEASUREMENT_REQUEST *)pinfo_buf;
@@ -288,8 +286,8 @@ wlan_meas_cmd_request(mlan_private *pmpriv,
  *
  *  @return        MLAN_STATUS_SUCCESS
  */
-static int
-wlan_meas_cmd_get_report(mlan_private *pmpriv, HostCmd_DS_COMMAND *pcmd_ptr)
+static int wlan_meas_cmd_get_report(mlan_private *pmpriv,
+				    HostCmd_DS_COMMAND *pcmd_ptr)
 {
 	ENTER();
 
@@ -343,12 +341,11 @@ wlan_meas_cmd_get_report(mlan_private *pmpriv, HostCmd_DS_COMMAND *pcmd_ptr)
  *      the timeout expires
  *    - Error return from wlan_prepare_cmd routine otherwise
  */
-int
-wlan_meas_util_send_req(mlan_private *pmpriv,
-			HostCmd_DS_MEASUREMENT_REQUEST *pmeas_req,
-			t_u32 wait_for_resp_timeout,
-			pmlan_ioctl_req pioctl_req,
-			HostCmd_DS_MEASUREMENT_REPORT *pmeas_rpt)
+int wlan_meas_util_send_req(mlan_private *pmpriv,
+			    HostCmd_DS_MEASUREMENT_REQUEST *pmeas_req,
+			    t_u32 wait_for_resp_timeout,
+			    pmlan_ioctl_req pioctl_req,
+			    HostCmd_DS_MEASUREMENT_REPORT *pmeas_rpt)
 {
 	static t_u8 auto_dialog_tok;
 	wlan_meas_state_t *pmeas_state = &pmpriv->adapter->state_meas;
@@ -359,7 +356,7 @@ wlan_meas_util_send_req(mlan_private *pmpriv,
 	/* If dialogTok was set to 0 or not provided, autoset */
 	pmeas_req->dialog_token =
 		(pmeas_req->dialog_token ? pmeas_req->dialog_token :
-		 ++auto_dialog_tok);
+					   ++auto_dialog_tok);
 
 	/* Check for rollover of the dialog token.  Avoid using 0 as a token */
 	pmeas_req->dialog_token =
@@ -404,9 +401,8 @@ wlan_meas_util_send_req(mlan_private *pmpriv,
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  *
  */
-int
-wlan_meas_cmd_process(mlan_private *pmpriv, HostCmd_DS_COMMAND *pcmd_ptr,
-		      const void *pinfo_buf)
+int wlan_meas_cmd_process(mlan_private *pmpriv, HostCmd_DS_COMMAND *pcmd_ptr,
+			  const void *pinfo_buf)
 {
 	int ret = MLAN_STATUS_SUCCESS;
 
@@ -443,8 +439,8 @@ wlan_meas_cmd_process(mlan_private *pmpriv, HostCmd_DS_COMMAND *pcmd_ptr,
  *
  *  @return     MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-int
-wlan_meas_cmdresp_process(mlan_private *pmpriv, const HostCmd_DS_COMMAND *resp)
+int wlan_meas_cmdresp_process(mlan_private *pmpriv,
+			      const HostCmd_DS_COMMAND *resp)
 {
 	int ret = MLAN_STATUS_SUCCESS;
 

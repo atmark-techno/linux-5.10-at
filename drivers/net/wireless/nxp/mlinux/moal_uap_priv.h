@@ -67,7 +67,7 @@ Change log:
 
 #if defined(UAP_CFG80211)
 /** Private command ID for set multi-AP BSS mode */
-#define WOAL_UAP_SET_MODE               27
+#define WOAL_UAP_SET_MODE 27
 #endif
 
 /** Private command ID for hostcmd */
