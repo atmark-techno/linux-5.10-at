@@ -70,12 +70,6 @@
 		>;
 	};
 
-	pinctrl_brcm_wifi: brcm_wifigrp {
-		fsl,pins = <
-			MX6UL_PAD_LCD_DATA12__GPIO3_IO17	0x1b0b8 /* LWB5+ GPIO_0 */
-		>;
-	};
-
 	pinctrl_brcm_bluetooth: brcm_bluetoothgrp {
 		fsl,pins = <
 			MX6UL_PAD_GPIO1_IO05__GPIO1_IO05	0x00008 /* LWB5+ BT_REG_ON */
@@ -102,11 +96,6 @@
 	brcmf: wifi@1 {
 		reg = <1>;
 		compatible = "brcm,bcm4329-fmac";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_brcm_wifi>;
-		interrupt-parent = <&gpio3>;
-		interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
-		interrupt-names = "host-wake";
 	};
 };
 
