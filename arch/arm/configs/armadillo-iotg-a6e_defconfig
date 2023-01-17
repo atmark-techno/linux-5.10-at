@@ -369,7 +369,7 @@ CONFIG_FAILOVER=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 # CONFIG_STANDALONE is not set
-CONFIG_EXTRA_FIRMWARE="imx/sdma/sdma-imx6q.bin brcm/brcmfmac4373-sdio.txt brcm/brcmfmac4373-sdio.bin brcm/brcmfmac4373-sdio.clm_blob brcm/BCM4373A0.hcd"
+CONFIG_EXTRA_FIRMWARE="imx/sdma/sdma-imx6q.bin brcm/brcmfmac4373-sdio.txt brcm/brcmfmac4373-sdio.bin brcm/brcmfmac4373-sdio.clm_blob brcm/BCM4373A0.hcd brcm/brcmfmac4373-sdio.atmark,armadillo.txt"
 CONFIG_FW_LOADER_USER_HELPER=y
 CONFIG_FW_LOADER_USER_HELPER_FALLBACK=y
 CONFIG_OF_OVERLAY=y
