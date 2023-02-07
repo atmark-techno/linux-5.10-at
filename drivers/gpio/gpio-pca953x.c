@@ -988,19 +988,14 @@ static int pca953x_probe(struct i2c_client *client,
 
 	chip->client = client;
 
-	reg = devm_regulator_get_optional(&client->dev, "vcc");
-	if (IS_ERR(reg)) {
-		if (PTR_ERR(reg) != -ENODEV)
-			return dev_err_probe(&client->dev, PTR_ERR(reg), "reg get err\n");
-		reg = NULL;
-	}
+	reg = devm_regulator_get(&client->dev, "vcc");
+	if (IS_ERR(reg))
+		return dev_err_probe(&client->dev, PTR_ERR(reg), "reg get err\n");
 
-	if (reg) {
-		ret = regulator_enable(reg);
-		if (ret) {
-			dev_err(&client->dev, "reg en err: %d\n", ret);
-			return ret;
-		}
+	ret = regulator_enable(reg);
+	if (ret) {
+		dev_err(&client->dev, "reg en err: %d\n", ret);
+		return ret;
 	}
 	chip->regulator = reg;
 
@@ -1094,8 +1089,7 @@ static int pca953x_probe(struct i2c_client *client,
 	return 0;
 
 err_exit:
-	if (chip->regulator)
-		regulator_disable(chip->regulator);
+	regulator_disable(chip->regulator);
 	return ret;
 }
 
@@ -1114,8 +1108,7 @@ static int pca953x_remove(struct i2c_client *client)
 		ret = 0;
 	}
 
-	if (chip->regulator)
-		regulator_disable(chip->regulator);
+	regulator_disable(chip->regulator);
 
 	return ret;
 }
@@ -1181,8 +1174,7 @@ static int pca953x_suspend(struct device *dev)
 	if (atomic_read(&chip->wakeup_path))
 		device_set_wakeup_path(dev);
 	else
-		if (chip->regulator)
-			regulator_disable(chip->regulator);
+		regulator_disable(chip->regulator);
 
 	return 0;
 }
@@ -1193,13 +1185,9 @@ static int pca953x_resume(struct device *dev)
 	int ret;
 
 	if (!atomic_read(&chip->wakeup_path)) {
-		if (chip->regulator) {
-			ret = regulator_enable(chip->regulator);
-			if (ret) {
-				dev_err(dev, "Failed to enable regulator: %d\n", ret);
-				return 0;
-			}
-		} else {
+		ret = regulator_enable(chip->regulator);
+		if (ret) {
+			dev_err(dev, "Failed to enable regulator: %d\n", ret);
 			return 0;
 		}
 	}
