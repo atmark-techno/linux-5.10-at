@@ -193,6 +193,8 @@
 
 	leds {
 		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_leds>;
 
 		led1 {
 			label = "led1";
@@ -780,6 +782,15 @@
                         MX8MP_IOMUXC_GPIO1_IO13__GPIO1_IO13     0x400001c0 /* SW1 */
                         MX8MP_IOMUXC_GPIO1_IO01__GPIO1_IO01     0x400001c0 /* PWROFF */
                         MX8MP_IOMUXC_GPIO1_IO05__GPIO1_IO05     0x400001c0 /* REBOOT */
+                >;
+	};
+
+	pinctrl_gpio_leds: gpio_leds {
+		fsl,pins = <
+                        MX8MP_IOMUXC_GPIO1_IO14__GPIO1_IO14     0x152 /* led1 */
+                        MX8MP_IOMUXC_GPIO1_IO00__GPIO1_IO00     0x152 /* FW_UPDATE_IND */
+                        MX8MP_IOMUXC_GPIO1_IO06__GPIO1_IO06     0x152 /* PWR_IND */
+                        MX8MP_IOMUXC_GPIO1_IO07__GPIO1_IO07     0x152 /* STDWN_IND */
                 >;
 	};
 
