@@ -130,25 +130,25 @@
 	};
 
 	lvds_panel: lvds-panel {
-                compatible = "panel-lvds";
+		compatible = "panel-lvds";
 
-                data-mapping = "vesa-24";
-                width-mm = <226>;
-                height-mm = <128>;
+		data-mapping = "vesa-24";
+		width-mm = <226>;
+		height-mm = <128>;
 
-                panel-timing {
+		panel-timing {
 			/* NL10276BC24-21 */
-                        clock-frequency = <65000000>;
-                        hactive = <1024>;
-                        vactive = <768>;
-                        hfront-porch = <160>;
-                        hsync-len = <136>;
-                        hback-porch = <24>;
-                        vfront-porch = <3>;
-                        vsync-len = <6>;
-                        vback-porch = <29>;
+			clock-frequency = <65000000>;
+			hactive = <1024>;
+			vactive = <768>;
+			hfront-porch = <160>;
+			hsync-len = <136>;
+			hback-porch = <24>;
+			vfront-porch = <3>;
+			vsync-len = <6>;
+			vback-porch = <29>;
 			de-active = <1>;
-                };
+		};
 
 		port {
 			panel_lvds_in: endpoint {
@@ -284,8 +284,8 @@
 &lcdif3 {
 	status = "okay";
 
-	thres-low  = <1 2>;             /* (FIFO * 1 / 2) */
-	thres-high = <3 4>;             /* (FIFO * 3 / 4) */
+	thres-low  = <1 2>;		/* (FIFO * 1 / 2) */
+	thres-high = <3 4>;		/* (FIFO * 3 / 4) */
 };
 
 &ldb {
@@ -641,8 +641,8 @@
 	 *  0x80 = schmitt trigger input
 	 * 0x100 = pull enable
 	 * 0x40000000 = SION enable
-         *
-         * SION = able to get input value of gpio regardless its mux setting
+	 *
+	 * SION = able to get input value of gpio regardless its mux setting
 	 */
 	pinctrl_eqos: eqosgrp {
 		fsl,pins = <
@@ -779,19 +779,19 @@
 
 	pinctrl_gpio_keys: gpio_keys {
 		fsl,pins = <
-                        MX8MP_IOMUXC_GPIO1_IO13__GPIO1_IO13     0x400001c0 /* SW1 */
-                        MX8MP_IOMUXC_GPIO1_IO01__GPIO1_IO01     0x400001c0 /* PWROFF */
-                        MX8MP_IOMUXC_GPIO1_IO05__GPIO1_IO05     0x400001c0 /* REBOOT */
-                >;
+			MX8MP_IOMUXC_GPIO1_IO13__GPIO1_IO13	0x400001c0 /* SW1 */
+			MX8MP_IOMUXC_GPIO1_IO01__GPIO1_IO01	0x400001c0 /* PWROFF */
+			MX8MP_IOMUXC_GPIO1_IO05__GPIO1_IO05	0x400001c0 /* REBOOT */
+		>;
 	};
 
 	pinctrl_gpio_leds: gpio_leds {
 		fsl,pins = <
-                        MX8MP_IOMUXC_GPIO1_IO14__GPIO1_IO14     0x152 /* led1 */
-                        MX8MP_IOMUXC_GPIO1_IO00__GPIO1_IO00     0x152 /* FW_UPDATE_IND */
-                        MX8MP_IOMUXC_GPIO1_IO06__GPIO1_IO06     0x152 /* PWR_IND */
-                        MX8MP_IOMUXC_GPIO1_IO07__GPIO1_IO07     0x152 /* STDWN_IND */
-                >;
+			MX8MP_IOMUXC_GPIO1_IO14__GPIO1_IO14	0x152 /* led1 */
+			MX8MP_IOMUXC_GPIO1_IO00__GPIO1_IO00	0x152 /* FW_UPDATE_IND */
+			MX8MP_IOMUXC_GPIO1_IO06__GPIO1_IO06	0x152 /* PWR_IND */
+			MX8MP_IOMUXC_GPIO1_IO07__GPIO1_IO07	0x152 /* STDWN_IND */
+		>;
 	};
 
 	pinctrl_pmic: pmicirq {
@@ -808,7 +808,7 @@
 
 	pinctrl_rtc_gpio: rtc_gpio {
 		fsl,pins = <
-			MX8MP_IOMUXC_GPIO1_IO11__GPIO1_IO11     0x40000140
+			MX8MP_IOMUXC_GPIO1_IO11__GPIO1_IO11	0x40000140
 		>;
 	};
 
@@ -820,13 +820,13 @@
 
 	pinctrl_reg_usdhc2_vmmc: regusdhc2vmmcgrp {
 		fsl,pins = <
-			MX8MP_IOMUXC_SD2_RESET_B__GPIO2_IO19    0x41
+			MX8MP_IOMUXC_SD2_RESET_B__GPIO2_IO19	0x41
 		>;
 	};
 
 	pinctrl_usdhc2_gpio: usdhc2grp-gpio {
 		fsl,pins = <
-			MX8MP_IOMUXC_SD2_CD_B__GPIO2_IO12 	0x1c4
+			MX8MP_IOMUXC_SD2_CD_B__GPIO2_IO12	0x1c4
 		>;
 	};
 
@@ -1038,19 +1038,19 @@
 };
 
 &A53_0 {
-        cpu-supply = <&buck2>;
+	cpu-supply = <&buck2>;
 };
 
 &A53_1 {
-        cpu-supply = <&buck2>;
+	cpu-supply = <&buck2>;
 };
 
 &A53_2 {
-        cpu-supply = <&buck2>;
+	cpu-supply = <&buck2>;
 };
 
 &A53_3 {
-        cpu-supply = <&buck2>;
+	cpu-supply = <&buck2>;
 };
 
 &cpu_alert0 {
