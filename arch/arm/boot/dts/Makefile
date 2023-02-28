@@ -723,7 +723,9 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-iotg-a6e-at-dtweb.dtbo \
 	armadillo-iotg-a6e-els31.dtbo \
 	armadillo-iotg-a6e-ems31.dtbo \
-	armadillo-iotg-a6e-lwb5plus.dtbo
+	armadillo-iotg-a6e-lwb5plus.dtbo \
+	armadillo-iotg-a6e-stdwn-ind-do1.dtbo \
+	armadillo-iotg-a6e-stdwn-ind-con8-pin7.dtbo
 dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-cl-som-imx7.dtb \
 	imx7d-colibri-aster.dtb \

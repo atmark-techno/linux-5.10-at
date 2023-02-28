@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+&{/} {
+	gpio-leds {
+		stdwn_ind {
+			label = "STDWN_IND";
+			gpios = <&pca9534 2 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "default-off";
+		};
+	};
+};
