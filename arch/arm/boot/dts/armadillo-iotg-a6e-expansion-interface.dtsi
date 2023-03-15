@@ -52,7 +52,7 @@
 
 };
 
-/ {
+&{/} {
 	regulators {
 		compatible = "simple-bus";
 		#address-cells = <1>;
