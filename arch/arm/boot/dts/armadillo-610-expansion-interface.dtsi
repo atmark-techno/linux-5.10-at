@@ -838,11 +838,10 @@
 //	};								// {{required-by-lcd70ext-l00}} {{required-by-lcdif-gt800x480a-1013p}} {{required-by-lcdif-fg040360dsswbg03}}
 
 //	sound-mqs {						// {{required-by-mqs}}
-//		compatible = "fsl,imx6ul-ddr3-arm2-mqs",	// {{required-by-mqs}}
-//				"fsl,imx-audio-mqs";		// {{required-by-mqs}}
+//		compatible = "fsl,imx-audio-mqs";		// {{required-by-mqs}}
 //		model = "mqs-audio";				// {{required-by-mqs}}
-//		cpu-dai = <&sai1>;				// {{required-by-mqs}}
-//		asrc-controller = <&asrc>;			// {{required-by-mqs}}
+//		audio-cpu = <&sai1>;				// {{required-by-mqs}}
+//		audio-asrc = <&asrc>;				// {{required-by-mqs}}
 //		audio-codec = <&mqs>;				// {{required-by-mqs}}
 //	};							// {{required-by-mqs}}
 
