@@ -97,6 +97,7 @@
 		reg = <1>;
 		compatible = "brcm,bcm4329-fmac";
 		brcm,board-type = "atmark,armadillo";
+		brcm,ccode-map = "JP-JP-0";
 	};
 };
 
