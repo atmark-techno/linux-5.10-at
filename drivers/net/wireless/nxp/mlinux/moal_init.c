@@ -2251,8 +2251,13 @@ module_param(fw_reload, int, 0);
 MODULE_PARM_DESC(fw_reload,
 		 "0: disable fw_reload; 1: enable fw reload feature");
 module_param(auto_fw_reload, int, 0);
+#ifdef PCIE
 MODULE_PARM_DESC(auto_fw_reload,
-		 "0: disable auto_fw_reload; 1: enable auto fw reload feature");
+		 "BIT0: enable auto fw_reload; BIT1:enable PCIe in-band reset");
+#else
+MODULE_PARM_DESC(auto_fw_reload, "BIT0: enable auto fw_reload");
+#endif
+
 module_param(fw_serial, int, 0);
 MODULE_PARM_DESC(
 	fw_serial,

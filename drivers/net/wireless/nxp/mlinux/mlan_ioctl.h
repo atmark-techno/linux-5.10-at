@@ -3,7 +3,7 @@
  *  @brief This file declares the IOCTL data structures and APIs.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -383,6 +383,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_IPS_CFG = 0x00200085,
 	MLAN_OID_MISC_CH_LOAD = 0x00200087,
 	MLAN_OID_MISC_CH_LOAD_RESULTS = 0x00200089,
+	MLAN_OID_MISC_RF_TEST_CONFIG_TRIGGER_FRAME = 0x0020008C,
+	MLAN_OID_MISC_REORDER_FLUSH_TIME = 0x0020008F,
+
 };
 
 /** Sub command size */
@@ -2021,6 +2024,8 @@ typedef struct _mlan_fw_info {
 	t_u32 hw_dot_11n_dev_cap;
 	/** Device support for MIMO abstraction of MCSs */
 	t_u8 hw_dev_mcs_support;
+	/** mpdu density */
+	t_u8 hw_mpdu_density;
 	/** user's MCS setting */
 	t_u8 usr_dev_mcs_support;
 	/** 802.11ac device capabilities */
@@ -2630,6 +2635,9 @@ typedef struct _sta_info_data {
 	/** ie length */
 	t_u16 ie_len;
 } sta_info_data;
+
+/** Per station Maximum IE buffer SIZE */
+#define MAX_STA_LIST_IE_SIZE 13
 
 /** mlan_ds_sta_list structure for MLAN_OID_UAP_STA_LIST */
 typedef struct _mlan_ds_sta_list {
@@ -3309,6 +3317,8 @@ typedef struct _mlan_ds_inactivity_to {
 	t_u32 mcast_timeout;
 	/** Timeout for additional Rx traffic after Null PM1 packet exchange */
 	t_u32 ps_entry_timeout;
+	/** Inactivity timeout for cmd */
+	t_u32 ps_cmd_timeout;
 } mlan_ds_inactivity_to, *pmlan_ds_inactivity_to;
 
 /** Minimum sleep period in milliseconds */
@@ -4615,6 +4625,14 @@ typedef struct _mlan_ds_misc_rx_abort_cfg_ext {
 	t_s8 rssi_margin;
 	/** specify ceil rssi threshold */
 	t_s8 ceil_rssi_threshold;
+	/** specify floor rssi threshold */
+	t_s8 floor_rssi_threshold;
+	/** current dynamic rssi threshold */
+	t_s8 current_dynamic_rssi_threshold;
+	/** rssi config: default or user configured */
+	t_u8 rssi_default_config;
+	/** EDMAC status */
+	t_u8 edmac_enable;
 } mlan_ds_misc_rx_abort_cfg_ext;
 
 /** Type definition of mlan_ds_misc_rx_abort_cfg_ext
@@ -5541,6 +5559,7 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 #define MFG_CMD_RF_CHANNELBW 0x1044
 #define MFG_CMD_RADIO_MODE_CFG 0x1211
 #define MFG_CMD_CONFIG_MAC_HE_TB_TX 0x110A
+#define MFG_CMD_CONFIG_TRIGGER_FRAME 0x110C
 /** MFG CMD generic cfg */
 struct MLAN_PACK_START mfg_cmd_generic_cfg {
 	/** MFG command code */
@@ -5663,6 +5682,178 @@ struct MLAN_PACK_START mfg_Cmd_HE_TBTx_t {
 	t_s16 tx_power;
 } MLAN_PACK_END;
 
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigComInfo_t {
+	t_u64 reserved : 1;
+	t_u64 he_sig2 : 9;
+	t_u64 doppler : 1;
+	t_u64 spatial_reuse : 16;
+	t_u64 pe_disambig : 1;
+	t_u64 pre_fec_pad_fct : 2;
+	t_u64 ap_tx_pwr : 6;
+
+	t_u64 ldpc_ess : 1;
+	t_u64 ul_stbc : 1;
+	t_u64 ltf_symbol : 3;
+	t_u64 ltf_mode : 1;
+	t_u64 ltf_type : 2;
+
+	t_u64 ul_bw : 2;
+	t_u64 cs_required : 1;
+	t_u64 more_tf : 1;
+	t_u64 ul_len : 12;
+	t_u64 trigger_type : 4;
+
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigComInfo_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigComInfo_t {
+	t_u64 trigger_type : 4;
+	t_u64 ul_len : 12;
+	t_u64 more_tf : 1;
+	t_u64 cs_required : 1;
+	t_u64 ul_bw : 2;
+
+	t_u64 ltf_type : 2;
+	t_u64 ltf_mode : 1;
+	t_u64 ltf_symbol : 3;
+	t_u64 ul_stbc : 1;
+	t_u64 ldpc_ess : 1;
+
+	t_u64 ap_tx_pwr : 6;
+	t_u64 pre_fec_pad_fct : 2;
+	t_u64 pe_disambig : 1;
+	t_u64 spatial_reuse : 16;
+	t_u64 doppler : 1;
+	t_u64 he_sig2 : 9;
+	t_u64 reserved : 1;
+
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigComInfo_t;
+#endif
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigUserInfo_t {
+	t_u8 reserved : 1;
+	t_u8 ul_target_rssi : 7;
+	t_u32 ss_alloc : 6;
+	t_u32 ul_dcm : 1;
+	t_u32 ul_mcs : 4;
+	t_u32 ul_coding_type : 1;
+	t_u32 ru_alloc : 7;
+	t_u32 ru_alloc_reg : 1;
+	t_u32 aid12 : 12;
+
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigUserInfo_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigUserInfo_t {
+	t_u32 aid12 : 12;
+	t_u32 ru_alloc_reg : 1;
+	t_u32 ru_alloc : 7;
+	t_u32 ul_coding_type : 1;
+	t_u32 ul_mcs : 4;
+	t_u32 ul_dcm : 1;
+	t_u32 ss_alloc : 6;
+	t_u8 ul_target_rssi : 7;
+	t_u8 reserved : 1;
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigUserInfo_t;
+#endif
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEETypes_BasicHETrigUserInfo_t {
+	t_u8 pref_ac : 2;
+	t_u8 ac_pl : 1;
+	t_u8 tid_al : 3;
+	t_u8 mpdu_mu_sf : 2;
+} MLAN_PACK_END mfg_cmd_IEEETypes_BasicHETrigUserInfo_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEETypes_BasicHETrigUserInfo_t {
+	t_u8 mpdu_mu_sf : 2;
+	t_u8 tid_al : 3;
+	t_u8 ac_pl : 1;
+	t_u8 pref_ac : 2;
+} MLAN_PACK_END mfg_cmd_IEEETypes_BasicHETrigUserInfo_t;
+#endif
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_FrameCtrl_t {
+	/** Order */
+	t_u8 order : 1;
+	/** Wep */
+	t_u8 wep : 1;
+	/** More Data */
+	t_u8 more_data : 1;
+	/** Power Mgmt */
+	t_u8 pwr_mgmt : 1;
+	/** Retry */
+	t_u8 retry : 1;
+	/** More Frag */
+	t_u8 more_frag : 1;
+	/** From DS */
+	t_u8 from_ds : 1;
+	/** To DS */
+	t_u8 to_ds : 1;
+	/** Sub Type */
+	t_u8 sub_type : 4;
+	/** Type */
+	t_u8 type : 2;
+	/** Protocol Version */
+	t_u8 protocol_version : 2;
+} MLAN_PACK_END mfg_cmd_IEEEtypes_FrameCtrl_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_FrameCtrl_t {
+	/** Protocol Version */
+	t_u8 protocol_version : 2;
+	/** Type */
+	t_u8 type : 2;
+	/** Sub Type */
+	t_u8 sub_type : 4;
+	/** To DS */
+	t_u8 to_ds : 1;
+	/** From DS */
+	t_u8 from_ds : 1;
+	/** More Frag */
+	t_u8 more_frag : 1;
+	/** Retry */
+	t_u8 retry : 1;
+	/** Power Mgmt */
+	t_u8 pwr_mgmt : 1;
+	/** More Data */
+	t_u8 more_data : 1;
+	/** Wep */
+	t_u8 wep : 1;
+	/** Order */
+	t_u8 order : 1;
+} MLAN_PACK_END mfg_cmd_IEEEtypes_FrameCtrl_t;
+#endif
+
+typedef MLAN_PACK_START struct _mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t {
+	/** MFG command code */
+	t_u32 mfg_cmd;
+	/** Action */
+	t_u16 action;
+	/** Device ID */
+	t_u16 device_id;
+	/** MFG Error code */
+	t_u32 error;
+	/** enable Tx*/
+	t_u32 enable_tx;
+	/** enable Stand Alone HE TB */
+	t_u32 standalone_hetb;
+	/** Frame Control */
+	mfg_cmd_IEEEtypes_FrameCtrl_t frmCtl;
+	/** Duration */
+	t_u16 duration;
+	/** Destination MAC Address */
+	t_u8 dest_addr[MLAN_MAC_ADDR_LENGTH];
+	/** Source MAC Address */
+	t_u8 src_addr[MLAN_MAC_ADDR_LENGTH];
+	/** Common Info Field **/
+	mfg_cmd_IEEEtypes_HETrigComInfo_t trig_common_field;
+	/** User Info Field **/
+	mfg_cmd_IEEEtypes_HETrigUserInfo_t trig_user_info_field;
+	/** Trigger Dependent User Info Field **/
+	mfg_cmd_IEEETypes_BasicHETrigUserInfo_t basic_trig_user_info;
+} MLAN_PACK_END mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t;
+
 typedef struct _mlan_ds_misc_chnrgpwr_cfg {
 	/** length */
 	t_u16 length;
@@ -5688,6 +5879,13 @@ typedef struct _mlan_ds_ch_load {
 	t_u16 rx_quality;
 	t_u16 duration;
 } mlan_ds_ch_load;
+
+typedef struct _mlan_ds_reorder_flush_time {
+	/** AC BK/BE_flush time*/
+	t_u16 flush_time_ac_be_bk;
+	/** AC VI/VO flush time */
+	t_u16 flush_time_ac_vi_vo;
+} mlan_ds_reorder_flush_time;
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
@@ -5825,6 +6023,7 @@ typedef struct _mlan_ds_misc_cfg {
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		struct mfg_Cmd_HE_TBTx_t mfg_he_power;
+		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;
@@ -5835,6 +6034,7 @@ typedef struct _mlan_ds_misc_cfg {
 #endif
 		t_u32 ips_ctrl;
 		mlan_ds_ch_load ch_load;
+		mlan_ds_reorder_flush_time flush_time;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

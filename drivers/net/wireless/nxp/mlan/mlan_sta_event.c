@@ -540,11 +540,6 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 		return;
 	}
 
-	if (pmadapter->pending_disconnect_priv) {
-		LEAVE();
-		return;
-	}
-
 	pevent->bss_index = priv->bss_index;
 	pevent->event_id = MLAN_EVENT_ID_FW_DISCONNECTED;
 	pevent->event_len = sizeof(priv->disconnect_reason_code);
@@ -842,8 +837,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 
 	case EVENT_PS_SLEEP:
 		PRINTM(MINFO, "EVENT: SLEEP\n");
-		PRINTM_NETINTF(MEVENT, pmpriv);
-		PRINTM(MEVENT, "_");
+		if (pmadapter->second_mac)
+			PRINTM(MEVENT, "__");
+		else
+			PRINTM(MEVENT, "_");
 
 		/* Handle unexpected PS SLEEP event */
 		if (pmadapter->ps_state == PS_STATE_SLEEP_CFM)
@@ -855,8 +852,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 
 	case EVENT_PS_AWAKE:
 		PRINTM(MINFO, "EVENT: AWAKE\n");
-		PRINTM_NETINTF(MEVENT, pmpriv);
-		PRINTM(MEVENT, "|");
+		if (pmadapter->second_mac)
+			PRINTM(MEVENT, "||");
+		else
+			PRINTM(MEVENT, "|");
 		if (!pmadapter->pps_uapsd_mode && pmpriv->media_connected &&
 		    (pmpriv->port_open || !pmpriv->port_ctrl_mode) &&
 		    pmadapter->sleep_period.period) {
@@ -1188,18 +1187,17 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_ADDBA:
 		PRINTM(MEVENT, "EVENT: ADDBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
-			ret = wlan_prepare_cmd(pmpriv,
-					       HostCmd_CMD_11N_ADDBA_RSP,
-					       HostCmd_ACT_GEN_SET, 0, MNULL,
-					       pmadapter->event_body);
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
+			wlan_11n_add_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
 			       "Ignore ADDBA Request event in disconnected state\n");
 		break;
 	case EVENT_DELBA:
 		PRINTM(MEVENT, "EVENT: DELBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_delete_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
@@ -1207,7 +1205,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_BA_STREAM_TIMEOUT:
 		PRINTM(MEVENT, "EVENT:  BA Stream timeout\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_ba_stream_timeout(
 				pmpriv, (HostCmd_DS_11N_BATIMEOUT *)
 						pmadapter->event_body);
@@ -1294,6 +1293,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM_NETINTF(MEVENT, pmpriv);
 		PRINTM(MEVENT, "EVENT: REMAIN_ON_CHANNEL_EXPIRED reason=%d\n",
 		       *(t_u16 *)pmadapter->event_body);
+		pmpriv->adapter->remain_on_channel = MFALSE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED,
 				MNULL);

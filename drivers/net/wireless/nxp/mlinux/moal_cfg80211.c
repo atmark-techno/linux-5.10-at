@@ -4479,13 +4479,13 @@ struct ieee80211_supported_band *woal_setup_wiphy_bands(t_u8 ieee_band)
  *  @return             N/A
  */
 void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
-				t_u32 dev_cap, t_u8 *mcs_set)
+				t_u32 dev_cap, t_u8 *mcs_set, t_u8 mpdu_density)
 {
 	ENTER();
 
 	ht_info->ht_supported = true;
 	ht_info->ampdu_factor = 0x3;
-	ht_info->ampdu_density = 0;
+	ht_info->ampdu_density = mpdu_density;
 
 	memset(&ht_info->mcs, 0, sizeof(ht_info->mcs));
 	ht_info->cap = 0;

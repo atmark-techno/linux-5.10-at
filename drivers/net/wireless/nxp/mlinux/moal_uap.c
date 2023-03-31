@@ -3039,7 +3039,8 @@ static int woal_uap_get_sta_list_ioctl(struct net_device *dev,
 
 	/* Allocate an IOCTL request buffer */
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		ret = -ENOMEM;
 		goto done;

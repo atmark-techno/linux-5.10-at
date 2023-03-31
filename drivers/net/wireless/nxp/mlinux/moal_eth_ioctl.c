@@ -4,7 +4,7 @@
   * @brief This file contains private ioctl functions
 
   *
-  * Copyright 2014-2022 NXP
+  * Copyright 2014-2023 NXP
   *
   * This software file (the File) is distributed by NXP
   * under the terms of the GNU General Public License Version 2, June 1991
@@ -2778,7 +2778,8 @@ static int woal_priv_get_sta_list(moal_private *priv, t_u8 *respbuf,
 
 	/* Allocate an IOCTL request buffer */
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		ret = -ENOMEM;
 		goto done;
@@ -3377,6 +3378,110 @@ done:
 	return ret;
 }
 #endif
+
+/*
+ *  @brief Set/Get reorder flush time
+ *
+ *  @param priv                 A pointer to moal_private structure
+ *  @param action               Action set or get
+ *  @param data                 A pointer to the data buf
+ *
+ *  @return                     MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --
+ * success, otherwise fail
+ */
+static mlan_status woal_set_get_reorder_flush_time(moal_private *priv,
+						   t_u32 action, int *data)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_REORDER_FLUSH_TIME;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = action;
+
+	if (action == MLAN_ACT_SET) {
+		misc->param.flush_time.flush_time_ac_be_bk = (t_u16)data[0];
+		misc->param.flush_time.flush_time_ac_vi_vo = (t_u16)data[1];
+	}
+
+	/* Send IOCTL request to MLAN */
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (ret == MLAN_STATUS_SUCCESS) {
+		data[0] = misc->param.flush_time.flush_time_ac_be_bk;
+		data[1] = misc->param.flush_time.flush_time_ac_vi_vo;
+	}
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get AMPDU reordering flush time configurations
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_set_get_reorder_flush_time(moal_private *priv,
+						t_u8 *respbuf, t_u32 respbuflen)
+{
+	t_u32 data[2];
+	int ret = 0;
+	int user_data_len = 0;
+	t_u8 action;
+
+	ENTER();
+
+	if (strlen(respbuf) ==
+	    (strlen(CMD_NXP) + strlen(PRIV_CMD_REORDER_FLUSH_TIME))) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
+		parse_arguments(respbuf + strlen(CMD_NXP) +
+					strlen(PRIV_CMD_REORDER_FLUSH_TIME),
+				data, ARRAY_SIZE(data), &user_data_len);
+	}
+
+	if (user_data_len >= 3) {
+		PRINTM(MERROR, "Too many arguments\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if (user_data_len == 0)
+		action = MLAN_ACT_GET;
+	else
+		action = MLAN_ACT_SET;
+
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_get_reorder_flush_time(priv, action, data)) {
+		ret = -EFAULT;
+		goto done;
+	}
+	sprintf(respbuf, "BE/BK=%d VI/VO=%d", data[0], data[1]);
+	ret = strlen(respbuf) + 1;
+done:
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief Set/Get deep sleep mode configurations
@@ -4806,7 +4911,10 @@ static int woal_priv_set_get_scancfg(moal_private *priv, t_u8 *respbuf,
 				sizeof(data), sizeof(scan->param.scan_cfg));
 	} else
 		req->action = MLAN_ACT_GET;
-
+	if (scan->param.scan_cfg.scan_time.specific_scan_time &&
+	    req->action == MLAN_ACT_SET) {
+		priv->phandle->user_scan_cfg = MTRUE;
+	}
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
@@ -9764,7 +9872,7 @@ done:
 static int woal_priv_inactivity_timeout_ext(moal_private *priv, t_u8 *respbuf,
 					    t_u32 respbuflen)
 {
-	int data[4];
+	int data[5];
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_pm_cfg *pmcfg = NULL;
 	pmlan_ds_inactivity_to inac_to = NULL;
@@ -9785,7 +9893,8 @@ static int woal_priv_inactivity_timeout_ext(moal_private *priv, t_u8 *respbuf,
 				&user_data_len);
 	}
 
-	if (user_data_len != 0 && user_data_len != 3 && user_data_len != 4) {
+	if (user_data_len != 0 && user_data_len != 3 && user_data_len != 4 &&
+	    user_data_len != 5) {
 		PRINTM(MERROR, "Invalid number of parameters\n");
 		ret = -EINVAL;
 		goto done;
@@ -9814,6 +9923,8 @@ static int woal_priv_inactivity_timeout_ext(moal_private *priv, t_u8 *respbuf,
 		inac_to->mcast_timeout = data[2];
 		if (user_data_len == 4)
 			inac_to->ps_entry_timeout = data[3];
+		if (user_data_len == 5)
+			inac_to->ps_cmd_timeout = data[4];
 		req->action = MLAN_ACT_SET;
 
 		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -9826,6 +9937,7 @@ static int woal_priv_inactivity_timeout_ext(moal_private *priv, t_u8 *respbuf,
 		data[1] = inac_to->unicast_timeout;
 		data[2] = inac_to->mcast_timeout;
 		data[3] = inac_to->ps_entry_timeout;
+		data[4] = inac_to->ps_cmd_timeout;
 
 		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
 				sizeof(data), respbuflen);
@@ -16564,7 +16676,7 @@ static int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[3] = {0};
+	int data[7] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -16597,8 +16709,9 @@ static int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 		/* SET operation */
 		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
 				&user_data_len);
-		if (user_data_len > 3 ||
-		    (data[0] == MTRUE && user_data_len != 3)) {
+		if (user_data_len > 4 ||
+		    ((data[0] == MTRUE && user_data_len != 3) &&
+		     (data[0] == MTRUE && user_data_len != 4))) {
 			PRINTM(MERROR, "Invalid number of args!\n");
 			ret = -EINVAL;
 			goto done;
@@ -16609,9 +16722,15 @@ static int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 				ret = -EINVAL;
 				goto done;
 			}
-			if (data[2] > 0x7f) {
+			if (data[2] > 0x7f && data[2] != 0xff) {
 				PRINTM(MERROR,
 				       "Invalid ceil threshold value\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			if (data[3] > 0x7f) {
+				PRINTM(MERROR,
+				       "Invalid floor threshold value\n");
 				ret = -EINVAL;
 				goto done;
 			}
@@ -16622,6 +16741,19 @@ static int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 				(t_s8)data[1];
 			misc->param.rx_abort_cfg_ext.ceil_rssi_threshold =
 				(t_s8)data[2];
+			/** not to update floor_rssi_threshold if not included
+			 * in coammnd */
+			if (user_data_len == 3)
+				misc->param.rx_abort_cfg_ext
+					.floor_rssi_threshold = 0xff;
+			else
+				misc->param.rx_abort_cfg_ext
+					.floor_rssi_threshold = (t_s8)data[3];
+
+			misc->param.rx_abort_cfg_ext
+				.current_dynamic_rssi_threshold = 0;
+			misc->param.rx_abort_cfg_ext.rssi_default_config = 0;
+			misc->param.rx_abort_cfg_ext.edmac_enable = 0;
 		}
 		req->action = MLAN_ACT_SET;
 	}
@@ -16635,6 +16767,11 @@ static int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 	data[0] = misc->param.rx_abort_cfg_ext.enable;
 	data[1] = misc->param.rx_abort_cfg_ext.rssi_margin;
 	data[2] = misc->param.rx_abort_cfg_ext.ceil_rssi_threshold;
+	data[3] = misc->param.rx_abort_cfg_ext.floor_rssi_threshold;
+	data[4] = misc->param.rx_abort_cfg_ext.current_dynamic_rssi_threshold;
+	data[5] = misc->param.rx_abort_cfg_ext.rssi_default_config;
+	data[6] = misc->param.rx_abort_cfg_ext.edmac_enable;
+
 	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data, sizeof(data),
 			respbuflen);
 	ret = sizeof(data);
@@ -17613,6 +17750,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Deep sleep */
 			len = woal_priv_setgetdeepsleep(priv, buf,
 							priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_REORDER_FLUSH_TIME,
+				    strlen(PRIV_CMD_REORDER_FLUSH_TIME)) == 0) {
+			/* reorder flush time */
+			len = woal_priv_set_get_reorder_flush_time(
+				priv, buf, priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_IPADDR,
 				    strlen(PRIV_CMD_IPADDR)) == 0) {

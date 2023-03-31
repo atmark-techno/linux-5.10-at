@@ -1379,6 +1379,8 @@ struct rf_test_mode_data {
 	t_s32 he_tb_tx_power[1];
 	/* BSSID */
 	t_u8 bssid[ETH_ALEN];
+	/* Trigger frame config values */
+	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 };
 
 /** Number of samples in histogram (/proc/mwlan/adapterX/mlan0/histogram).*/
@@ -1465,6 +1467,15 @@ typedef struct _station_node {
 #define EASY_MESH_MULTI_AP_BSS_MODE_1 (t_u8)(0x01)
 #define EASY_MESH_MULTI_AP_BSS_MODE_2 (t_u8)(0x02)
 #define EASY_MESH_MULTI_AP_BSS_MODE_3 (t_u8)(0x03)
+#endif
+
+#ifdef STA_SUPPORT
+enum scan_set_band {
+	SCAN_SETBAND_AUTO = 0,
+	SCAN_SETBAND_2G = BIT(0),
+	SCAN_SETBAND_5G = BIT(1),
+	SCAN_SETBAND_6G = BIT(2),
+};
 #endif
 
 /** Private structure for MOAL */
@@ -1554,6 +1565,10 @@ struct _moal_private {
 #ifdef STA_SUPPORT
 	/** scan type */
 	t_u8 scan_type;
+
+	/** set band for scan */
+	t_u8 scan_setband_mask;
+
 	/** extended capabilities */
 	ExtCap_t extended_capabilities;
 	/** bg_scan_start */
@@ -1884,6 +1899,10 @@ typedef struct _card_info {
 	/* FW Name */
 	char fw_name[FW_NAMW_MAX_LEN];
 	char fw_name_wlan[FW_NAMW_MAX_LEN];
+#if defined(PCIE)
+	t_u32 fw_reset_reg;
+	t_u8 fw_reset_val;
+#endif
 	t_u8 sniffer_support;
 	t_u8 per_pkt_cfg_support;
 } card_info;
@@ -1919,6 +1938,10 @@ struct channel_field {
 #define RX_BW_20L 2
 #define RX_BW_20U 3
 #define RX_BW_80 4
+#define RX_HE_BW_20 0
+#define RX_HE_BW_40 1
+#define RX_HE_BW_80 2
+#define RX_HE_BW_160 3
 /** mcs_field.flags
 The flags field is any combination of the following:
 0x03    bandwidth - 0: 20, 1: 40, 2: 20L, 3: 20U
@@ -1981,6 +2004,165 @@ struct vht_field {
 	t_u16 partial_aid;
 } __packed;
 
+#define HE_BSS_COLOR_KNOWN 0x0002
+#define HE_BEAM_CHANGE_KNOWN 0x0004
+#define HE_UL_DL_KNOWN 0x0008
+#define HE_MCS_KNOWN 0x0020
+#define HE_DCM_KNOWN 0x0040
+#define HE_CODING_KNOWN 0x0080
+#define HE_BW_KNOWN 0x4000
+#define HE_DATA_GI_KNOWN 0x0002
+#define HE_MU_DATA 0x0002
+#define HE_CODING_LDPC_USER0 0x2000
+/** he_field - COCO */
+struct he_field {
+	t_u8 pad;
+	t_u16 data1;
+	t_u16 data2;
+	t_u16 data3;
+	t_u16 data4;
+	t_u16 data5;
+	t_u16 data6;
+} __packed;
+
+extern t_u8 ru_signal[16][9];
+extern t_u8 ru_signal_106[14][9];
+extern t_u8 ru_signal_52[9];
+
+#define MLAN_20_BIT_CH1P 0xC0000000
+#define MLAN_20_BIT_CH1S 0x0000003F
+#define MLAN_20_BIT_CH2 0x007F8000
+#define MLAN_80_CENTER_RU 0x00004000
+#define MLAN_160_CENTER_RU 0x40000000
+#define MLAN_20_BIT_CH3 0x00003FC0
+#define MLAN_20_BIT_CH4 0x7F800000
+#define MLAN_BIT_160_CH3 0x003FC000
+#define MLAN_BIT_160_CH4 0x03FC0000
+
+#define MLAN_DECODE_RU_SIGNALING_CH1(out, x, y)                                \
+	{                                                                      \
+		x = (((x << 8) & MLAN_20_BIT_CH1P)) >> 30;                     \
+		out = x | ((y & MLAN_20_BIT_CH1S) << 2);                       \
+	}
+
+#define MLAN_DECODE_RU_SIGNALING_CH3(out, x, y)                                \
+	{                                                                      \
+		out = ((y & MLAN_20_BIT_CH3) >> 6);                            \
+	}
+
+#define MLAN_DECODE_RU_SIGNALING_CH2(out, x, y)                                \
+	{                                                                      \
+		out = ((y & MLAN_20_BIT_CH2) >> 15);                           \
+	}
+
+#define MLAN_DECODE_RU_SIGNALING_CH4(out, x, y)                                \
+	{                                                                      \
+		out = ((y & MLAN_20_BIT_CH4) >> 23);                           \
+	}
+
+#define MLAN_DECODING_160_RU_CH3(out, x, y)                                    \
+	{                                                                      \
+		out = ((y & MLAN_BIT_160_CH3) >> 5);                           \
+	}
+
+#define MLAN_DECODING_160_RU_CH4(out, x, y)                                    \
+	{                                                                      \
+		out = ((y & MLAN_BIT_160_CH4) >> 22);                          \
+	}
+
+#define RU_SIGNAL_52_TONE 112
+#define TONE_MAX_USERS_52 4
+#define TONE_MAX_USERS_242 3
+#define RU_SIGNAL_26_TONE 0
+#define TONE_MAX_USERS_26 8
+#define RU_26_TONE_LIMIT 15
+#define RU_TONE_LIMIT 96
+#define RU_80_106_TONE 128
+#define RU_40_242_TONE 192
+#define RU_80_484_TONE 200
+#define RU_160_996_TONE 208
+#define RU_TONE_26 4
+#define RU_TONE_52 5
+#define RU_TONE_106 6
+#define RU_TONE_242 7
+#define RU_TONE_484 8
+#define RU_TONE_996 9
+
+#define MLAN_DECODE_RU_TONE(x, y, tone)                                           \
+	{                                                                         \
+		if ((x == RU_SIGNAL_52_TONE)) {                                   \
+			if (((y + 1) <= TONE_MAX_USERS_52)) {                     \
+				tone = RU_TONE_52;                                \
+			} else {                                                  \
+				y = (y + 1) - TONE_MAX_USERS_52;                  \
+			}                                                         \
+		} else if (x == RU_SIGNAL_26_TONE) {                              \
+			if ((y + 1) <= TONE_MAX_USERS_26) {                       \
+				tone = RU_TONE_26;                                \
+			} else {                                                  \
+				y = (y + 1) - TONE_MAX_USERS_26;                  \
+			}                                                         \
+		} else if (x <= RU_TONE_LIMIT) {                                  \
+			t_u32 ru_arr_idx;                                         \
+			ru_arr_idx = x > RU_26_TONE_LIMIT ? 1 : 0;                \
+			if ((y + 1) > (ru_arr_idx ? ru_signal_106[x / 8][8] :     \
+						    ru_signal[x][8])) {           \
+				y = (y + 1) -                                     \
+				    (ru_arr_idx ? ru_signal_106[x / 8][8] :       \
+						  ru_signal[x][8]);               \
+			} else {                                                  \
+				t_u32 ind = 0;                                    \
+				t_u32 idx = 0;                                    \
+				while (ind < 8) {                                 \
+					t_u32 tn =                                \
+						ru_arr_idx ?                      \
+							ru_signal_106[x / 8]      \
+								     [7 - ind] :  \
+							ru_signal[x][7 - ind];    \
+					ind++;                                    \
+					if (tn == 0x1 || tn == 0x0 ||             \
+					    tn == 0x2) {                          \
+						if (idx == y) {                   \
+							tone = tn ? (tn ==        \
+								     2) ?         \
+								    RU_TONE_106 : \
+								    RU_TONE_52 :  \
+								    RU_TONE_26;   \
+							break;                    \
+						} else {                          \
+							idx++;                    \
+						}                                 \
+					}                                         \
+				}                                                 \
+			}                                                         \
+		} else if (x == RU_80_106_TONE) {                                 \
+			if ((y + 1) > TONE_MAX_USERS_242) {                       \
+				y = (y + 1) - TONE_MAX_USERS_242;                 \
+			} else {                                                  \
+				tone = (y == 2) ? RU_TONE_106 :                   \
+						  (y == 1) ? 0 : RU_TONE_106;     \
+			}                                                         \
+		} else if (x == RU_40_242_TONE) {                                 \
+			if (!y) {                                                 \
+				tone = RU_TONE_242;                               \
+			} else {                                                  \
+				y--;                                              \
+			}                                                         \
+		} else if (x == RU_80_484_TONE) {                                 \
+			if (!y) {                                                 \
+				tone = RU_TONE_484;                               \
+			} else {                                                  \
+				y--;                                              \
+			}                                                         \
+		} else if (x == RU_160_996_TONE) {                                \
+			if (!y) {                                                 \
+				tone = RU_TONE_996;                               \
+			} else {                                                  \
+				y--;                                              \
+			}                                                         \
+		}                                                                 \
+	}
+
 /** radiotap_body.flags */
 #define RADIOTAP_FLAGS_DURING_CFG 0x01
 #define RADIOTAP_FLAGS_SHORT_PREAMBLE 0x02
@@ -2013,6 +2195,8 @@ struct radiotap_body {
 		struct mcs_field mcs;
 		/** vht field */
 		struct vht_field vht;
+		/** he field */
+		struct he_field he;
 	} u;
 } __packed;
 
@@ -2531,6 +2715,8 @@ struct _moal_handle {
 	struct semaphore async_sem;
 	/** scan channel gap */
 	t_u16 scan_chan_gap;
+	/** flag to check if specific scan time set by scancfg */
+	t_u8 user_scan_cfg;
 #ifdef STA_CFG80211
 	/** CFG80211 scan request description */
 	struct cfg80211_scan_request *scan_request;
@@ -2540,6 +2726,7 @@ struct _moal_handle {
 	struct delayed_work scan_timeout_work;
 	/** scan timeout time */
 	t_u32 scan_timeout;
+
 #endif
 #endif
 	/** main state */
@@ -3650,6 +3837,7 @@ extern int mac80211_rate_adapt;
 #endif
 moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_num,
 				 t_u8 bss_type);
+void woal_clean_up(moal_handle *handle);
 void woal_remove_interface(moal_handle *handle, t_u8 bss_index);
 void woal_set_multicast_list(struct net_device *dev);
 mlan_status woal_request_fw(moal_handle *handle);

@@ -4,7 +4,7 @@
  *  @brief This file include miscellaneous functions for MLAN module
  *
  *
- *  Copyright 2009-2022 NXP
+ *  Copyright 2009-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -659,7 +659,8 @@ t_void wlan_wakeup_card_timeout_func(void *function_context)
 	PRINTM(MERROR, "%s: ps_state=%d\n", __FUNCTION__, pmadapter->ps_state);
 	if (pmadapter->ps_state != PS_STATE_AWAKE) {
 		PRINTM_NETINTF(MERROR, pmpriv);
-		PRINTM(MERROR, "Wakeup card timeout!\n");
+		PRINTM(MERROR, "Wakeup card timeout(%d)!\n",
+		       pmadapter->pm_wakeup_timeout);
 		pmadapter->pm_wakeup_timeout++;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
 	}
@@ -3405,7 +3406,6 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 	return MLAN_STATUS_SUCCESS;
 }
 
-#ifdef STA_SUPPORT
 /**
  *  @brief Extended capabilities configuration
  *
@@ -3467,7 +3467,6 @@ t_u32 wlan_is_ext_capa_support(mlan_private *pmpriv)
 		return MFALSE;
 	}
 }
-#endif
 
 /**
  *  @brief Set hotspot enable/disable
@@ -6341,6 +6340,19 @@ mlan_status wlan_misc_ioctl_rf_test_cfg(pmlan_adapter pmadapter,
 				       cmd_action, 0, (t_void *)pioctl_req,
 				       &(pmisc->param.mfg_tx_frame2));
 		break;
+	case MLAN_OID_MISC_RF_TEST_CONFIG_TRIGGER_FRAME:
+		if (pioctl_req->action == MLAN_ACT_SET)
+			cmd_action = HostCmd_ACT_GEN_SET;
+		else {
+			PRINTM(MERROR, "Unsupported cmd_action\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_MFG_COMMAND,
+				       cmd_action, 0, (t_void *)pioctl_req,
+				       &(pmisc->param.mfg_tx_trigger_config));
+		break;
+
 	case MLAN_OID_MISC_RF_TEST_HE_POWER:
 		if (pioctl_req->action == MLAN_ACT_SET)
 			cmd_action = HostCmd_ACT_GEN_SET;
@@ -6390,6 +6402,98 @@ mlan_status wlan_misc_ioctl_range_ext(pmlan_adapter pmadapter,
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Perform warm reset
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_misc_ioctl_warm_reset(pmlan_adapter pmadapter,
+				       pmlan_ioctl_req pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	pmlan_buffer pmbuf;
+	t_s32 i = 0;
+	t_u16 mc_policy = pmadapter->mc_policy;
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	ENTER();
+	mlan_block_rx_process(pmadapter, MTRUE);
+
+	/* Cancel all pending commands and complete ioctls */
+	if (misc->param.fw_reload)
+		wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
+
+	/** Init all the head nodes and free all the locks here */
+	for (i = 0; i < pmadapter->priv_num; i++)
+		wlan_free_priv(pmadapter->priv[i]);
+
+	while ((pmbuf = (pmlan_buffer)util_dequeue_list(
+			pmadapter->pmoal_handle, &pmadapter->rx_data_queue,
+			pcb->moal_spin_lock, pcb->moal_spin_unlock))) {
+		pmadapter->ops.data_complete(pmadapter, pmbuf,
+					     MLAN_STATUS_FAILURE);
+	}
+	pmadapter->rx_pkts_queued = 0;
+
+	/* Initialize adapter structure */
+	wlan_init_adapter(pmadapter);
+	pmadapter->hw_status = WlanHardwareStatusInitializing;
+
+	/* Initialize private structures */
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i])
+			wlan_init_priv(pmadapter->priv[i]);
+	}
+	mlan_block_rx_process(pmadapter, MFALSE);
+
+	if (misc->param.fw_reload != MTRUE) {
+		/* Restart the firmware */
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FUNC_SHUTDOWN,
+				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+		if (ret)
+			goto done;
+	}
+
+	/* Issue firmware initialize commands for first BSS,
+	 * for other interfaces it will be called after getting
+	 * the last init command response of previous interface
+	 */
+	pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+	if (!pmpriv) {
+		ret = MLAN_STATUS_FAILURE;
+		LEAVE();
+		return ret;
+	}
+	ret = wlan_adapter_get_hw_spec(pmpriv->adapter);
+	if (ret == MLAN_STATUS_FAILURE) {
+		LEAVE();
+		return ret;
+	}
+	ret = pmpriv->ops.init_cmd(pmpriv, MTRUE);
+	if (ret == MLAN_STATUS_FAILURE) {
+		LEAVE();
+		return ret;
+	}
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_MULTI_CHAN_POLICY,
+			       HostCmd_ACT_GEN_SET, 0, MNULL, &mc_policy);
+	if (ret == MLAN_STATUS_FAILURE) {
+		LEAVE();
+		return ret;
+	}
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+	if (ret == MLAN_STATUS_PENDING)
+		pmadapter->pwarm_reset_ioctl_req = pioctl_req;
+done:
 	LEAVE();
 	return ret;
 }
@@ -6525,6 +6629,44 @@ mlan_status wlan_misc_ioctl_country_code(pmlan_adapter pmadapter,
 	}
 
 done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief get/set rx flush time
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_misc_ioctl_reorder_flush_time(pmlan_adapter pmadapter,
+					       mlan_ioctl_req *pioctl_req)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	if (pioctl_req->action == MLAN_ACT_SET) {
+		if (misc->param.flush_time.flush_time_ac_be_bk >=
+		    MIN_FLUSH_TIME)
+			pmadapter->flush_time_ac_be_bk =
+				misc->param.flush_time.flush_time_ac_be_bk;
+		if (misc->param.flush_time.flush_time_ac_vi_vo >=
+		    MIN_FLUSH_TIME)
+			pmadapter->flush_time_ac_vi_vo =
+				misc->param.flush_time.flush_time_ac_vi_vo;
+	}
+	misc->param.flush_time.flush_time_ac_be_bk =
+		pmadapter->flush_time_ac_be_bk;
+	misc->param.flush_time.flush_time_ac_vi_vo =
+		pmadapter->flush_time_ac_vi_vo;
+	PRINTM(MCMND, "flush time: BE/BK=%d ms  VI/VO=%d ms\n",
+	       pmadapter->flush_time_ac_be_bk, pmadapter->flush_time_ac_vi_vo);
 	LEAVE();
 	return ret;
 }

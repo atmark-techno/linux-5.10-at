@@ -4,7 +4,7 @@
  *  and HW.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -525,7 +525,7 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	}
 #endif
 	priv->user_rxwinsize = priv->add_ba_param.rx_win_size;
-	memset(pmadapter, priv->rx_seq, 0, sizeof(priv->rx_seq));
+	memset(pmadapter, priv->rx_seq, 0xff, sizeof(priv->rx_seq));
 	priv->port_ctrl_mode = MTRUE;
 	priv->port_open = MFALSE;
 	priv->prior_port_status = MFALSE;
@@ -754,6 +754,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->upld_len = 0;
 	pmadapter->event_cause = 0;
 	pmadapter->pmlan_buffer_event = MNULL;
+	pmadapter->flush_time_ac_vi_vo = DEF_FLUSH_TIME_AC_VI_VO;
+	pmadapter->flush_time_ac_be_bk = DEF_FLUSH_TIME_AC_BE_BK;
+
 	memset(pmadapter, &pmadapter->region_channel, 0,
 	       sizeof(pmadapter->region_channel));
 	pmadapter->region_code = 0;

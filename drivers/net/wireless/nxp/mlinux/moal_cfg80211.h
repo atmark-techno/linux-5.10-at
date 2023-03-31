@@ -541,7 +541,8 @@ int woal_get_active_intf_freq(moal_private *priv);
 int woal_get_rx_freq(moal_private *priv, t_u8 band_config, t_u8 chan_num);
 
 void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
-				t_u32 dev_cap, t_u8 *mcs_set);
+				t_u32 dev_cap, t_u8 *mcs_set,
+				t_u8 mpdu_density);
 #if KERNEL_VERSION(3, 6, 0) <= CFG80211_VERSION_CODE
 void woal_cfg80211_setup_vht_cap(moal_private *priv,
 				 struct ieee80211_sta_vht_cap *vht_cap);

@@ -109,7 +109,8 @@ static int woal_deauth_assoc_station(moal_private *priv, u8 *mac_addr,
 	}
 
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		LEAVE();
 		return -ENOMEM;
@@ -179,7 +180,8 @@ static int woal_deauth_all_station(moal_private *priv)
 	PRINTM(MIOCTL, "del all station\n");
 	/* Allocate an IOCTL request buffer */
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		ret = -ENOMEM;
 		goto done;
@@ -2947,19 +2949,16 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 	if (priv->bss_started == MTRUE) {
 		if (woal_uap_bss_ctrl(priv, MOAL_NO_WAIT, UAP_BSS_STOP)) {
 			PRINTM(MERROR, "%s: stop uap failed \n", __func__);
-			ret = -EFAULT;
 			goto done;
 		}
 		if (woal_uap_bss_ctrl(priv, MOAL_NO_WAIT, UAP_BSS_RESET)) {
 			PRINTM(MERROR, "%s: reset uap failed \n", __func__);
-			ret = -EFAULT;
 			goto done;
 		}
 		/* Set WLAN MAC addresses */
 		if (MLAN_STATUS_FAILURE ==
 		    woal_request_set_mac_address(priv, MOAL_NO_WAIT)) {
 			PRINTM(MERROR, "Set MAC address failed\n");
-			ret = -EFAULT;
 			goto done;
 		}
 	}
@@ -2968,10 +2967,11 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 	if (!woal_is_any_interface_active(priv->phandle)) {
 		pmpriv = woal_get_priv((moal_handle *)priv->phandle,
 				       MLAN_BSS_ROLE_STA);
-		if (pmpriv)
+		if (pmpriv && !priv->phandle->user_scan_cfg) {
 			woal_set_scan_time(pmpriv, ACTIVE_SCAN_CHAN_TIME,
 					   PASSIVE_SCAN_CHAN_TIME,
 					   SPECIFIC_SCAN_CHAN_TIME);
+		}
 	}
 #endif
 
@@ -3193,7 +3193,8 @@ int woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 
 	/* Allocate an IOCTL request buffer */
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		ret = -ENOMEM;
 		goto done;
@@ -3292,7 +3293,8 @@ int woal_uap_cfg80211_dump_station(struct wiphy *wiphy, struct net_device *dev,
 
 	/* Allocate an IOCTL request buffer */
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		ret = -ENOMEM;
 		goto done;

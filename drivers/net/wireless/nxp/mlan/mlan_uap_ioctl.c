@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of AP mode ioctls
  *
  *
- *  Copyright 2009-2022 NXP
+ *  Copyright 2009-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -1978,9 +1978,6 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 	mlan_ds_rate *rate = MNULL;
 	mlan_ds_reg_mem *reg_mem = MNULL;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
-	pmlan_ds_scan pscan;
-#endif
 
 	ENTER();
 	switch (pioctl_req->req_id) {
@@ -2048,25 +2045,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_uap_bss_ioctl_action_chan_switch(
 				pmadapter, pioctl_req);
 		break;
-#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
+#ifdef STA_SUPPORT
 	case MLAN_IOCTL_SCAN:
-		pscan = (mlan_ds_scan *)pioctl_req->pbuf;
-		if ((pscan->sub_command == MLAN_OID_SCAN_NORMAL) &&
-		    (pioctl_req->action == MLAN_ACT_GET)) {
-			PRINTM(MIOCTL, "Get scan table in uap\n");
-			pscan->param.scan_resp.pscan_table =
-				(t_u8 *)pmadapter->pscan_table;
-			pscan->param.scan_resp.num_in_scan_table =
-				pmadapter->num_in_scan_table;
-			pscan->param.scan_resp.age_in_secs =
-				pmadapter->age_in_secs;
-			pioctl_req->data_read_written =
-				sizeof(mlan_scan_resp) + MLAN_SUB_COMMAND_SIZE;
-			pscan->param.scan_resp.pchan_stats =
-				(t_u8 *)pmadapter->pchan_stats;
-			pscan->param.scan_resp.num_in_chan_stats =
-				pmadapter->num_in_chan_stats;
-		}
+		status = wlan_scan_ioctl(pmadapter, pioctl_req);
 		break;
 #endif
 	case MLAN_IOCTL_GET_INFO:
@@ -2105,6 +2086,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				pmadapter->getlog_enable;
 			pget_info->param.fw_info.hw_dev_mcs_support =
 				pmadapter->hw_dev_mcs_support;
+			pget_info->param.fw_info.hw_mpdu_density =
+				pmadapter->hw_mpdu_density;
 			pget_info->param.fw_info.hw_dot_11n_dev_cap =
 				pmadapter->hw_dot_11n_dev_cap;
 			pget_info->param.fw_info.usr_dev_mcs_support =
@@ -2169,6 +2152,17 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_SOFT_RESET)
 			status = wlan_uap_misc_ioctl_soft_reset(pmadapter,
 								pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_WARM_RESET) {
+			PRINTM(MCMND, "Request UAP WARM RESET\n");
+			util_enqueue_list_tail(
+				pmadapter->pmoal_handle,
+				&pmadapter->ioctl_pending_q,
+				(pmlan_linked_list)pioctl_req,
+				pmadapter->callbacks.moal_spin_lock,
+				pmadapter->callbacks.moal_spin_unlock);
+			pmadapter->pending_ioctl = MTRUE;
+			status = MLAN_STATUS_PENDING;
+		}
 		if (misc->sub_command == MLAN_OID_MISC_HOST_CMD)
 			status =
 				wlan_misc_ioctl_host_cmd(pmadapter, pioctl_req);
@@ -2320,6 +2314,11 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_COUNTRY_CODE)
 			status = wlan_misc_ioctl_country_code(pmadapter,
 							      pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_REORDER_FLUSH_TIME)
+			status = wlan_misc_ioctl_reorder_flush_time(pmadapter,
+								    pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_EXT_CAP_CFG)
+			status = wlan_misc_ext_capa_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

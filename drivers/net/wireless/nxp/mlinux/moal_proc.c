@@ -473,7 +473,9 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	if (!strncmp(databuf, "he_tb_tx=", strlen("he_tb_tx=")) &&
 	    count > strlen("he_tb_tx="))
 		cmd = MFG_CMD_CONFIG_MAC_HE_TB_TX;
-
+	if (!strncmp(databuf, "trigger_frame=", strlen("trigger_frame=")) &&
+	    count > strlen("trigger_frame="))
+		cmd = MFG_CMD_CONFIG_TRIGGER_FRAME;
 	if (cmd && handle->rf_test_mode &&
 	    (woal_process_rf_test_mode_cmd(
 		     handle, cmd, (const char *)databuf, (size_t)count,
@@ -596,6 +598,109 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[3]);
 			seq_printf(sfp, " %d",
 				   handle->rf_data->he_tb_tx_power[0]);
+		}
+		seq_printf(sfp, "\n");
+		seq_printf(sfp, "trigger_frame=%u",
+			   handle->rf_data->mfg_tx_trigger_config.enable_tx);
+		if (handle->rf_data->mfg_tx_trigger_config.enable_tx == MTRUE) {
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .standalone_hetb);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config.frmCtl
+					   .type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config.frmCtl
+					   .sub_type);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config.duration);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.trigger_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_len);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.more_tf);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.cs_required);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_bw);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_mode);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_symbol);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_stbc);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ldpc_ess);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ap_tx_pwr);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.pre_fec_pad_fct);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.pe_disambig);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.spatial_reuse);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.doppler);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.he_sig2);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.aid12);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ru_alloc_reg);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ru_alloc);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config
+					.trig_user_info_field.ul_coding_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ul_mcs);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ul_dcm);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ss_alloc);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config
+					.trig_user_info_field.ul_target_rssi);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.mpdu_mu_sf);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.tid_al);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.ac_pl);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.pref_ac);
 		}
 		seq_printf(sfp, "\n");
 	}

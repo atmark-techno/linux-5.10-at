@@ -5960,7 +5960,7 @@ mlan_status wlan_handle_event_ext_scan_status(mlan_private *pmpriv,
 	t_u16 tlv_buf_left, tlv_len, tlv_type;
 	MrvlIEtypesHeader_t *tlv;
 	MrvlIEtypes_ChannelStats_t *tlv_chan_stats;
-	t_u8 status;
+	t_u8 status = 0;
 	cmd_ctrl_node *pcmd_node = MNULL;
 
 	ENTER();
@@ -6091,7 +6091,8 @@ done:
 	wlan_release_cmd_lock(pmadapter);
 	wlan_move_cmd_to_cmd_pending_q(pmadapter);
 	pmadapter->bgscan_reported = MFALSE;
-	wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_SCAN_REPORT, MNULL);
+	if (!status)
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_SCAN_REPORT, MNULL);
 	LEAVE();
 	return ret;
 }
@@ -6298,6 +6299,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 	MrvlIETypes_HTCap_t *pht_cap = MNULL;
 	MrvlIETypes_VHTCap_t *pvht_cap = MNULL;
 	MrvlIEtypes_Extension_t *phe_cap = MNULL;
+	MrvlIEtypes_ScanChanGap_t *pscan_gap_tlv;
 	t_u16 len = 0;
 
 	t_u8 index;
@@ -6311,6 +6313,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 	t_u16 scan_dur;
 	t_u8 scan_type;
 	t_u16 band;
+	t_u16 scan_chan_gap = 0;
 	const t_u8 zero_mac[6] = {0, 0, 0, 0, 0, 0};
 
 	ENTER();
@@ -6382,6 +6385,22 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 			wlan_cpu_to_le16(bg_scan_in->repeat_count);
 		tlv += sizeof(MrvlIEtypes_RepeatCount_t);
 		cmd_size += sizeof(MrvlIEtypes_RepeatCount_t);
+	}
+	scan_chan_gap = (bg_scan_in->scan_chan_gap ? bg_scan_in->scan_chan_gap :
+						     pmadapter->scan_chan_gap);
+	if (scan_chan_gap) {
+		pscan_gap_tlv = (MrvlIEtypes_ScanChanGap_t *)tlv;
+		PRINTM(MCMND, "bgScan: channel gap = 0x%x\n", scan_chan_gap);
+		pscan_gap_tlv->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_SCAN_CHANNEL_GAP);
+		pscan_gap_tlv->header.len = sizeof(pscan_gap_tlv->gap);
+		pscan_gap_tlv->gap =
+			wlan_cpu_to_le16((t_u16)pmadapter->scan_chan_gap);
+		/** indicate FW, gap is optional */
+		pscan_gap_tlv->gap |= GAP_FLAG_OPTIONAL;
+		tlv += sizeof(pscan_gap_tlv->header) +
+		       pscan_gap_tlv->header.len;
+		cmd_size += sizeof(MrvlIEtypes_ScanChanGap_t);
 	}
 	for (ssid_idx = 0; ((ssid_idx < NELEMENTS(bg_scan_in->ssid_list)) &&
 			    (*bg_scan_in->ssid_list[ssid_idx].ssid ||

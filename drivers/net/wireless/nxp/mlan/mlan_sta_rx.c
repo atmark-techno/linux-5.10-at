@@ -408,6 +408,8 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 	t_u8 gi = 0;
 	t_u8 ldpc = 0;
 	t_u8 ext_rate_info = 0;
+	t_u8 nss = 0;
+	t_u8 dcm = 0;
 
 	memset(priv->adapter, &rt_info_tmp, 0x00, sizeof(rt_info_tmp));
 	rt_info_tmp.snr = prx_pd->snr;
@@ -418,10 +420,25 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 
 	rt_info_tmp.antenna = prx_pd->antenna;
 	rx_rate_info = prx_pd->rate_info;
-	if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
+	if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_HE) {
+		t_u8 gi_he = 0;
+		/* HE rate */
+		format = MLAN_RATE_FORMAT_HE;
+		mcs_index = MIN(prx_pd->rx_rate & 0xF, 0xb);
+		nss = ((prx_pd->rx_rate & 0xF0) >> 4);
+		nss = MIN(nss + 1, 2);
+		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
+		bw = (rx_rate_info & 0xC) >> 2;
+		gi = (rx_rate_info & 0x10) >> 4;
+		gi_he = (rx_rate_info & 0x80) >> 7;
+		gi = gi | gi_he;
+		dcm = (prx_pd->rx_info & RXPD_DCM_MASK) >> 16;
+	} else if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
 		/* VHT rate */
 		format = MLAN_RATE_FORMAT_VHT;
 		mcs_index = MIN(prx_pd->rx_rate & 0xF, 9);
+		nss = ((prx_pd->rx_rate & 0xF0) >> 4);
+		nss = MIN(nss + 1, 2);
 		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
 		bw = (rx_rate_info & 0xC) >> 2;
 		/* LGI: gi =0, SGI: gi = 1 */
@@ -444,8 +461,14 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 	ldpc = rx_rate_info & 0x40;
 
 	rt_info_tmp.rate_info.mcs_index = mcs_index;
-	rt_info_tmp.rate_info.rate_info =
-		(ldpc << 5) | (format << 3) | (bw << 1) | gi;
+	rt_info_tmp.rate_info.nss_index = nss;
+	rt_info_tmp.rate_info.dcm = dcm;
+	if (format == MLAN_RATE_FORMAT_HE) {
+		rt_info_tmp.rate_info.rate_info =
+			(ldpc << 5) | (format << 3) | (bw << 1) | (gi << 6);
+	} else
+		rt_info_tmp.rate_info.rate_info =
+			(ldpc << 5) | (format << 3) | (bw << 1) | gi;
 	rt_info_tmp.rate_info.bitrate =
 		wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
 					prx_pd->rate_info, ext_rate_info);

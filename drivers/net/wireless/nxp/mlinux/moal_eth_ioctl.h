@@ -4,7 +4,7 @@
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2022 NXP
+ * Copyright 2008-2023 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -103,6 +103,8 @@ typedef struct _chan_stats {
 #define PRIV_CMD_EXTCAPCFG "extcapcfg"
 #define PRIV_CMD_CANCELSCAN "cancelscan"
 #endif
+#define PRIV_CMD_REORDER_FLUSH_TIME "flush_time"
+
 #define PRIV_CMD_DEEPSLEEP "deepsleep"
 #define PRIV_CMD_IPADDR "ipaddr"
 #define PRIV_CMD_WPSSESSION "wpssession"

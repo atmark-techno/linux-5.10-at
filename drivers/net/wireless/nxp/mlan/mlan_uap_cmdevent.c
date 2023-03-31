@@ -3466,6 +3466,34 @@ static mlan_status wlan_uap_cmd_sta_deauth(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function send deauth command
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param sta_addr     A pointer to sta mac address
+ *  @param reason_code  reason code
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_send_deauth_cmd(pmlan_private pmpriv, t_u8 *sta_addr,
+					t_u16 reason_code)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_deauth_param param;
+
+	ENTER();
+
+	param.reason_code = reason_code;
+	memcpy_ext(pmpriv->adapter, param.mac_addr, sta_addr,
+		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_STA_DEAUTH,
+			       HostCmd_ACT_GEN_SET, 0, MNULL, (t_void *)&param);
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function prepares command of report mic_err
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -3882,6 +3910,10 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 					tlv_len + sizeof(MrvlIEtypesHeader_t));
 				priv->is_11ax_enabled = MTRUE;
 			}
+		}
+		if (priv->is_11n_enabled || priv->is_11ac_enabled ||
+		    priv->is_11ax_enabled) {
+			PRINTM(MCMND, "STBC NOT supported, Will be disabled\n");
 		}
 
 		if (tlv_type == VENDOR_SPECIFIC_221) {
@@ -4497,6 +4529,34 @@ done:
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief clean up station's ralist and rx_reordering table.
+ *
+ *  @param pmpriv       A pointer to pmlan_private structure
+ *  @param sta_addr     A pointer to station mac address
+ *
+ *  @return             MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static void wlan_clean_up_station(pmlan_private pmpriv, t_u8 *sta_addr)
+{
+	if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled) {
+		wlan_cleanup_reorder_tbl(pmpriv, sta_addr);
+		wlan_11n_cleanup_txbastream_tbl(pmpriv, sta_addr);
+	}
+	wlan_wmm_delete_peer_ralist(pmpriv, sta_addr);
+	return;
+}
+
+static mlan_status wlan_ret_add_station(pmlan_private pmpriv,
+					HostCmd_DS_COMMAND *resp,
+					mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_ADD_STATION *add_sta = &resp->params.sta_info;
+
+	wlan_clean_up_station(pmpriv, add_sta->peer_mac);
+	return MLAN_STATUS_SUCCESS;
+}
+
 extern mlan_status wlan_cmd_802_11_supplicant_pmk(pmlan_private pmpriv,
 						  HostCmd_DS_COMMAND *cmd,
 						  t_u16 cmd_action,
@@ -4901,6 +4961,11 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_DS_GET_SENSOR_TEMP:
 		wlan_cmd_get_sensor_temp(pmpriv, cmd_ptr, cmd_action);
 		break;
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_802_11_SCAN_EXT:
+		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -5212,6 +5277,7 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_boot_sleep(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_ADD_NEW_STATION:
+		ret = wlan_ret_add_station(pmpriv, resp, pioctl_buf);
 		break;
 #if defined(DRV_EMBEDDED_AUTHENTICATOR)
 	case HostCmd_CMD_CRYPTO:
@@ -5270,6 +5336,13 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_DS_GET_SENSOR_TEMP:
 		ret = wlan_ret_get_sensor_temp(pmpriv, resp, pioctl_buf);
 		break;
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_802_11_SCAN_EXT:
+		ret = wlan_ret_802_11_scan_ext(pmpriv, resp, pioctl_buf);
+		pioctl_buf = MNULL;
+		pmadapter->curr_cmd->pioctl_buf = MNULL;
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);
@@ -5299,6 +5372,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 	t_u8 *event_buf = MNULL;
 	mlan_event *pevent = MNULL;
 	t_u8 sta_addr[MLAN_MAC_ADDR_LENGTH];
+	t_u16 reason_code = 0;
 	sta_node *sta_ptr = MNULL;
 	t_u8 i = 0;
 	t_u8 channel = 0;
@@ -5384,8 +5458,10 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		break;
 	case EVENT_PS_AWAKE:
 		PRINTM(MINFO, "EVENT: AWAKE\n");
-		PRINTM_NETINTF(MEVENT, pmpriv);
-		PRINTM(MEVENT, "||");
+		if (pmadapter->second_mac)
+			PRINTM(MEVENT, "||");
+		else
+			PRINTM(MEVENT, "|");
 		/* Handle unexpected PS AWAKE event */
 		if (pmadapter->ps_state == PS_STATE_SLEEP_CFM)
 			break;
@@ -5396,8 +5472,10 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		break;
 	case EVENT_PS_SLEEP:
 		PRINTM(MINFO, "EVENT: SLEEP\n");
-		PRINTM_NETINTF(MEVENT, pmpriv);
-		PRINTM(MEVENT, "__");
+		if (pmadapter->second_mac)
+			PRINTM(MEVENT, "__");
+		else
+			PRINTM(MEVENT, "_");
 		/* Handle unexpected PS SLEEP event */
 		if (pmadapter->ps_state == PS_STATE_SLEEP_CFM)
 			break;
@@ -5454,10 +5532,19 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		memcpy_ext(pmadapter, sta_addr, pmadapter->event_body + 2,
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		reason_code = *(t_u16 *)pmadapter->event_body;
 		sta_ptr = wlan_get_station_entry(pmpriv, sta_addr);
+
 		PRINTM_NETINTF(MMSG, pmpriv);
-		PRINTM(MMSG, "wlan: EVENT: MICRO_AP_STA_DEAUTH " MACSTR "\n",
-		       MAC2STR(sta_addr));
+		PRINTM(MMSG,
+		       "wlan: EVENT: MICRO_AP_STA_DEAUTH reason=0x%x " MACSTR
+		       "\n",
+		       reason_code, MAC2STR(sta_addr));
+		if (pmpriv->uap_host_based & UAP_FLAG_HOST_MLME && sta_ptr) {
+			if (!(reason_code & MBIT(14)))
+				wlan_send_deauth_cmd(pmpriv, sta_addr,
+						     reason_code);
+		}
 		if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled) {
 			wlan_cleanup_reorder_tbl(pmpriv, sta_addr);
 			wlan_11n_cleanup_txbastream_tbl(pmpriv, sta_addr);
@@ -5473,18 +5560,17 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		break;
 	case EVENT_ADDBA:
 		PRINTM(MEVENT, "EVENT: ADDBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
-			ret = wlan_prepare_cmd(pmpriv,
-					       HostCmd_CMD_11N_ADDBA_RSP,
-					       HostCmd_ACT_GEN_SET, 0, MNULL,
-					       pmadapter->event_body);
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
+			wlan_11n_add_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
 			       "Ignore ADDBA Request event in BSS idle state\n");
 		break;
 	case EVENT_DELBA:
 		PRINTM(MEVENT, "EVENT: DELBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_delete_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
@@ -5492,7 +5578,8 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		break;
 	case EVENT_BA_STREAM_TIMEOUT:
 		PRINTM(MEVENT, "EVENT:  BA Stream timeout\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_ba_stream_timeout(
 				pmpriv, (HostCmd_DS_11N_BATIMEOUT *)
 						pmadapter->event_body);
@@ -5554,7 +5641,6 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		pevent->event_id = 0; /* clear to avoid resending at end of fcn
 				       */
-
 		/* Print event data */
 		pevent->event_id = MLAN_EVENT_ID_FW_RADAR_DETECTED;
 		pevent->event_len = pmbuf->data_len - sizeof(eventcause);
@@ -5567,11 +5653,18 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		*((t_u8 *)pevent->event_buf) = channel;
 		*((t_u8 *)pevent->event_buf + 1) = bandwidth;
 		if (pmpriv->bss_type == MLAN_BSS_TYPE_DFS) {
-			wlan_recv_event(priv, MLAN_EVENT_ID_FW_RADAR_DETECTED,
-					pevent);
-			pevent->event_id = 0; /* clear to avoid
-						 resending at end of fcn
-					       */
+#ifdef DFS_TESTING_SUPPORT
+			if (!pmpriv->adapter->dfs_test_params
+				     .no_channel_change_on_radar) {
+#endif
+				wlan_recv_event(priv,
+						MLAN_EVENT_ID_FW_RADAR_DETECTED,
+						pevent);
+#ifdef DFS_TESTING_SUPPORT
+			}
+#endif
+			pevent->event_id = 0; /* clear to avoid resending at end
+						 of fcn */
 			break;
 		}
 		if (!pmpriv->intf_state_11h.is_11h_host) {
@@ -5676,6 +5769,12 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		pmpriv->uap_state_chan_cb.bandcfg = pchan_info->bandcfg;
 		if (wlan_11h_radar_detect_required(pmpriv, pchan_info->channel))
 			wlan_11h_update_dfs_master_state_by_uap(pmpriv);
+		else {
+			PRINTM(MCMND,
+			       "Disable DFS master operation after channel switch\n");
+			wlan_11h_config_master_radar_det(pmpriv, MFALSE);
+			wlan_11h_check_update_radar_det_state(pmpriv);
+		}
 		if ((pmpriv->adapter->state_rdh.stage != RDH_OFF &&
 		     !pmpriv->intf_state_11h.is_11h_host)
 #ifdef DFS_TESTING_SUPPORT
@@ -5729,6 +5828,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		PRINTM_NETINTF(MEVENT, pmpriv);
 		PRINTM(MEVENT, "EVENT: REMAIN_ON_CHANNEL_EXPIRED reason=%d\n",
 		       *(t_u16 *)pmadapter->event_body);
+		pmpriv->adapter->remain_on_channel = MFALSE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
 		pevent->event_id = MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED;
 		break;
@@ -5834,6 +5934,21 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		PRINTM(MINFO, "EVENT: Dump FW info\n");
 		pevent->event_id = MLAN_EVENT_ID_FW_DUMP_INFO;
 		break;
+#ifdef STA_SUPPORT
+	case EVENT_EXT_SCAN_REPORT:
+		PRINTM(MEVENT, "EVENT: EXT_SCAN Report (%d)\n",
+		       pmbuf->data_len);
+		if (pmadapter->pscan_ioctl_req && pmadapter->ext_scan)
+			ret = wlan_handle_event_ext_scan_report(priv, pmbuf);
+		break;
+	case EVENT_EXT_SCAN_STATUS_REPORT:
+		PRINTM(MEVENT, "EVENT: EXT_SCAN status report (%d)\n",
+		       pmbuf->data_len);
+		pmadapter->ext_scan_timeout = MFALSE;
+		ret = wlan_handle_event_ext_scan_status(priv, pmbuf);
+		break;
+#endif
+
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		break;

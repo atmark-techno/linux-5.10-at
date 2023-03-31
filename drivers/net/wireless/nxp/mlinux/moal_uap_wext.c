@@ -1130,7 +1130,8 @@ static int woal_set_mlme(struct net_device *dev, struct iw_request_info *info,
 		if (!memcmp(bc_addr, sta_addr, ETH_ALEN)) {
 			PRINTM(MIOCTL, "Deauth all stations\n");
 			req = woal_alloc_mlan_ioctl_req(
-				sizeof(mlan_ds_get_info));
+				sizeof(mlan_ds_get_info) +
+				(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 			if (req == NULL) {
 				LEAVE();
 				return -ENOMEM;

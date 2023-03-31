@@ -1362,12 +1362,18 @@ static mlan_status wlan_dnld_sleep_confirm_cmd(mlan_adapter *pmadapter)
 		}
 #endif /* STA_SUPPORT */
 
-		PRINTM_NETINTF(MEVENT, pmpriv);
 #define NUM_SC_PER_LINE 16
-		if (++i % NUM_SC_PER_LINE == 0)
-			PRINTM(MEVENT, "+\n");
-		else
-			PRINTM(MEVENT, "+");
+		if (++i % NUM_SC_PER_LINE == 0) {
+			if (pmadapter->second_mac)
+				PRINTM(MEVENT, "++\n");
+			else
+				PRINTM(MEVENT, "+\n");
+		} else {
+			if (pmadapter->second_mac)
+				PRINTM(MEVENT, "++");
+			else
+				PRINTM(MEVENT, "+");
+		}
 	}
 
 done:
@@ -1997,6 +2003,50 @@ done:
 }
 
 /**
+ *  @brief This function handles the command error in pre_asleep state
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *
+ *  @return             N/A
+ */
+void wlan_handle_cmd_error_in_pre_aleep(mlan_adapter *pmadapter, t_u16 cmd_no)
+{
+	cmd_ctrl_node *pcmd_node = wlan_get_cmd_node(pmadapter);
+	ENTER();
+	PRINTM(MERROR, "CMD_RESP: 0x%x block in pre_asleep!\n", cmd_no);
+	wlan_request_cmd_lock(pmadapter);
+	if (pcmd_node) {
+		pcmd_node->cmdbuf->data_offset =
+			pmadapter->curr_cmd->cmdbuf->data_offset;
+		pcmd_node->cmdbuf->data_len =
+			pmadapter->curr_cmd->cmdbuf->data_len;
+		pcmd_node->pioctl_buf = pmadapter->curr_cmd->pioctl_buf;
+		pmadapter->curr_cmd->pioctl_buf = MNULL;
+		pcmd_node->cmd_flag = pmadapter->curr_cmd->cmd_flag;
+		memcpy_ext(pmadapter,
+			   pcmd_node->cmdbuf->pbuf +
+				   pcmd_node->cmdbuf->data_offset,
+			   pmadapter->curr_cmd->cmdbuf->pbuf +
+				   pmadapter->curr_cmd->cmdbuf->data_offset,
+			   pcmd_node->cmdbuf->data_len,
+			   pcmd_node->cmdbuf->data_len);
+#if defined(PCIE)
+		if (!IS_USB(pmadapter->card_type)) {
+			pcmd_node->cmdbuf->data_offset +=
+				pmadapter->ops.intf_header_len;
+			pcmd_node->cmdbuf->data_len -=
+				pmadapter->ops.intf_header_len;
+		}
+#endif
+		wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node, MFALSE);
+	}
+	wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
+	pmadapter->curr_cmd = MNULL;
+	wlan_release_cmd_lock(pmadapter);
+	LEAVE();
+}
+
+/**
  *  @brief This function handles the command response
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -2135,11 +2185,26 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 	}
 
 	if (pmadapter->curr_cmd->cmd_flag & CMD_F_HOSTCMD) {
+		if (pmadapter->curr_cmd &&
+		    cmdresp_result == HostCmd_RESULT_PRE_ASLEEP) {
+			wlan_handle_cmd_error_in_pre_aleep(pmadapter,
+							   cmdresp_no);
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
 		pmadapter->curr_cmd->cmd_flag &= ~CMD_F_HOSTCMD;
 		if ((cmdresp_result == HostCmd_RESULT_OK) &&
 		    (cmdresp_no == HostCmd_CMD_802_11_HS_CFG_ENH))
 			ret = wlan_ret_802_11_hs_cfg(pmpriv, resp, pioctl_buf);
 	} else {
+		if (pmadapter->curr_cmd &&
+		    cmdresp_result == HostCmd_RESULT_PRE_ASLEEP) {
+			wlan_handle_cmd_error_in_pre_aleep(pmadapter,
+							   cmdresp_no);
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+
 		/* handle response */
 		ret = pmpriv->ops.process_cmdresp(pmpriv, cmdresp_no, resp,
 						  pioctl_buf);
@@ -3466,8 +3531,10 @@ void wlan_process_sleep_confirm_resp(pmlan_adapter pmadapter, t_u8 *pbuf,
 		LEAVE();
 		return;
 	}
-	PRINTM_NETINTF(MEVENT, pmpriv);
-	PRINTM(MEVENT, "#\n");
+	if (pmadapter->second_mac)
+		PRINTM(MEVENT, "##\n");
+	else
+		PRINTM(MEVENT, "#\n");
 	if (cmd->result != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Sleep confirm command failed\n");
 		pmadapter->pm_wakeup_card_req = MFALSE;
@@ -3517,6 +3584,16 @@ mlan_status wlan_cmd_enh_power_mode(pmlan_private pmpriv,
 		psmode_enh->action = wlan_cpu_to_le16(GET_PS);
 		psmode_enh->params.ps_bitmap = wlan_cpu_to_le16(ps_bitmap);
 		cmd->size = wlan_cpu_to_le16(S_DS_GEN + AUTO_PS_FIX_SIZE);
+	} else if (cmd_action == EXT_PS_PARAM) {
+		psmode_enh->action = wlan_cpu_to_le16(EXT_PS_PARAM);
+		psmode_enh->params.ext_param.reserved = 0;
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(t_u16) +
+					     sizeof(ext_ps_param));
+		psmode_enh->params.ext_param.param.header.type =
+			wlan_cpu_to_le16(TLV_TYPE_PS_EXT_PARAM);
+		psmode_enh->params.ext_param.param.header.len = sizeof(t_u32);
+		psmode_enh->params.ext_param.param.mode =
+			wlan_cpu_to_le32(*((t_u32 *)pdata_buf));
 	} else if (cmd_action == EN_AUTO_PS) {
 		psmode_enh->action = wlan_cpu_to_le16(EN_AUTO_PS);
 		psmode_enh->params.auto_ps.ps_bitmap =
@@ -4696,6 +4773,7 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 #ifdef STA_SUPPORT
 	pmlan_private pmpriv_sta = MNULL;
 #endif
+	t_u32 mode = BLOCK_CMD_IN_PRE_ASLEEP;
 	ENTER();
 
 	pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
@@ -4748,6 +4826,13 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
+	}
+
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_MODE_ENH,
+			       EXT_PS_PARAM, HostCmd_ACT_GEN_SET, MNULL, &mode);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
 
 #define DEF_AUTO_NULL_PKT_PERIOD 30
@@ -5851,6 +5936,9 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	pmadapter->hw_dot_11n_dev_cap =
 		wlan_le32_to_cpu(hw_spec->dot_11n_dev_cap);
 	pmadapter->hw_dev_mcs_support = hw_spec->dev_mcs_support;
+	pmadapter->hw_mpdu_density = GET_MPDU_DENSITY(hw_spec->hw_dev_cap);
+	PRINTM(MCMND, "GET_HW_SPEC: hw_mpdu_density=%d dev_mcs_support=0x%x\n",
+	       pmadapter->hw_mpdu_density, hw_spec->dev_mcs_support);
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i])
 			wlan_update_11n_cap(pmadapter->priv[i]);
@@ -6155,8 +6243,14 @@ mlan_status wlan_ret_remain_on_channel(pmlan_private pmpriv,
 	HostCmd_DS_REMAIN_ON_CHANNEL *remain_channel =
 		&resp->params.remain_on_chan;
 	mlan_ds_radio_cfg *radio_cfg = MNULL;
+	t_u16 action = wlan_le16_to_cpu(remain_channel->action);
 
 	ENTER();
+	if (action == HostCmd_ACT_GEN_REMOVE)
+		pmpriv->adapter->remain_on_channel = MFALSE;
+	else
+		pmpriv->adapter->remain_on_channel = MTRUE;
+
 	if (pioctl_buf) {
 		radio_cfg = (mlan_ds_radio_cfg *)pioctl_buf->pbuf;
 		radio_cfg->param.remain_chan.status = remain_channel->status;
@@ -9131,6 +9225,11 @@ mlan_status wlan_cmd_rxabortcfg_ext(pmlan_private pmpriv,
 		cfg_cmd->enable = (t_u8)cfg->enable;
 		cfg_cmd->rssi_margin = (t_s8)cfg->rssi_margin;
 		cfg_cmd->ceil_rssi_threshold = (t_s8)cfg->ceil_rssi_threshold;
+		cfg_cmd->floor_rssi_threshold = (t_s8)cfg->floor_rssi_threshold;
+		cfg_cmd->current_dynamic_rssi_threshold =
+			(t_s8)cfg->current_dynamic_rssi_threshold;
+		cfg_cmd->rssi_default_config = (t_u8)cfg->rssi_default_config;
+		cfg_cmd->edmac_enable = (t_u8)cfg->edmac_enable;
 	}
 
 	LEAVE();
@@ -9164,6 +9263,14 @@ mlan_status wlan_ret_rxabortcfg_ext(pmlan_private pmpriv,
 			cfg_cmd->rssi_margin;
 		misc_cfg->param.rx_abort_cfg_ext.ceil_rssi_threshold =
 			cfg_cmd->ceil_rssi_threshold;
+		misc_cfg->param.rx_abort_cfg_ext.floor_rssi_threshold =
+			cfg_cmd->floor_rssi_threshold;
+		misc_cfg->param.rx_abort_cfg_ext.current_dynamic_rssi_threshold =
+			cfg_cmd->current_dynamic_rssi_threshold;
+		misc_cfg->param.rx_abort_cfg_ext.rssi_default_config =
+			cfg_cmd->rssi_default_config;
+		misc_cfg->param.rx_abort_cfg_ext.edmac_enable =
+			cfg_cmd->edmac_enable;
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

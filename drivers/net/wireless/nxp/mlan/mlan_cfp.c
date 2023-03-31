@@ -87,7 +87,7 @@ static country_code_mapping_t country_code_mapping[] = {
 	{"IN", 0x10, 0x06}, /* India       */
 	{"MY", 0x30, 0x06}, /* Malaysia    */
 	{"NZ", 0x30, 0x30}, /* New Zeland  */
-	{"MX", 0x10, 0x07}, /* Mexico */
+	{"MX", 0x30, 0x07}, /* Mexico */
 };
 
 /** Country code for ETSI */
@@ -394,6 +394,7 @@ static chan_freq_power_t channel_freq_power_EU_A[] = {
 	{132, 5660, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{136, 5680, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
+	{144, 5720, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{149, 5745, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{153, 5765, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},

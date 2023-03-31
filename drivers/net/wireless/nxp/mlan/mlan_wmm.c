@@ -314,8 +314,7 @@ static mlan_wmm_ac_e wlan_wmm_eval_downgrade_ac(pmlan_private priv,
  *
  *  @return     WMM AC Queue mapping of the IP TOS field
  */
-static INLINE mlan_wmm_ac_e wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter,
-						       t_u32 tos)
+mlan_wmm_ac_e wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter, t_u32 tos)
 {
 	ENTER();
 
@@ -1075,7 +1074,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	}
 	if (ptr->del_ba_count >= DEL_BA_THRESHOLD)
 		wlan_update_del_ba_count(priv, ptr);
-	if (!ptr->is_wmm_enabled ||
+	if (!ptr->is_wmm_enabled || priv->adapter->remain_on_channel ||
 	    (ptr->ba_status || ptr->del_ba_count >= DEL_BA_THRESHOLD)
 #ifdef STA_SUPPORT
 	    || priv->wps.session_enable
@@ -1101,7 +1100,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 					    priv, tid, ptr->ra, MFALSE)) {
 					wlan_11n_create_txbastream_tbl(
 						priv, ptr->ra, tid,
-						BA_STREAM_SETUP_INPROGRESS);
+						BA_STREAM_SETUP_SENT_ADDBA);
 					wlan_send_addba(priv, tid, ptr->ra);
 				}
 			} else if (wlan_find_stream_to_delete(priv, ptr, tid,
@@ -1113,6 +1112,9 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 					wlan_11n_create_txbastream_tbl(
 						priv, ptr->ra, tid,
 						BA_STREAM_SETUP_INPROGRESS);
+					wlan_11n_set_txbastream_status(
+						priv, tid_del, ra,
+						BA_STREAM_SENT_DELBA, MFALSE);
 					wlan_send_delba(priv, MNULL, tid_del,
 							ra, 1);
 				}

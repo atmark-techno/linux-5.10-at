@@ -612,6 +612,7 @@ typedef enum wifi_attr {
 	ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX = 8,
 	ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE = 9,
 	ATTR_GET_CONCURRENCY_MATRIX_SET = 10,
+	ATTR_SCAN_BAND_SET = 11,
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
@@ -619,6 +620,15 @@ typedef enum wifi_attr {
 enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };
+
+enum ATTR_FW_RELOAD {
+	ATTR_FW_RELOAD_INVALID = 0,
+	ATTR_FW_RELOAD_MODE = 1,
+	ATTR_FW_RELOAD_AFTER_LAST,
+	ATTR_FW_RELOAD_MAX = ATTR_FW_RELOAD_AFTER_LAST - 1,
+};
+
+void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode);
 
 /**vendor event*/
 enum vendor_event {
@@ -696,6 +706,7 @@ enum vendor_sub_command {
 	sub_cmd_dfs_capability = 0x0005,
 	sub_cmd_get_correlated_time = 0x0006,
 	sub_cmd_set_scan_mac_oui = 0x0007,
+	sub_cmd_set_scan_band = 0x0008,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,

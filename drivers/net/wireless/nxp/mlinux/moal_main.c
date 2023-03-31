@@ -140,6 +140,8 @@ static struct _card_info card_info_PCIE9097 = {
 	.magic_reg = 0x1c74,
 	.fw_name = PCIE9097_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9097_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0x1c94,
+	.fw_reset_val = 0x98,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 };
@@ -163,6 +165,8 @@ static struct _card_info card_info_PCIE9098 = {
 	.magic_reg = 0x1c74,
 	.fw_name = PCIE9098_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9098_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0x1c94,
+	.fw_reset_val = 0x98,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 };
@@ -337,6 +341,91 @@ void woal_send_fw_dump_complete_event(moal_private *priv)
 }
 
 /**
+ *  @brief This function clean up adapter
+ *
+ *  @param handle       Pointer to structure moal_handle
+ *
+ *  @return        N/A
+ */
+void woal_clean_up(moal_handle *handle)
+{
+	int i;
+	moal_private *priv;
+	int cfg80211_wext = 0;
+	cfg80211_wext = handle->params.cfg80211_wext;
+#ifdef STA_CFG80211
+	if (IS_STA_CFG80211(cfg80211_wext) && handle->scan_request &&
+	    handle->scan_priv) {
+		moal_private *scan_priv = handle->scan_priv;
+		/** some supplicant can not handle SCAN abort event */
+		if (scan_priv->bss_type == MLAN_BSS_TYPE_STA)
+			woal_cfg80211_scan_done(handle->scan_request, MTRUE);
+		else
+			woal_cfg80211_scan_done(handle->scan_request, MFALSE);
+		handle->scan_request = NULL;
+		handle->scan_priv = NULL;
+		cancel_delayed_work_sync(&handle->scan_timeout_work);
+		handle->scan_pending_on_block = MFALSE;
+		MOAL_REL_SEMAPHORE(&handle->async_sem);
+	}
+#endif
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i]) {
+			priv = handle->priv[i];
+			woal_stop_queue(priv->netdev);
+			if (netif_carrier_ok(priv->netdev))
+				netif_carrier_off(priv->netdev);
+			priv->media_connected = MFALSE;
+			// disconnect
+			moal_connection_status_check_pmqos(priv->phandle);
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+			if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev &&
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+			    priv->wdev->connected) {
+#else
+			    priv->wdev->current_bss) {
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+				if (priv->host_mlme)
+					woal_host_mlme_disconnect(
+						priv,
+						MLAN_REASON_DEAUTH_LEAVING,
+						NULL);
+				else
+#endif
+					cfg80211_disconnected(priv->netdev, 0,
+							      NULL, 0,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+							      true,
+#endif
+							      GFP_KERNEL);
+			}
+#endif
+#endif
+			// stop bgscan
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+			if (IS_STA_CFG80211(cfg80211_wext) &&
+			    priv->sched_scanning) {
+				priv->bg_scan_start = MFALSE;
+				priv->bg_scan_reported = MFALSE;
+				cfg80211_sched_scan_stopped(priv->wdev->wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+							    ,
+							    priv->bg_scan_reqid
+#endif
+				);
+				priv->sched_scanning = MFALSE;
+			}
+#endif
+#endif
+		}
+	}
+	return;
+}
+
+/**
  *  @brief This function process FW hang
  *
  *  @param handle       Pointer to structure moal_handle
@@ -349,6 +438,7 @@ static void woal_hang_work_queue(struct work_struct *work)
 	moal_private *priv;
 	int cfg80211_wext = 0;
 	int ret = 0;
+	t_u8 reload_mode = 0;
 	ENTER();
 	if (!reset_handle) {
 		LEAVE();
@@ -453,19 +543,30 @@ static void woal_hang_work_queue(struct work_struct *work)
 		}
 #ifdef PCIE
 		else if (IS_PCIE(reset_handle->card_type)) {
-			reset_handle->init_wait_q_woken = MFALSE;
-			PRINTM(MMSG, "WIFI auto_fw_reload: fw_reload=4\n");
-			ret = woal_request_fw_reload(reset_handle,
-						     FW_RELOAD_PCIE_RESET);
-			if (!ret) {
-				/* Wait for FLR to complete */
-				wait_event_timeout(
-					reset_handle->init_wait_q,
-					reset_handle->init_wait_q_woken,
-					10 * HZ);
-				if (reset_handle->hardware_status !=
-				    HardwareStatusReady)
-					ret = -1;
+#define FW_RELOAD_PCIE_IN_BAND_RESET 3
+			if (reset_handle->params.auto_fw_reload ==
+			    FW_RELOAD_PCIE_IN_BAND_RESET) {
+				PRINTM(MMSG,
+				       "WIFI auto_fw_reload: fw_reload=6\n");
+				ret = woal_request_fw_reload(
+					reset_handle,
+					FW_RELOAD_PCIE_INBAND_RESET);
+			} else {
+				reset_handle->init_wait_q_woken = MFALSE;
+				PRINTM(MMSG,
+				       "WIFI auto_fw_reload: fw_reload=4\n");
+				ret = woal_request_fw_reload(
+					reset_handle, FW_RELOAD_PCIE_RESET);
+				if (!ret) {
+					/* Wait for FLR to complete */
+					wait_event_timeout(
+						reset_handle->init_wait_q,
+						reset_handle->init_wait_q_woken,
+						10 * HZ);
+					if (reset_handle->hardware_status !=
+					    HardwareStatusReady)
+						ret = -1;
+				}
 			}
 		}
 #endif
@@ -509,10 +610,17 @@ static void woal_hang_work_queue(struct work_struct *work)
 				     strlen(CUS_EVT_DRIVER_HANG));
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
-			woal_cfg80211_vendor_event(priv, event_hang,
-						   CUS_EVT_DRIVER_HANG,
-						   strlen(CUS_EVT_DRIVER_HANG));
+		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
+			PRINTM(MMSG, "Send event_hang(0x0) vendor event");
+			if (IS_SD(reset_handle->card_type)) {
+				reload_mode = FW_RELOAD_SDIO_INBAND_RESET;
+			} else if (IS_PCIE(reset_handle->card_type)) {
+				reload_mode = FW_RELOAD_PCIE_INBAND_RESET;
+				// Todo: add check for FW_RELOAD_PCIE_RESET -
+				// FLR
+			}
+			woal_cfg80211_driver_hang_event(priv, reload_mode);
+		}
 #endif
 #endif
 	}
@@ -1553,6 +1661,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	device.dfs_offload = moal_extflg_isset(handle, EXT_DFS_OFFLOAD);
 #endif
+	device.second_mac = handle->second_mac;
 
 	for (i = 0; i < handle->drv_mode.intf_num; i++) {
 		device.bss_attr[i].bss_type =
@@ -7008,7 +7117,7 @@ moal_private *woal_bss_index_to_priv(moal_handle *handle, t_u8 bss_index)
 	int i;
 
 	ENTER();
-	if (!handle || !handle->priv_num) {
+	if (!handle) {
 		LEAVE();
 		return NULL;
 	}
@@ -10114,6 +10223,70 @@ exit_sem_err:
 }
 #endif
 
+#define FW_POLL_TRIES 100
+
+#ifdef PCIE
+/**
+ *  @brief This function reload fw for pcie
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *
+ *  @return        0--success, otherwise failure
+ */
+static int woal_pcie_reset_and_reload_fw(moal_handle *handle)
+{
+	int ret = 0, tries = 0;
+	t_u32 value = 1;
+	t_u32 reset_reg = handle->card_info->fw_reset_reg;
+	t_u8 reset_val = handle->card_info->fw_reset_val;
+
+	ENTER();
+#if defined(PCIE9098) || defined(PCIE9097)
+	if (!IS_PCIE9098(handle->card_type) &&
+	    !IS_PCIE9097(handle->card_type)) {
+		PRINTM(MERROR, "HW don't support PCIE in-band reset\n");
+		return -EFAULT;
+	}
+#endif
+
+	mlan_pm_wakeup_card(handle->pmlan_adapter, MTRUE);
+
+	/* Write register to notify FW */
+	if (handle->ops.write_reg(handle, reset_reg, reset_val) !=
+	    MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Failed to write reregister.\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	/* Poll register around 100 ms */
+	for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
+		handle->ops.read_reg(handle, reset_reg, &value);
+		if (value == 0)
+			/* FW is ready */
+			break;
+		udelay(1000);
+	}
+
+	if (value) {
+		PRINTM(MERROR, "Failed to poll FW reset register %X=0x%x\n",
+		       reset_reg, value);
+		ret = -EFAULT;
+		goto done;
+	}
+	mlan_pm_wakeup_card(handle->pmlan_adapter, MFALSE);
+	/* Download FW */
+	ret = woal_request_fw(handle);
+	if (ret) {
+		ret = -EFAULT;
+		goto done;
+	}
+	PRINTM(MMSG, "PCIE FW Reload successfully.");
+done:
+	LEAVE();
+	return ret;
+}
+#endif
+
 /**
  *  @brief This function reload fw
  *
@@ -10146,7 +10319,6 @@ done:
  */
 static void woal_pre_reset(moal_handle *handle)
 {
-	int intf_num;
 	t_u8 driver_status = handle->driver_status;
 	t_u8 i;
 	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_STA);
@@ -10184,14 +10356,7 @@ static void woal_pre_reset(moal_handle *handle)
 #endif
 #endif
 #endif
-
-	/** detach network interface */
-	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
-		if (handle->priv[intf_num]) {
-			woal_stop_queue(handle->priv[intf_num]->netdev);
-			netif_device_detach(handle->priv[intf_num]->netdev);
-		}
-	}
+	woal_clean_up(handle);
 	/** mask host interrupt from firmware */
 	mlan_disable_host_int(handle->pmlan_adapter);
 	/** cancel all pending commands */
@@ -10440,7 +10605,25 @@ int woal_request_fw_reload(moal_handle *phandle, t_u8 mode)
 				goto done;
 			}
 		}
-	} else
+	}
+#ifdef PCIE
+	else if (mode == FW_RELOAD_PCIE_INBAND_RESET &&
+		 IS_PCIE(handle->card_type)) {
+		ret = woal_pcie_reset_and_reload_fw(handle);
+		if (ret) {
+			PRINTM(MERROR, "woal_pcie_reset_and_reload_fw fail\n");
+			goto done;
+		}
+		if (ref_handle) {
+			ret = woal_reload_fw(ref_handle);
+			if (ret) {
+				PRINTM(MERROR, "woal_reload_fw fail\n");
+				goto done;
+			}
+		}
+	}
+#endif
+	else
 		ret = -EFAULT;
 	if (ret) {
 		PRINTM(MERROR, "FW reload fail\n");

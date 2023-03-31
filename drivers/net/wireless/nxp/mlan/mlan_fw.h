@@ -702,6 +702,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** DevMCSSupported : Rx MCS supported */
 #define GET_RXMCSSUPP(DevMCSSupported) (DevMCSSupported & 0x0f)
 
+/** hw_dev_cap : MPDU DENSITY */
+#define GET_MPDU_DENSITY(hw_dev_cap) (hw_dev_cap & 0x7)
+
 /** GET HTCapInfo : Supported Channel BW */
 #define GETHT_SUPPCHANWIDTH(HTCapInfo) (HTCapInfo & MBIT(1))
 /** GET HTCapInfo : Support for Greenfield */
@@ -1793,6 +1796,7 @@ typedef MLAN_PACK_START struct {
 typedef enum _ENH_PS_MODES {
 	GET_PS = 0,
 	SLEEP_CONFIRM = 5,
+	EXT_PS_PARAM = 6,
 	DIS_AUTO_PS = 0xfe,
 	EN_AUTO_PS = 0xff,
 } ENH_PS_MODES;
@@ -1839,6 +1843,10 @@ typedef enum _ENH_PS_MODES {
 #define HostCmd_RESULT_BUSY 0x0004
 /** Data buffer is not big enough */
 #define HostCmd_RESULT_PARTIAL_DATA 0x0005
+/** cmd is blocked by cmd_filter */
+#define HostCmd_RESULT_BLOCK 0x0006
+/** cmd is blocked by pre_asleep */
+#define HostCmd_RESULT_PRE_ASLEEP 0x0007
 
 /* Define action or option for HostCmd_CMD_MAC_CONTROL */
 /** MAC action : Rx on */
@@ -2299,6 +2307,8 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 #define RXPD_CHAN_MASK 0x3FE0
 /** Rate control mask  15-23 */
 #define TXPD_RATE_MASK 0xff8000
+/** DCM at bit 16 */
+#define RXPD_DCM_MASK 0x10000
 /** enable bw ctrl in TxPD */
 #define TXPD_BW_ENABLE MBIT(20)
 /** enable tx power ctrl in TxPD */
@@ -3378,6 +3388,24 @@ typedef MLAN_PACK_START struct __sleep_confirm_param {
 	t_u16 resp_ctrl;
 } MLAN_PACK_END sleep_confirm_param;
 
+/* bit define for pre_asleep*/
+#define BLOCK_CMD_IN_PRE_ASLEEP MBIT(0)
+/** MrvlIEtypes_ext_ps_param_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_ext_ps_param_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** mode: bit0:BLOCK_CMD_IN_PRE_ASLEEP */
+	t_u32 mode;
+} MLAN_PACK_END MrvlIEtypes_ext_ps_param_t;
+
+/** ext_ps_param_t */
+typedef MLAN_PACK_START struct _ext_ps_param {
+	/** reserved */
+	t_u16 reserved;
+	/** ext_ps_param tlv */
+	MrvlIEtypes_ext_ps_param_t param;
+} MLAN_PACK_END ext_ps_param;
+
 /** bitmap for get auto deepsleep */
 #define BITMAP_AUTO_DS 0x01
 /** bitmap for sta power save */
@@ -3388,6 +3416,7 @@ typedef MLAN_PACK_START struct __sleep_confirm_param {
 #define BITMAP_UAP_INACT_PS 0x100
 /** bitmap for uap DTIM PS */
 #define BITMAP_UAP_DTIM_PS 0x200
+
 /** Structure definition for the new ieee power save parameters*/
 typedef MLAN_PACK_START struct _auto_ps_param {
 	/** bitmap for enable power save mode */
@@ -3407,6 +3436,8 @@ typedef MLAN_PACK_START struct _auto_ps_param {
 #define TLV_TYPE_PS_PARAM (PROPRIETARY_TLV_BASE_ID + 0x72) /* 0x0172 */
 /** TLV type : beacon timeout */
 #define TLV_TYPE_BCN_TIMEOUT (PROPRIETARY_TLV_BASE_ID + 0x11F) /* 0x011F */
+/** TLV type: ps_ext_param */
+#define TLV_TYPE_PS_EXT_PARAM (PROPRIETARY_TLV_BASE_ID + 0x15F) /* 0x25F */
 
 /** MrvlIEtypes_auto_ds_param_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_auto_ds_param_t {
@@ -3469,6 +3500,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
 		t_u16 ps_bitmap;
 		/** auto ps param */
 		auto_ps_param auto_ps;
+		/** ext ps param */
+		ext_ps_param ext_param;
 	} params;
 } MLAN_PACK_END HostCmd_DS_802_11_PS_MODE_ENH;
 
@@ -3530,8 +3563,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GET_HW_SPEC {
 	t_u16 number_of_antenna;
 	/** FW release number, example 0x1234=1.2.3.4 */
 	t_u32 fw_release_number;
-	/** Reserved field */
-	t_u32 reserved_1;
+	/** hw dev cap */
+	t_u32 hw_dev_cap;
 	/** Reserved field */
 	t_u32 reserved_2;
 	/** Reserved field */
@@ -6315,8 +6348,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {
 	t_u16 mcast_timeout;
 	/** Timeout for additional RX traffic after Null PM1 packet exchange */
 	t_u16 ps_entry_timeout;
-	/** Reserved to further expansion */
-	t_u16 reserved;
+	/** Inactivity timeout for cmd */
+	t_u16 ps_cmd_timeout;
 } MLAN_PACK_END HostCmd_DS_INACTIVITY_TIMEOUT_EXT;
 
 /** HostCmd_DS_INDEPENDENT_RESET_CFG */
@@ -8102,6 +8135,14 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CMD_RX_ABORT_CFG_EXT {
 	t_s8 rssi_margin;
 	/** specify ceil rssi threshold */
 	t_s8 ceil_rssi_threshold;
+	/** specify floor rssi threshold */
+	t_s8 floor_rssi_threshold;
+	/** current dynamic rssi threshold */
+	t_s8 current_dynamic_rssi_threshold;
+	/** rssi config: default or user configured */
+	t_u8 rssi_default_config;
+	/** EDMAC status */
+	t_u8 edmac_enable;
 } MLAN_PACK_END HostCmd_DS_CMD_RX_ABORT_CFG_EXT;
 
 /** HostCmd_CMD_ARB_CONFIG */
@@ -8437,6 +8478,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		struct mfg_Cmd_HE_TBTx_t mfg_he_power;
+		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 		HostCmd_DS_CMD_ARB_CONFIG arb_cfg;
 		HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG dot11mc_unassoc_ftm_cfg;
 		HostCmd_DS_HAL_PHY_CFG hal_phy_cfg_params;

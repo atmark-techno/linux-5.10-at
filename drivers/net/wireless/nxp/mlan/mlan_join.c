@@ -7,7 +7,7 @@
  *  to the firmware.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -550,33 +550,54 @@ static int wlan_cmd_append_osen_ie(mlan_private *priv, t_u8 **ppbuffer)
 /**
  *  @brief This function get the rsn_cap from RSN ie buffer.
  *
- *  @param pmpriv       A pointer to mlan_private structure
- *
  *  @param data         A pointer to rsn_ie data after IE header
+ *  @param len          Length of ie rsn_ie data after IE header
  *  @param return       rsn_cap
  */
-static t_u16 wlan_get_rsn_cap(t_u8 *data)
+static t_u16 wlan_get_rsn_cap(t_u8 *data, t_u8 len)
 {
 	t_u16 rsn_cap = 0;
 	t_u16 *ptr;
+	t_u16 *end_ptr;
 	t_u16 pairwise_cipher_count = 0;
 	t_u16 akm_suite_count = 0;
+
+	if (len < 20) {
+		/* Version(2B)+GRP(4B)+PairwiseCnt(2B)+PairwiseList(4B)+
+			akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B */
+		PRINTM(MERROR,
+		       "RSNE: IE len should not less than 20 Bytes, len=%d\n",
+		       len);
+		goto done;
+	}
+
 	/* rsn_cap = data + 2 bytes version + 4 bytes
 	 * group_cipher_suite + 2 bytes pairwise_cipher_count +
 	 * pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN + 2 bytes
 	 * akm_suite_count + akm_suite_count * AKM_SUITE_LEN
 	 */
+	end_ptr = (t_u16 *)(data + len);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8));
 	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN);
+	if ((pairwise_cipher_count == 0) || (ptr >= end_ptr)) {
+		PRINTM(MERROR, "RSNE: PAIRWISE_CIPHER not correct\n");
+		goto done;
+	}
 	akm_suite_count = wlan_le16_to_cpu(*ptr);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
 			sizeof(t_u16) + akm_suite_count * AKM_SUITE_LEN);
+	if ((akm_suite_count == 0) || (ptr > end_ptr)) {
+		PRINTM(MERROR, "RSNE: AKM Suite or RSNCAP not correct\n");
+		goto done;
+	}
 	rsn_cap = wlan_le16_to_cpu(*ptr);
+
+done:
 	PRINTM(MCMND, "rsn_cap=0x%x\n", rsn_cap);
 	return rsn_cap;
 }
@@ -598,12 +619,13 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 
 	if (pmpriv->wpa_ie[0] != RSN_IE)
 		return 0;
-	sta_rsn_cap = wlan_get_rsn_cap(pmpriv->wpa_ie + 2);
+	sta_rsn_cap =
+		wlan_get_rsn_cap(pmpriv->wpa_ie + 2, *(pmpriv->wpa_ie + 1));
 	if (!pbss_desc->prsn_ie)
 		return 0;
-	if (pbss_desc->prsn_ie->ieee_hdr.len <= 2)
-		return 0;
-	ap_rsn_cap = wlan_get_rsn_cap(pbss_desc->prsn_ie->data);
+	ap_rsn_cap = wlan_get_rsn_cap(pbss_desc->prsn_ie->data,
+				      pbss_desc->prsn_ie->ieee_hdr.len);
+
 	ap_mfpc = ((ap_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
 	ap_mfpr = ((ap_rsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
 	sta_mfpc = ((sta_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
@@ -643,6 +665,15 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
 	int ap_mfpc = 0, ap_mfpr = 0, ret = MLAN_STATUS_SUCCESS;
+
+	if (ptlv_rsn_ie->header.len < 20) {
+		/* Version(2B)+GRP(4B)+PairwiseCnt(2B)+PairwiseList(4B)+
+			akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B */
+		PRINTM(MERROR,
+		       "RSNE: IE len should not less than 20 Bytes, len=%d\n",
+		       ptlv_rsn_ie->header.len);
+		return MLAN_STATUS_FAILURE;
+	}
 
 	pmf_mask = (((pmpriv->pmfcfg.mfpc << MFPC_BIT) |
 		     (pmpriv->pmfcfg.mfpr << MFPR_BIT)) |
@@ -1258,6 +1289,13 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	if ((IS_FW_SUPPORT_11AX(pmadapter)) &&
 	    wlan_11ax_bandconfig_allowed(pmpriv, pbss_desc))
 		wlan_cmd_append_11ax_tlv(pmpriv, pbss_desc, &pos);
+
+	if ((!pbss_desc->disable_11n) &&
+	    (ISSUPP_11NENABLED(pmadapter->fw_cap_info) ||
+	     ISSUPP_11ACENABLED(pmadapter->fw_cap_info) ||
+	     IS_FW_SUPPORT_11AX(pmadapter))) {
+		PRINTM(MCMND, "STBC NOT supported, Will be disabled\n");
+	}
 
 	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie);
 	if (pmpriv->sec_info.wapi_enabled && pmpriv->wapi_ie_len)

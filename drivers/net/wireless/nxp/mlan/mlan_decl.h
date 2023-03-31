@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "366.p7"
+#define MLAN_RELEASE_VERSION "366.p23"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -267,11 +267,12 @@ typedef t_s32 t_sval;
 #define FW_RELOAD_NO_EMULATION 2
 /** out band reset with interface re-emulation */
 #define FW_RELOAD_WITH_EMULATION 3
-#ifdef PCIE
 /** pcie card reset */
 #define FW_RELOAD_PCIE_RESET 4
-#endif
+/** sdio hw reset */
 #define FW_RELOAD_SDIO_HW_RESET 5
+/** pcie inband reset */
+#define FW_RELOAD_PCIE_INBAND_RESET 6
 
 /** MLAN MAC Address Length */
 #define MLAN_MAC_ADDR_LENGTH (6)
@@ -988,6 +989,10 @@ typedef MLAN_PACK_START struct _mix_rate_info {
 	t_u8 mcs_index;
 	/** bitrate, in 500Kbps */
 	t_u16 bitrate;
+	/** NSS */
+	t_u8 nss_index;
+	/** DCM */
+	t_u8 dcm;
 } MLAN_PACK_END mix_rate_info, *pmix_rate_info;
 
 typedef MLAN_PACK_START struct _rxpd_extra_info {
@@ -999,10 +1004,12 @@ typedef MLAN_PACK_START struct _rxpd_extra_info {
 	t_u8 mcs_known;
 	/** mcs.flags */
 	t_u8 mcs_flags;
-	/** vht sig1 */
-	t_u32 vht_sig1;
-	/** vht sig2 */
-	t_u32 vht_sig2;
+	/** vht/he sig1 */
+	t_u32 vht_he_sig1;
+	/** vht/he sig2 */
+	t_u32 vht_he_sig2;
+	/** HE user idx */
+	t_u32 user_idx;
 } MLAN_PACK_END rxpd_extra_info, *prxpd_extra_info;
 
 typedef MLAN_PACK_START struct _radiotap_info {
@@ -2412,6 +2419,8 @@ typedef struct _mlan_device {
 	t_u8 ext_scan;
 	/* mcs32 setting */
 	t_u8 mcs32;
+	/** second mac flag */
+	t_u8 second_mac;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

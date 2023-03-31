@@ -3600,7 +3600,7 @@ mlan_status wlan_process_msix_int(mlan_adapter *pmadapter)
 			goto done;
 	}
 	if (pcie_ireg & pmadapter->pcard_pcie->reg->host_intr_cmd_done) {
-		if (pmadapter->cmd_sent) {
+		if (pmadapter->cmd_sent && !pmadapter->vdll_ctrl.vdll_len) {
 			PRINTM(MINFO, "<--- CMD sent Interrupt --->\n");
 			pmadapter->cmd_sent = MFALSE;
 		}
@@ -3720,7 +3720,8 @@ static mlan_status wlan_process_pcie_int_status(mlan_adapter *pmadapter)
 		    pmadapter->pcard_pcie->reg->host_intr_cmd_done) {
 			pcie_ireg &=
 				~pmadapter->pcard_pcie->reg->host_intr_cmd_done;
-			if (pmadapter->cmd_sent) {
+			if (pmadapter->cmd_sent &&
+			    !pmadapter->vdll_ctrl.vdll_len) {
 				PRINTM(MINFO, "<--- CMD sent Interrupt --->\n");
 				pmadapter->cmd_sent = MFALSE;
 			}

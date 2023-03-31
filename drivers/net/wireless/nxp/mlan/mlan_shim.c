@@ -187,7 +187,6 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 			}
 			break;
 #endif
-#ifdef STA_SUPPORT
 		case MLAN_IOCTL_MISC_CFG:
 			misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
 			if (misc->sub_command == MLAN_OID_MISC_WARM_RESET) {
@@ -196,7 +195,6 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 								    pioctl_buf);
 			}
 			break;
-#endif
 		default:
 			break;
 		}
@@ -404,6 +402,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
 	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
+	pmadapter->second_mac = pmdevice->second_mac;
 	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
 	if (pmdevice->indication_gpio != 0xff) {
 		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;

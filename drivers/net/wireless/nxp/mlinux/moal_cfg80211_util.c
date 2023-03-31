@@ -140,6 +140,7 @@ static const struct nla_policy woal_attr_policy[ATTR_WIFI_MAX + 1] = {
 	[ATTR_SCAN_MAC_OUI_SET] = {.type = NLA_STRING, .len = 3},
 	[ATTR_NODFS_VALUE] = {.type = NLA_U32},
 	[ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX] = {.type = NLA_U32},
+	[ATTR_SCAN_BAND_SET] = {.type = NLA_U8},
 };
 
 // clang-format off
@@ -3384,16 +3385,56 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi)
 		    priv->conn_bssid) ||
 	    nla_put_s8(skb, ATTR_RSSI_MONITOR_CUR_RSSI, rssi_value)) {
 		PRINTM(MERROR, "nla_put failed!\n");
-		kfree(skb);
+		dev_kfree_skb(skb);
 		goto done;
 	}
 	woal_cfg80211_vendor_event(priv, event_rssi_monitor, (t_u8 *)skb->data,
 				   skb->len);
-	kfree(skb);
+	dev_kfree_skb(skb);
 done:
 	LEAVE();
 }
-#endif
+
+/**
+ * @brief send driver hang vendor event to kernel
+ *
+ * @param priv          A pointer to moal_private
+ * @param reload_mode   reload mode
+ *
+ * @return      N/A
+ */
+void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode)
+{
+	struct sk_buff *skb = NULL;
+
+	ENTER();
+
+	skb = dev_alloc_skb(NLA_HDRLEN + sizeof(t_u8));
+	if (!skb) {
+		PRINTM(MERROR,
+		       "woal_cfg80211_driver_hang_event: Failed to allocate skb");
+		goto done;
+	}
+
+	if (nla_put_u8(skb, ATTR_FW_RELOAD_MODE, reload_mode)) {
+		PRINTM(MERROR,
+		       "woal_cfg80211_driver_hang_event: nla_put failed!\n");
+		dev_kfree_skb(skb);
+		goto done;
+	}
+
+	PRINTM(MMSG,
+	       "woal_cfg80211_driver_hang_event: Send event_hang with reload mode: %d",
+	       reload_mode);
+	woal_cfg80211_vendor_event(priv, event_hang, (t_u8 *)skb->data,
+				   skb->len);
+
+	dev_kfree_skb(skb);
+done:
+	LEAVE();
+}
+
+#endif // STA_CFG80211
 
 /**
  * @brief vendor command to key_mgmt_set_key
@@ -3937,6 +3978,57 @@ static int woal_cfg80211_subcmd_set_scan_mac_oui(struct wiphy *wiphy,
 			MLAN_MAC_ADDR_LENGTH);
 	PRINTM(MCMND, "random_mac is " FULL_MACSTR "\n",
 	       FULL_MAC2STR(priv->random_mac));
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to set scan band
+ *
+ * @param wiphy         A pointer to wiphy struct
+ * @param wdev          A pointer to wireless_dev struct
+ * @param data           a pointer to data
+ * @param data_len     data length
+ *
+ * @return      0: success  <0: fail
+ */
+static int woal_cfg80211_subcmd_set_scan_band(struct wiphy *wiphy,
+					      struct wireless_dev *wdev,
+					      const void *data, int data_len)
+{
+	struct net_device *dev = NULL;
+	moal_private *priv = NULL;
+	struct nlattr *tb_vendor[ATTR_WIFI_MAX + 1];
+	int ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+
+	nla_parse(tb_vendor, ATTR_WIFI_MAX, (struct nlattr *)data, data_len,
+		  NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+		  ,
+		  NULL
+#endif
+	);
+	if (!tb_vendor[ATTR_SCAN_BAND_SET]) {
+		PRINTM(MERROR, "%s: ATTR_SCAN_BAND_SET not found\n", __func__);
+		ret = -EFAULT;
+		goto done;
+	}
+	priv->scan_setband_mask =
+		*(u8 *)nla_data(tb_vendor[ATTR_SCAN_BAND_SET]);
+	PRINTM(MMSG,
+	       "woal_cfg80211_subcmd_set_scan_band: scan_setband_mask :%d",
+	       priv->scan_setband_mask);
+
 done:
 	LEAVE();
 	return ret;
@@ -5195,6 +5287,19 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_set_scan_mac_oui,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_attr_policy,
+		.maxattr = ATTR_WIFI_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_set_scan_band,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_set_scan_band,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = woal_attr_policy,
 		.maxattr = ATTR_WIFI_MAX,

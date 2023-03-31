@@ -2085,6 +2085,8 @@ static mlan_status wlan_ret_inactivity_timeout(pmlan_private pmpriv,
 			wlan_le16_to_cpu(cmd_inac_to->mcast_timeout);
 		inac_to->ps_entry_timeout =
 			wlan_le16_to_cpu(cmd_inac_to->ps_entry_timeout);
+		inac_to->ps_cmd_timeout =
+			wlan_le16_to_cpu(cmd_inac_to->ps_cmd_timeout);
 	}
 
 	LEAVE();
@@ -2560,6 +2562,53 @@ static mlan_status wlan_ret_mfg_tx_frame(pmlan_private pmpriv,
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+/**
+ *  @brief This function prepares command resp of MFG config Trigger frame
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_ret_mfg_config_trigger_frame(pmlan_private pmpriv,
+						     HostCmd_DS_COMMAND *resp,
+						     mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *mcmd =
+		(mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *)&resp->params
+			.mfg_tx_trigger_config;
+	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *cfg = MNULL;
+
+	ENTER();
+	if (!pioctl_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+	cfg = (mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *)&misc->param
+		      .mfg_tx_trigger_config;
+
+	cfg->enable_tx = wlan_le32_to_cpu(mcmd->enable_tx);
+	cfg->standalone_hetb = wlan_le32_to_cpu(mcmd->standalone_hetb);
+	cfg->frmCtl.type = wlan_le16_to_cpu(mcmd->frmCtl.type);
+	cfg->frmCtl.sub_type = wlan_le16_to_cpu(mcmd->frmCtl.sub_type);
+	cfg->duration = wlan_le16_to_cpu(mcmd->duration);
+
+	cfg->trig_common_field = wlan_le64_to_cpu(mcmd->trig_common_field);
+
+	memcpy_ext(pmpriv->adapter, &cfg->trig_user_info_field,
+		   &mcmd->trig_user_info_field,
+		   sizeof(mcmd->trig_user_info_field),
+		   sizeof(cfg->trig_user_info_field));
+
+	cfg->basic_trig_user_info =
+		wlan_le16_to_cpu(mcmd->basic_trig_user_info);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
 
 /**
  *  @brief This function prepares command resp of MFG HE TB Tx
@@ -2630,6 +2679,10 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		goto cmd_mfg_done;
 	case MFG_CMD_CONFIG_MAC_HE_TB_TX:
 		ret = wlan_ret_mfg_he_tb_tx(pmpriv, resp, pioctl_buf);
+		goto cmd_mfg_done;
+	case MFG_CMD_CONFIG_TRIGGER_FRAME:
+		ret = wlan_ret_mfg_config_trigger_frame(pmpriv, resp,
+							pioctl_buf);
 		goto cmd_mfg_done;
 	case MFG_CMD_SET_TEST_MODE:
 	case MFG_CMD_UNSET_TEST_MODE:

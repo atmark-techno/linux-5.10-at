@@ -5,7 +5,7 @@
  *  in MLAN module.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -353,8 +353,9 @@ extern t_u32 mlan_drvdbg;
 #define endian_convert_RxPD_extra_header(x)                                    \
 	do {                                                                   \
 		(x)->channel_flags = wlan_le16_to_cpu((x)->channel_flags);     \
-		(x)->vht_sig1 = wlan_le32_to_cpu((x)->vht_sig1);               \
-		(x)->vht_sig2 = wlan_le32_to_cpu((x)->vht_sig2);               \
+		(x)->vht_he_sig1 = wlan_le32_to_cpu((x)->vht_he_sig1);         \
+		(x)->vht_he_sig2 = wlan_le32_to_cpu((x)->vht_he_sig2);         \
+		(x)->user_idx = wlan_le32_to_cpu((x)->user_idx);               \
 	} while (0)
 #else
 /** Convert ulong n/w to host */
@@ -565,9 +566,13 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #define MFG_CMD_RF_CHANNELBW 0x1044
 #define MFG_CMD_RADIO_MODE_CFG 0x1211
 #define MFG_CMD_CONFIG_MAC_HE_TB_TX 0x110A
+#define MFG_CMD_CONFIG_TRIGGER_FRAME 0x110C
 
 /** Debug command number */
 #define DBG_CMD_NUM 10
+
+/** scan GAP value is optional */
+#define GAP_FLAG_OPTIONAL MBIT(15)
 
 /** Info for debug purpose */
 typedef struct _wlan_dbg {
@@ -658,11 +663,6 @@ typedef enum _PS_STATE {
 	PS_STATE_SLEEP
 } PS_STATE;
 
-/** Minimum flush timer for win size of 1 is 50 ms */
-#define MIN_FLUSH_TIMER_MS 50
-/** Minimum flush timer for win size of 1 is 15 ms */
-#define MIN_FLUSH_TIMER_15_MS 15
-
 /** Tx BA stream table */
 typedef struct _TxBAStreamTbl TxBAStreamTbl;
 
@@ -696,7 +696,9 @@ typedef struct _txAggr_t {
 typedef enum _baStatus_e {
 	BA_STREAM_NOT_SETUP = 0,
 	BA_STREAM_SETUP_INPROGRESS,
-	BA_STREAM_SETUP_COMPLETE
+	BA_STREAM_SETUP_SENT_ADDBA,
+	BA_STREAM_SETUP_COMPLETE,
+	BA_STREAM_SENT_DELBA,
 } baStatus_e;
 
 /** RA list table */
@@ -1358,6 +1360,14 @@ typedef struct {
 	mlan_private *priv;
 } reorder_tmr_cnxt_t;
 
+#define MLAN_SET_BIT(x, val) ((x) |= (1U << (val)))
+#define MLAN_CLEAR_BIT(x, val) ((x) &= ~(1U << (val)))
+/** default RX reorder table flush time 128 ms for AC_VI, AC_VO*/
+#define DEF_FLUSH_TIME_AC_VI_VO 128
+/** default RX reorder table flush time 512 ms for AC_BE, AC_BK*/
+#define DEF_FLUSH_TIME_AC_BE_BK 512
+/** minimal AMPDU flush time */
+#define MIN_FLUSH_TIME 100
 /** RX reorder table */
 struct _RxReorderTbl {
 	/** RxReorderTbl previous node */
@@ -1389,6 +1399,8 @@ struct _RxReorderTbl {
 	t_u8 pkt_count;
 	/** flush data flag */
 	t_u8 flush_data;
+	/** BA window bitmap */
+	t_u64 bitmap;
 };
 
 /** BSS priority node */
@@ -2342,6 +2354,8 @@ struct _mlan_adapter {
 	t_u32 hw_dot_11n_dev_cap;
 	/** Device support for MIMO abstraction of MCSs */
 	t_u8 hw_dev_mcs_support;
+	/** mpdu density */
+	t_u8 hw_mpdu_density;
 #ifdef STA_SUPPORT
 	/** Adhoc Secondary Channel Bandwidth */
 	t_u8 chan_bandwidth;
@@ -2467,11 +2481,20 @@ struct _mlan_adapter {
 	/** authenticator_priv */
 	pmlan_private authenticator_priv;
 #endif
+	/** second mac flag */
+	t_u8 second_mac;
 	/* lower 8 bytes of uuid */
 	t_u64 uuid_lo;
 
 	/* higher 8 bytes of uuid */
 	t_u64 uuid_hi;
+
+	/** AC BK/BE_flush time*/
+	t_u16 flush_time_ac_be_bk;
+	/** AC VI/VO flush time */
+	t_u16 flush_time_ac_vi_vo;
+	/** remain_on_channel flag */
+	t_u8 remain_on_channel;
 };
 
 /** Check if stream 2X2 enabled */
@@ -2890,10 +2913,11 @@ mlan_status wlan_ret_rx_pkt_coalesce_cfg(pmlan_private pmpriv,
 mlan_status wlan_handle_event_multi_chan_info(pmlan_private pmpriv,
 					      pmlan_buffer pevent);
 
-#ifdef STA_SUPPORT
 /** warm reset */
 mlan_status wlan_misc_ioctl_warm_reset(pmlan_adapter pmadapter,
 				       pmlan_ioctl_req pioctl_req);
+
+#ifdef STA_SUPPORT
 /** Process received packet */
 mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf);
 /** ioctl handler for station mode */
@@ -2939,6 +2963,9 @@ mlan_status wlan_cmd_802_11_scan(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd,
 /** Handler for scan command response */
 mlan_status wlan_ret_802_11_scan(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				 t_void *pioctl_buf);
+
+mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter,
+			    pmlan_ioctl_req pioctl_req);
 
 t_u8 wlan_get_ext_scan_state(HostCmd_DS_COMMAND *pcmd);
 /** Extended scan command handler */
@@ -3232,6 +3259,10 @@ mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 mlan_status wlan_11d_cfg_domain_info(pmlan_adapter pmadapter,
 				     mlan_ioctl_req *pioctl_req);
 
+/** This functionn set/get reorder flush time */
+mlan_status wlan_misc_ioctl_reorder_flush_time(pmlan_adapter pmadapter,
+					       mlan_ioctl_req *pioctl_req);
+
 /** This function converts region string to CFP table code */
 mlan_status wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter,
 					       t_u8 *country_code, t_u8 *cfp_bg,
@@ -3507,12 +3538,10 @@ mlan_status wlan_misc_hotspot_cfg(pmlan_adapter pmadapter,
 mlan_status wlan_misc_multi_ap_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
 
-#ifdef STA_SUPPORT
 mlan_status wlan_misc_ext_capa_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
 
 t_u32 wlan_is_ext_capa_support(mlan_private *pmpriv);
-#endif
 
 #ifdef STA_SUPPORT
 void wlan_add_ext_capa_info_ie(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,

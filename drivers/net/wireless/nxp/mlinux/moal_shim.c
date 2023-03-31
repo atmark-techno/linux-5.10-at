@@ -1188,6 +1188,45 @@ mlan_status moal_read_reg(t_void *pmoal, t_u32 reg, t_u32 *data)
 
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+
+#define DOT11_MAX_PRIORITY 8
+#define IEEE80211_RADIOTAP_HE 23
+
+t_u8 ru_signal[16][9] = {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08},
+			 {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0x07},
+			 {0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0x00, 0x00, 0x07},
+			 {0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0xff, 0x01, 0x06},
+			 {0x00, 0x00, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x07},
+			 {0x00, 0x00, 0xff, 0x01, 0x00, 0x00, 0xff, 0x01, 0x06},
+			 {0x00, 0x00, 0xff, 0x01, 0xff, 0x01, 0x00, 0x00, 0x06},
+			 {0x00, 0x00, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0x05},
+			 {0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07},
+			 {0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0x06},
+			 {0xff, 0x01, 0x00, 0x00, 0xff, 0x01, 0x00, 0x00, 0x06},
+			 {0xff, 0x01, 0x00, 0x00, 0xff, 0x01, 0xff, 0x01, 0x05},
+			 {0xff, 0x01, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x06},
+			 {0xff, 0x01, 0xff, 0x01, 0x00, 0x00, 0xff, 0x01, 0x05},
+			 {0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0x00, 0x00, 0x05},
+			 {0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01,
+			  0x04}};
+
+t_u8 ru_signal_106[14][9] = {
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00},
+	{0xff, 0x01, 0xff, 0x01, 0xff, 0xff, 0xff, 0x02, 0x03},
+	{0xff, 0xff, 0xff, 0x02, 0xff, 0x01, 0xff, 0x01, 0x03},
+	{0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x02, 0x05},
+	{0x00, 0x00, 0xff, 0x01, 0xff, 0xff, 0xff, 0x02, 0x04},
+	{0xff, 0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0x02, 0x04},
+	{0xff, 0x01, 0xff, 0x01, 0xff, 0xff, 0xff, 0x02, 0x03},
+	{0xff, 0xff, 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x05},
+	{0xff, 0xff, 0xff, 0x02, 0x00, 0x00, 0xff, 0x01, 0x04},
+	{0xff, 0xff, 0xff, 0x02, 0xff, 0x01, 0x00, 0x00, 0x04},
+	{0xff, 0xff, 0xff, 0x02, 0xff, 0x01, 0xff, 0x01, 0x03},
+	{0xff, 0xff, 0xff, 0x02, 0xff, 0xff, 0xff, 0x02, 0x02},
+	{0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0x04}};
+
+t_u8 ru_signal_52[9] = {0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0x04};
 /**
  *  @brief This function uploads the packet to the network stack monitor
  * interface
@@ -1205,6 +1244,8 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 	struct radiotap_header *rth = NULL;
 	radiotap_info rt_info = {};
 	t_u8 format = 0;
+	t_u8 mcs = 0;
+	t_u8 nss = 0;
 	t_u8 bw = 0;
 	t_u8 gi = 0;
 	t_u8 ldpc = 0;
@@ -1214,6 +1255,12 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 	t_u8 *payload = NULL;
 	t_u32 vht_sig1 = 0;
 	t_u32 vht_sig2 = 0;
+	t_u32 he_sig1 = 0;
+	t_u32 he_sig2 = 0;
+	t_u32 usr_idx = 0;
+	t_u32 out = 0;
+	t_u32 tone = 0;
+	t_u8 dcm = 0;
 	ENTER();
 	if (!pmbuf->pdesc) {
 		LEAVE();
@@ -1242,7 +1289,15 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 			ldpc = (rt_info.rate_info.rate_info & 0x20) >> 5;
 			format = (rt_info.rate_info.rate_info & 0x18) >> 3;
 			bw = (rt_info.rate_info.rate_info & 0x06) >> 1;
-			gi = rt_info.rate_info.rate_info & 0x01;
+			dcm = rt_info.rate_info.dcm;
+			if (format == MLAN_RATE_FORMAT_HE)
+				gi = (rt_info.rate_info.rate_info & 0xC0) >> 6;
+			else
+
+				gi = rt_info.rate_info.rate_info & 0x01;
+			mcs = rt_info.rate_info.mcs_index;
+			nss = rt_info.rate_info.nss_index;
+
 			skb_push(skb, sizeof(*rth));
 			rth = (struct radiotap_header *)skb->data;
 			memset(skb->data, 0, sizeof(*rth));
@@ -1299,13 +1354,19 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 			}
 			/** Channel */
 			rth->body.channel.flags = 0;
-			if (rt_info.chan_num)
-				chan_num = rt_info.chan_num;
-			else
-				chan_num =
-					handle->mon_if->band_chan_cfg.channel;
+			if (rt_info.chan_num &&
+			    (handle->mon_if->band_chan_cfg.channel !=
+			     rt_info.chan_num))
+				handle->mon_if->band_chan_cfg.channel =
+					rt_info.chan_num;
+			chan_num = handle->mon_if->band_chan_cfg.channel;
+
 			band = (chan_num <= 14) ? IEEE80211_BAND_2GHZ :
 						  IEEE80211_BAND_5GHZ;
+			/** update the band, if different in the Rx frame */
+			if (handle->mon_if->band_chan_cfg.band != band)
+				handle->mon_if->band_chan_cfg.band = band;
+
 			rth->body.channel.frequency = woal_cpu_to_le16(
 				ieee80211_channel_to_frequency(chan_num, band));
 			rth->body.channel.flags |=
@@ -1364,8 +1425,8 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 			}
 			/** VHT */
 			if (format == MLAN_RATE_FORMAT_VHT) {
-				vht_sig1 = rt_info.extra_info.vht_sig1;
-				vht_sig2 = rt_info.extra_info.vht_sig2;
+				vht_sig1 = rt_info.extra_info.vht_he_sig1;
+				vht_sig2 = rt_info.extra_info.vht_he_sig2;
 				/** Present Flag */
 				rth->hdr.it_present |= cpu_to_le32(
 					1 << IEEE80211_RADIOTAP_VHT);
@@ -1414,10 +1475,172 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 				/* Convert FW NSS value to radiotap spec */
 				rth->body.u.vht.mcs_nss[0] |=
 					((vht_sig1 & (0x1C00)) >> 10) + 1;
+				/** gi */
+				rth->body.u.vht.known |=
+					woal_cpu_to_le16(VHT_KNOWN_GI);
+				if (gi)
+					rth->body.u.vht.flags |= VHT_FLAG_SGI;
 				/** coding */
 				if (vht_sig2 & MBIT(2))
 					rth->body.u.vht.coding |=
 						VHT_CODING_LDPC_USER0;
+			}
+			if (format == MLAN_RATE_FORMAT_HE) {
+				he_sig1 = rt_info.extra_info.vht_he_sig1;
+				he_sig2 = rt_info.extra_info.vht_he_sig2;
+				usr_idx = rt_info.extra_info.user_idx;
+				rth->hdr.it_present |=
+					cpu_to_le32(1 << IEEE80211_RADIOTAP_HE);
+				rth->body.u.he.data1 |= (HE_CODING_KNOWN);
+				if (ldpc)
+					rth->body.u.he.data3 |=
+						HE_CODING_LDPC_USER0;
+				rth->body.u.he.data1 |= (HE_BW_KNOWN);
+				if (he_sig1)
+					rth->body.u.he.data1 |= (HE_MU_DATA);
+				if (bw == 1) {
+					rth->body.u.he.data5 |= RX_HE_BW_40;
+					if (he_sig2) {
+						MLAN_DECODE_RU_SIGNALING_CH1(
+							out, he_sig1, he_sig2);
+						MLAN_DECODE_RU_TONE(
+							out, usr_idx, tone);
+						if (!tone) {
+							MLAN_DECODE_RU_SIGNALING_CH3(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (tone != 0) {
+							rth->body.u.he.data5 &=
+								~RX_HE_BW_40;
+							rth->body.u.he.data5 |=
+								tone;
+						}
+					}
+				} else if (bw == 2) {
+					rth->body.u.he.data5 |= RX_HE_BW_80;
+					if (he_sig2) {
+						MLAN_DECODE_RU_SIGNALING_CH1(
+							out, he_sig1, he_sig2);
+						MLAN_DECODE_RU_TONE(
+							out, usr_idx, tone);
+						if (!tone) {
+							MLAN_DECODE_RU_SIGNALING_CH2(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (!tone) {
+							if ((he_sig2 &
+							     MLAN_80_CENTER_RU) &&
+							    !usr_idx) {
+								tone = RU_TONE_26;
+							} else {
+								usr_idx--;
+							}
+						}
+						if (!tone) {
+							MLAN_DECODE_RU_SIGNALING_CH3(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (!tone) {
+							MLAN_DECODE_RU_SIGNALING_CH4(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (tone != 0) {
+							rth->body.u.he.data5 &=
+								~RX_HE_BW_80;
+							rth->body.u.he.data5 |=
+								tone;
+						}
+					}
+				} else if (bw == 3) {
+					rth->body.u.he.data5 |= RX_HE_BW_160;
+					if (he_sig2) {
+						MLAN_DECODE_RU_SIGNALING_CH1(
+							out, he_sig1, he_sig2);
+						MLAN_DECODE_RU_TONE(
+							out, usr_idx, tone);
+						if (!tone) {
+							MLAN_DECODE_RU_SIGNALING_CH2(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (!tone) {
+							if ((he_sig2 &
+							     MLAN_160_CENTER_RU) &&
+							    !usr_idx) {
+								tone = RU_TONE_26;
+							} else {
+								usr_idx--;
+							}
+						}
+						if (!tone) {
+							MLAN_DECODING_160_RU_CH3(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (!tone) {
+							MLAN_DECODING_160_RU_CH3(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+						}
+						if (tone != 0) {
+							rth->body.u.he.data5 &=
+								~RX_HE_BW_160;
+							rth->body.u.he.data5 |=
+								tone;
+						}
+					}
+				} else {
+					if (he_sig2) {
+						MLAN_DECODE_RU_SIGNALING_CH1(
+							out, he_sig1, he_sig2);
+						MLAN_DECODE_RU_TONE(
+							out, usr_idx, tone);
+						if (tone) {
+							rth->body.u.he.data5 |=
+								tone;
+						}
+					}
+				}
+
+				rth->body.u.he.data2 |= (HE_DATA_GI_KNOWN);
+				rth->body.u.he.data5 |= ((gi & 3) << 4);
+				rth->body.u.he.data1 |= (HE_MCS_KNOWN);
+
+				rth->body.u.he.data3 |= (mcs << 8);
+				rth->body.u.he.data6 |= nss;
+				rth->body.u.he.data1 |= (HE_DCM_KNOWN);
+				rth->body.u.he.data1 =
+					cpu_to_le16(rth->body.u.he.data1);
+				rth->body.u.he.data5 |= (dcm << 12);
+				rth->body.u.he.data5 =
+					cpu_to_le16(rth->body.u.he.data5);
+				rth->body.u.he.data3 =
+					cpu_to_le16(rth->body.u.he.data3);
 			}
 		}
 		skb_set_mac_header(skb, 0);
@@ -2241,9 +2464,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		if (IS_STA_CFG80211(cfg80211_wext)) {
 			moal_memcpy_ext(priv->phandle, priv->cfg_bssid,
 					pmevent->event_buf, ETH_ALEN, ETH_ALEN);
-			woal_set_scan_time(priv, ACTIVE_SCAN_CHAN_TIME,
-					   PASSIVE_SCAN_CHAN_TIME,
-					   MIN_SPECIFIC_SCAN_CHAN_TIME);
+
+			if (!priv->phandle->user_scan_cfg)
+				woal_set_scan_time(priv, ACTIVE_SCAN_CHAN_TIME,
+						   PASSIVE_SCAN_CHAN_TIME,
+						   MIN_SPECIFIC_SCAN_CHAN_TIME);
 		}
 #endif
 		custom_len = strlen(CUS_EVT_AP_CONNECTED);
@@ -2288,11 +2513,13 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					if (!priv->phandle->first_scan_done) {
 						priv->phandle->first_scan_done =
 							MTRUE;
-						woal_set_scan_time(
-							priv,
-							ACTIVE_SCAN_CHAN_TIME,
-							PASSIVE_SCAN_CHAN_TIME,
-							SPECIFIC_SCAN_CHAN_TIME);
+						if (!priv->phandle
+							     ->user_scan_cfg)
+							woal_set_scan_time(
+								priv,
+								ACTIVE_SCAN_CHAN_TIME,
+								PASSIVE_SCAN_CHAN_TIME,
+								SPECIFIC_SCAN_CHAN_TIME);
 					}
 					spin_lock_irqsave(
 						&priv->phandle->scan_req_lock,
@@ -2404,8 +2631,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		break;
 
 	case MLAN_EVENT_ID_FW_DISCONNECTED:
-		woal_send_disconnect_to_system(priv,
-					       (t_u16)*pmevent->event_buf);
+		if (priv->media_connected)
+			woal_send_disconnect_to_system(
+				priv, (t_u16)*pmevent->event_buf);
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		priv->auth_flag = 0;
@@ -3251,10 +3479,14 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #ifdef STA_SUPPORT
 #ifdef STA_CFG80211
 		pmpriv = woal_get_priv((moal_handle *)pmoal, MLAN_BSS_ROLE_STA);
-		if (IS_STA_CFG80211(cfg80211_wext) && pmpriv)
-			woal_set_scan_time(pmpriv, ACTIVE_SCAN_CHAN_TIME,
-					   PASSIVE_SCAN_CHAN_TIME,
-					   MIN_SPECIFIC_SCAN_CHAN_TIME);
+		if (IS_STA_CFG80211(cfg80211_wext) && pmpriv) {
+			if (!priv->phandle->user_scan_cfg) {
+				woal_set_scan_time(pmpriv,
+						   ACTIVE_SCAN_CHAN_TIME,
+						   PASSIVE_SCAN_CHAN_TIME,
+						   MIN_SPECIFIC_SCAN_CHAN_TIME);
+			}
+		}
 #endif
 #endif
 #ifdef UAP_CFG80211
@@ -3279,7 +3511,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	case MLAN_EVENT_ID_DRV_UAP_CHAN_INFO:
 #ifdef UAP_CFG80211
 		if (IS_UAP_CFG80211(cfg80211_wext)) {
+			struct cfg80211_chan_def chandef;
 			pchan_info = (chan_band_info *)pmevent->event_buf;
+			woal_chandef_create(priv, &chandef, pchan_info);
 			PRINTM(MEVENT,
 			       "UAP: 11n=%d, chan=%d, center_chan=%d, band=%d, width=%d, 2Offset=%d\n",
 			       pchan_info->is_11n_enabled, pchan_info->channel,
@@ -3288,7 +3522,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			       pchan_info->bandcfg.chanWidth,
 			       pchan_info->bandcfg.chan2Offset);
 			if (priv->uap_host_based &&
-			    (priv->channel != pchan_info->channel))
+			    ((priv->chan.chan->hw_value !=
+			      pchan_info->channel) ||
+			     (priv->chan.width != chandef.width)))
 				woal_channel_switch_event(priv, pchan_info);
 		}
 #endif
