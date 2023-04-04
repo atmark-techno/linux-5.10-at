@@ -5,6 +5,7 @@ DTC_FLAGS_armadillo-iotg-a6 := -@
 DTC_FLAGS_armadillo-iotg-a6-at-dtweb := -@
 DTC_FLAGS_armadillo-iotg-a6-extboard := -@
 DTC_FLAGS_armadillo-iotg-a6e := -@
+DTC_FLAGS_armadillo-640 := -@
 
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
@@ -713,6 +714,7 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-640_con9_awl13_rtc.dtb \
 	armadillo-640_con9_thread.dtb \
 	armadillo-640-at-dtweb.dtb \
+	armadillo-640_con9_thread_lwb5plus.dtbo \
 	armadillo-610-extboard-eva-grove.dtb \
 	armadillo-610-extboard-eva-lcd.dtb \
 	armadillo-610-at-dtweb.dtb \

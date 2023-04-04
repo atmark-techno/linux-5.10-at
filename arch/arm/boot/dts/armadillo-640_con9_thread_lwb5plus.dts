@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&uart5 {
+	status = "disabled";
+};
+
+&{/} {
+	// chosen {
+	//	stdout-path = &uart3;
+	// };
+
+	hub_reset_b_reset: usb2422-reset {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_hub_reset_b>;
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio1 30 GPIO_ACTIVE_LOW>;
+
+		reset-delay-us = <1>;
+
+		reset-on-init;
+		#reset-cells = <0>;
+	};
+
+	ble_reset: nrf52-reset {
+		compatible = "gpio-reset";
+		pinctrl-0 = <&pinctrl_ble_reset>;
+		reset-gpios = <&gpio3 26 GPIO_ACTIVE_HIGH>;
+
+		reset-delay-us = <1>;
+
+		reset-on-init;
+		#reset-cells = <0>;
+	};
+
+	reg_wlan_pwr_en: regulator-lwb5p {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_wlan_pwr_en>;
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_LWB5P";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 25 GPIO_ACTIVE_HIGH>;
+		off-on-delay-us = <500000>; // FIXME
+
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	wlan_reset: lwb5p-wlan-reset {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_wlan_reset>;
+		compatible = "regulator-fixed";
+		regulator-name = "LWB5P_WL_REG_ON";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 23 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <150000>;
+		off-on-delay-us = <10000>;
+		vin-supply = <&reg_wlan_pwr_en>;
+
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	bt_reset: lwb5p-bt-reset {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_bt_reset>;
+		compatible = "regulator-fixed";
+		regulator-name = "LWB5P_BT_REG_ON";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <150000>;
+		off-on-delay-us = <10000>;
+		vin-supply = <&reg_wlan_pwr_en>;
+
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	reg_ble_pwr_en: regulator-nrf52 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ble_pwr_en>;
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_NRF52";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 27 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&iomuxc {
+	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
+		fsl,pins = <
+			MX6UL_PAD_UART2_RTS_B__GPIO1_IO23	0x40000008	/* SWDCLK */
+			MX6UL_PAD_UART5_RX_DATA__GPIO1_IO31	0x40010008	/* SWDIO */
+		>;
+	};
+
+	pinctrl_wlan_reset: wlanrstgrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA18__GPIO3_IO23	0x40000000	/* WLAN_RST */
+		>;
+	};
+
+	pinctrl_bt_reset: btrstgrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA19__GPIO3_IO24	0x40000000	/* BT_RST */
+		>;
+	};
+
+	pinctrl_wlan_pwr_en: wlanpwrengrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA20__GPIO3_IO25	0x40000008	/* WLAN_BT_PWREN */
+		>;
+	};
+
+	pinctrl_hub_reset_b: hubresetbgrp {
+		fsl,pins = <
+			MX6UL_PAD_UART5_TX_DATA__GPIO1_IO30	0x00000008	/* HUB_RESET_B */
+		>;
+	};
+
+	pinctrl_ble_reset: bleresetgrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA21__GPIO3_IO26	0x00000008	/* BLE_RESET */
+		>;
+	};
+
+	pinctrl_ble_pwr_en: blepwrengrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA22__GPIO3_IO27	0x00000008	/* BLE_PWR_EN */
+		>;
+	};
+};
+
+&usbotg2 {
+	usb1 {
+		reg = <1>;
+		usb11 {
+			reg = <1>;
+			brcmf: wifi@1 {
+				reg = <1>;
+				compatible = "brcm,bcm4329-fmac";
+				brcm,ccode-map = "JP-JP-0";
+			};
+		};
+	};
+};
