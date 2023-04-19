@@ -776,7 +776,8 @@ static int brcmf_usb_dl_cmd(struct brcmf_usbdev_info *devinfo, u8 cmd,
 	devinfo->ctl_completed = false;
 	ret = usb_submit_urb(devinfo->ctl_urb, GFP_ATOMIC);
 	if (ret < 0) {
-		brcmf_err("usb_submit_urb failed %d\n", ret);
+		if (ret != -19)
+			brcmf_err("usb_submit_urb failed %d\n", ret);
 		goto finalize;
 	}
 
