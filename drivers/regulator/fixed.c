@@ -239,7 +239,8 @@ static int reg_fixed_voltage_probe(struct platform_device *pdev)
 					       &cfg);
 	if (IS_ERR(drvdata->dev)) {
 		ret = PTR_ERR(drvdata->dev);
-		dev_err(&pdev->dev, "Failed to register regulator: %d\n", ret);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Failed to register regulator: %d\n", ret);
 		return ret;
 	}
 
