@@ -1420,6 +1420,8 @@ static inline int lpuart_start_rx_dma(struct lpuart_port *sport)
 	return ret;
 }
 
+static void lpuart_del_timer_sync(struct lpuart_port *sport);
+
 static void lpuart_dma_rx_free(struct uart_port *port, bool dma_terminate)
 {
 	struct lpuart_port *sport = container_of(port,
@@ -1429,6 +1431,7 @@ static void lpuart_dma_rx_free(struct uart_port *port, bool dma_terminate)
 	if (dma_terminate)
 		dmaengine_terminate_sync(sport->dma_rx_chan);
 
+	lpuart_del_timer_sync(sport);
 	dma_unmap_sg(chan->device->dev, &sport->rx_sgl, 1, DMA_FROM_DEVICE);
 	kfree(sport->rx_ring.buf);
 	sport->rx_ring.tail = 0;
@@ -1954,7 +1957,6 @@ static int lpuart32_startup(struct uart_port *port)
 static void lpuart_dma_shutdown(struct lpuart_port *sport)
 {
 	if (sport->lpuart_dma_rx_use) {
-		lpuart_del_timer_sync(sport);
 		lpuart_dma_rx_free(&sport->port, true);
 		sport->lpuart_dma_rx_use = false;
 	}
@@ -2122,7 +2124,6 @@ lpuart_set_termios(struct uart_port *port, struct ktermios *termios,
 	 */
 	if (old && sport->lpuart_dma_rx_use) {
 		sport->dma_rx_chan_active = false;
-		lpuart_del_timer_sync(sport);
 		lpuart_dma_rx_free(&sport->port, true);
 	}
 
@@ -2361,7 +2362,6 @@ lpuart32_set_termios(struct uart_port *port, struct ktermios *termios,
 	 */
 	if (old && sport->lpuart_dma_rx_use) {
 		sport->dma_rx_chan_active = false;
-		lpuart_del_timer_sync(sport);
 		lpuart_dma_rx_free(&sport->port, true);
 	}
 
@@ -2390,9 +2390,15 @@ lpuart32_set_termios(struct uart_port *port, struct ktermios *termios,
 	/* update the per-port timeout */
 	uart_update_timeout(port, termios->c_cflag, baud);
 
-	/* wait transmit engin complete */
-	lpuart32_write(&sport->port, 0, UARTMODIR);
-	lpuart32_wait_bit_set(&sport->port, UARTSTAT, UARTSTAT_TC);
+	/*
+	 * LPUART Transmission Complete Flag may never be set while queuing a break
+	 * character, so skip waiting for transmission complete when UARTCTRL_SBK is
+	 * asserted.
+	 */
+	if (!(old_ctrl & UARTCTRL_SBK)) {
+		lpuart32_write(&sport->port, 0, UARTMODIR);
+		lpuart32_wait_bit_set(&sport->port, UARTSTAT, UARTSTAT_TC);
+	}
 
 	/* disable transmit and receive */
 	lpuart32_write(&sport->port, old_ctrl & ~(UARTCTRL_TE | UARTCTRL_RE),
@@ -3140,7 +3146,6 @@ static int __maybe_unused lpuart_suspend(struct device *dev)
 			 * cannot resume as as expected, hence gracefully release the
 			 * Rx DMA path before suspend and start Rx DMA path on resume.
 			 */
-			lpuart_del_timer_sync(sport);
 			lpuart_dma_rx_free(&sport->port, true);
 
 			/* Disable Rx DMA to use UART port as wakeup source */
