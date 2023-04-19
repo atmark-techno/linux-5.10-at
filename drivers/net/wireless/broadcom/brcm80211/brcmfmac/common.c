@@ -292,7 +292,7 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 		/* store CLM version for adding it to revinfo debugfs file */
 		memcpy(ifp->drvr->clmver, clmver, sizeof(ifp->drvr->clmver));
 
-		brcmf_dbg(INFO, "CLM version = %s\n", clmver);
+		brcmf_info("CLM version = %s\n", clmver);
 	}
 
 	/* set mpc */
