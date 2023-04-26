@@ -723,6 +723,10 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-610-at-dtweb.dtbo \
 	armadillo-iotg-a6e.dtb \
 	armadillo-iotg-a6e-at-dtweb.dtbo \
+	armadillo-iotg-a6e-di8ai4-1st.dtbo \
+	armadillo-iotg-a6e-di8ai4-2nd.dtbo \
+	armadillo-iotg-a6e-di8ai4-3rd.dtbo \
+	armadillo-iotg-a6e-di8ai4-4th.dtbo \
 	armadillo-iotg-a6e-els31.dtbo \
 	armadillo-iotg-a6e-ems31.dtbo \
 	armadillo-iotg-a6e-lwb5plus.dtbo \
@@ -733,7 +737,7 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	# armadillo-640-con9-thread.dtbo \
 	# armadillo-iotg-a6.dtb \
 	# armadillo-iotg-a6-at-dtweb.dtbo \
-	# armadillo-iotg-a6-extboard.dtb \
+	# armadillo-iotg-a6-extboard.dtb \ 
 dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-cl-som-imx7.dtb \
 	imx7d-colibri-aster.dtb \
