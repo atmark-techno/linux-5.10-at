@@ -217,6 +217,7 @@
 		isp0_reserved: isp0@94400000 {
 			no-map;
 			reg = <0 0x94400000 0 0x10000000>;
+			status = "disabled";
 		};
 	};
 
