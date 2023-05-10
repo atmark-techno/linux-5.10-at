@@ -3848,7 +3848,7 @@ static inline int __set_diag_interface(struct hci_dev *hdev)
 	}
 
 	if (!data->diag_tx_ep || !data->diag_rx_ep) {
-		bt_dev_err(hdev, "invalid diagnostic descriptors");
+		bt_dev_info(hdev, "invalid diagnostic descriptors");
 		return -ENODEV;
 	}
 
