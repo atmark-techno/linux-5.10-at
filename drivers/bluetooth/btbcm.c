@@ -492,7 +492,6 @@ int btbcm_cypress_apply_patch(struct hci_dev *hdev)
 	struct sk_buff *skb;
 	int err = 0;
 	u8 opcode;
-	bt_dev_err(hdev, "BCM: Applying cypress patch");
 
 	btbcm_poke_arm32(hdev, 0x310000, 0x29531);
 	btbcm_poke_arm32(hdev, 0x260000, 0xBF1CF1BA);

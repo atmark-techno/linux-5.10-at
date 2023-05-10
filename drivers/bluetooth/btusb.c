@@ -4162,6 +4162,16 @@ static int btusb_probe(struct usb_interface *intf,
 		data->diag = usb_ifnum_to_if(data->udev, ifnum_base + 2);
 	}
 
+	if (IS_ENABLED(CONFIG_BT_HCIBTUSB_BCM) &&
+	    (id->driver_info & BTUSB_CYPRESS_PATCHRAM)) {
+		hdev->setup = btbcm_setup_patchram;
+		hdev->set_diag = btusb_bcm_set_diag;
+		hdev->set_bdaddr = btbcm_set_bdaddr;
+
+		/* Broadcom LM_DIAG Interface numbers are hardcoded */
+		data->diag = usb_ifnum_to_if(data->udev, ifnum_base + 2);
+	}
+
 	if (id->driver_info & BTUSB_INTEL) {
 		hdev->manufacturer = 2;
 		hdev->setup = btusb_setup_intel;
