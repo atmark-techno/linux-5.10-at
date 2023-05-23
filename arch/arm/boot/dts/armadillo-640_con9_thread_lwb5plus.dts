@@ -112,13 +112,13 @@
 
 	pinctrl_wlan_reset: wlanrstgrp {
 		fsl,pins = <
-			MX6UL_PAD_LCD_DATA18__GPIO3_IO23	0x40000000	/* WLAN_RST */
+			MX6UL_PAD_LCD_DATA18__GPIO3_IO23	0x40000008	/* WLAN_RST */
 		>;
 	};
 
 	pinctrl_bt_reset: btrstgrp {
 		fsl,pins = <
-			MX6UL_PAD_LCD_DATA19__GPIO3_IO24	0x40000000	/* BT_RST */
+			MX6UL_PAD_LCD_DATA19__GPIO3_IO24	0x40000008	/* BT_RST */
 		>;
 	};
 
