@@ -3,7 +3,11 @@
  * Copyright (C) 2018-2019 Atmark Techno, Inc. All Rights Reserved.
  */
 
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx6ul-clock.h>
 #include <dt-bindings/pwm/pwm.h>
+
+#include "imx6ull-pinfunc.h"
 
 &iomuxc {
 	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
@@ -148,7 +152,7 @@
 	};
 };
 
-/ {
+&{/} {
         extreg_3v3: ext-regulator-3v3 {
                 compatible = "regulator-fixed";
                 regulator-name = "3V3";
@@ -156,12 +160,6 @@
                 regulator-max-microvolt = <3300000>;
                 regulator-always-on;
         };
-
-	chosen {
-	};
-
-	aliases {
-	};
 
 	ext_backlight_display: ext-backlight-display {
 		compatible = "pwm-backlight";

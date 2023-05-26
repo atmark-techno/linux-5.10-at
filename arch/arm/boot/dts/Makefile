@@ -6,6 +6,8 @@ DTC_FLAGS_armadillo-iotg-a6-at-dtweb := -@
 DTC_FLAGS_armadillo-iotg-a6-extboard := -@
 DTC_FLAGS_armadillo-iotg-a6e := -@
 DTC_FLAGS_armadillo-640 := -@
+DTC_FLAGS_armadillo-610-extboard-eva-grove := -@
+DTC_FLAGS_armadillo-610-extboard-eva-lcd := -@
 
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
@@ -711,16 +713,9 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ulz-14x14-evk-gpmi-weim.dtb \
 	imx6ulz-14x14-evk-emmc.dtb \
 	armadillo-640.dtb \
-	armadillo-640_con9_awl13_rtc.dtb \
-	armadillo-640_con9_thread.dtb \
-	armadillo-640-at-dtweb.dtb \
+	armadillo-640-at-dtweb.dtbo \
 	armadillo-640_con9_thread_lwb5plus.dtbo \
-	armadillo-610-extboard-eva-grove.dtb \
-	armadillo-610-extboard-eva-lcd.dtb \
-	armadillo-610-at-dtweb.dtb \
-	armadillo-iotg-a6.dtb \
-	armadillo-iotg-a6-at-dtweb.dtb \
-	armadillo-iotg-a6-extboard.dtb \
+	armadillo-640-lcd70ext-l00.dtbo \
 	armadillo-iotg-a6e.dtb \
 	armadillo-iotg-a6e-at-dtweb.dtbo \
 	armadillo-iotg-a6e-els31.dtbo \
@@ -728,6 +723,15 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-iotg-a6e-lwb5plus.dtbo \
 	armadillo-iotg-a6e-stdwn-ind-do1.dtbo \
 	armadillo-iotg-a6e-stdwn-ind-con8-pin7.dtbo
+	# not supported yet
+	# armadillo-640_con9_awl13_rtc.dtbo \
+	# armadillo-640_con9_thread.dtbo \
+	# armadillo-610-extboard-eva-grove.dtb \
+	# armadillo-610-extboard-eva-lcd.dtb \
+	# armadillo-610-at-dtweb.dtbo \
+	# armadillo-iotg-a6.dtb \
+	# armadillo-iotg-a6-at-dtweb.dtbo \
+	# armadillo-iotg-a6-extboard.dtb \
 dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-cl-som-imx7.dtb \
 	imx7d-colibri-aster.dtb \

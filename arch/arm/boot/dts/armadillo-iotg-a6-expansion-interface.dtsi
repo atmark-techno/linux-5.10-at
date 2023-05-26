@@ -3,6 +3,8 @@
  * Copyright (C) 2021 Atmark Techno, Inc. All Rights Reserved.
  */
 
+#include "imx6ull-pinfunc.h"
+
 &iomuxc {
 	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
 		fsl,pins = <
@@ -22,10 +24,5 @@
 								           // CON7_13  VCC_3.3V
 								           // CON7_14  GND
 		>;
-	};
-};
-
-/ {
-	chosen {
 	};
 };

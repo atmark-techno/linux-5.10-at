@@ -6,10 +6,9 @@
 /dts-v1/;
 
 #include "imx6ull.dtsi"
-#if !defined(ARMADILLO640_AT_DTWEB) && !defined(ARMADILLO_IOTG_A6)
+#if !defined(ARMADILLO_IOTG_A6)
 #include "armadillo-640-default-console.dtsi"
 #include "armadillo-640-uart5.dtsi"
-#include "armadillo-640-lcd70ext-l00.dtsi"
 #endif
 
 / {
@@ -139,16 +138,17 @@
 &iomuxc {
 	pinctrl-names = "default";
 	pinctrl-0 = <
-#ifdef ARMADILLO640_LCD70EXT_L00
-			&pinctrl_lcd70ext_l00hog
-#endif
-#ifdef ARMADILLO640_AT_DTWEB
-			&pinctrl_expansion_interfacehog
-#endif
-#ifdef ARMADILLO_IOTG_A6_AT_DTWEB
-			&pinctrl_expansion_interfacehog
-#endif
-		    >;
+		&pinctrl_lcd70ext_l00hog
+		&pinctrl_expansion_interfacehog
+	>;
+
+	pinctrl_lcd70ext_l00hog: lcd70ext_l00hoggrp {
+		/* this group left empty for lcd70ext-l00 GPIOs */
+	};
+
+	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
+		/* this group left empty for at-dtweb expansion GPIOs */
+	};
 
 	pinctrl_uart3: uart3grp {
 		fsl,pins = <

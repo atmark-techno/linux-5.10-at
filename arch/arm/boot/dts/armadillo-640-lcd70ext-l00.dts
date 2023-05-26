@@ -3,9 +3,14 @@
  * Copyright (C) 2018 Atmark Techno, Inc. All Rights Reserved.
  */
 
-#define ARMADILLO640_LCD70EXT_L00
+/dts-v1/;
+/plugin/;
 
-/ {
+#include <dt-bindings/gpio/gpio.h>
+#include "imx6ull-pinfunc.h"
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&{/} {
 	backlight_display: backlight-display {
 		compatible = "pwm-backlight";
 		pwms = <&pwm7 0 5000000 0>;

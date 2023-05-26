@@ -4,15 +4,16 @@
  */
 
 /dts-v1/;
+/plugin/;
 
-#define ARMADILLO640_AT_DTWEB
-#include "armadillo-640.dts"
+#include <dt-bindings/gpio/gpio.h>
+#include "imx6ull-pinfunc.h"
 
-/ {
-	chosen {
-		stdout-path = &uart3;
-	};
+&uart5 {
+	status = "disabled";
+};
 
+&{/} {
 	wlan_pwren_reset: awlan-reset {
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_wlan_pwren>;
@@ -74,8 +75,6 @@
 };
 
 &iomuxc {
-	pinctrl-names = "default";
-
 	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
 		fsl,pins = <
 			MX6UL_PAD_UART2_RTS_B__GPIO1_IO23	0x40000008	/* SWDCLK */

@@ -4,10 +4,13 @@
  */
 
 /dts-v1/;
+/plugin/;
 
-#include "armadillo-640.dts"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "imx6ull-pinfunc.h"
 
-/ {
+&{/} {
 	aliases {
 		rtc0 = &rtc_nr3225sa;
 	};
@@ -52,8 +55,6 @@
 };
 
 &iomuxc {
-	pinctrl-names = "default";
-
 	pinctrl_i2c_gpio1: i2cgpio1grp {
 		fsl,pins = <
 			MX6UL_PAD_LCD_DATA18__GPIO3_IO23  0x00008

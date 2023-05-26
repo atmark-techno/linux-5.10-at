@@ -4,7 +4,10 @@
  */
 
 /dts-v1/;
+/plugin/;
 
-#define ARMADILLO640_AT_DTWEB
-#include "armadillo-640.dts"
+&uart5 {
+	status = "disabled";
+};
+
 #include "armadillo-640-expansion-interface.dtsi"

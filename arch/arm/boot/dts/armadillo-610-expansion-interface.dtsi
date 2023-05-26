@@ -3,7 +3,12 @@
  * Copyright (C) 2020 Atmark Techno, Inc. All Rights Reserved.
  */
 
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx6ul-clock.h>
 #include <dt-bindings/pwm/pwm.h>
+
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
 
 &iomuxc_snvs {
 	pinctrl_expansion_interfacehog_snvs: expansion_interfacehogsnvsgrp {
@@ -767,7 +772,7 @@
 //	status = "okay";		// {{required-by-usb-otg2}}
 //};					// {{required-by-usb-otg2}}
 
-/ {
+&{/} {
 	regulators {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -782,10 +787,6 @@
         };
 // {{regulators}}
 
-	};
-
-	chosen {
-//		stdout-path = &uart1;	// {{required-by-uart1}}
 	};
 
 	aliases {
@@ -850,216 +851,4 @@
 //		otg1-vbus-reg-supply = <&reg_usbotg1_vbus>;		// {{required-by-usb-otg1}}  {{usb-otg1/otg1-vbus-reg-supply = <&val>}}
 //		otg2-vbus-reg-supply = <&reg_usbotg2_vbus>;		// {{required-by-usb-otg2}}  {{usb-otg2/otg2-vbus-reg-supply  = <&val>}}
 //	};							// {{required-by-usb-otg1}} {{required-by-usb-otg2}}
-
-	/* DUMMY_NODES_START */
-	uart1 {
-		status = "disabled";
-	};
-
-	uart2 {
-		status = "disabled";
-	};
-
-	uart2-hf {
-		status = "disabled";
-	};
-
-	uart3 {
-		status = "disabled";
-	};
-
-	uart3-hf {
-		status = "disabled";
-	};
-
-	uart4 {
-		status = "disabled";
-	};
-
-	uart4-hf {
-		status = "disabled";
-	};
-
-	uart5 {
-		status = "disabled";
-	};
-
-	uart5-hf {
-		status = "disabled";
-	};
-
-	uart6 {
-		status = "disabled";
-	};
-
-	uart6-hf {
-		status = "disabled";
-	};
-
-	uart7 {
-		status = "disabled";
-	};
-
-	uart7-hf {
-		status = "disabled";
-	};
-
-	uart8 {
-		status = "disabled";
-	};
-
-	uart8-hf {
-		status = "disabled";
-	};
-
-	ecspi1 {
-		status = "disabled";
-	};
-
-	ecspi1-ss1 {
-		status = "disabled";
-	};
-
-	ecspi1-ss2 {
-		status = "disabled";
-	};
-
-	ecspi1-ss3 {
-		status = "disabled";
-	};
-
-	ecspi2 {
-		status = "disabled";
-	};
-
-	ecspi2-ss1 {
-		status = "disabled";
-	};
-
-	ecspi2-ss2 {
-		status = "disabled";
-	};
-
-	ecspi3 {
-		status = "disabled";
-	};
-
-	ecspi4 {
-		status = "disabled";
-	};
-
-	i2c2 {
-		status = "disabled";
-	};
-
-	i2c3 {
-		status = "disabled";
-	};
-
-	i2c4 {
-		status = "disabled";
-	};
-
-	can1 {
-		status = "disabled";
-	};
-
-	can2 {
-		status = "disabled";
-	};
-
-	pwm1 {
-		status = "disabled";
-	};
-
-	pwm2 {
-		status = "disabled";
-	};
-
-	pwm3 {
-		status = "disabled";
-	};
-
-	pwm4 {
-		status = "disabled";
-	};
-
-	pwm5 {
-		status = "disabled";
-	};
-
-	pwm6 {
-		status = "disabled";
-	};
-
-	pwm7 {
-		status = "disabled";
-	};
-
-	pwm8 {
-		status = "disabled";
-	};
-
-	adc1-in1 {
-		status = "disabled";
-	};
-
-	adc1-in2 {
-		status = "disabled";
-	};
-
-	adc1-in3 {
-		status = "disabled";
-	};
-
-	adc1-in4 {
-		status = "disabled";
-	};
-
-	lcdif-gt800x480a-1013p {
-		status = "disabled";
-	};
-
-	lcdif-fg040360dsswbg03 {
-		status = "disabled";
-	};
-
-	awlmod-00 {
-		status = "disabled";
-	};
-
-	
-	lcd70ext-l00 {
-		status = "disabled";
-	};
-
-
-	mqs {
-		status = "disabled";
-	};
-	reg {
-		status = "disabled";
-	};
-	usdhc2 {
-		status = "disabled";
-	};
-	usb-otg1 {
-		status = "disabled";
-	};
-	usb-otg1-id {
-		status = "disabled";
-	};
-	usb-otg1-vbus {
-		status = "disabled";
-	};
-	usb-otg2 {
-		status = "disabled";
-	};
-	usb-otg2-id {
-		status = "disabled";
-	};
-	usb-otg2-vbus {
-		status = "disabled";
-	};
-	/* DUMMY_NODES_END */
 };
