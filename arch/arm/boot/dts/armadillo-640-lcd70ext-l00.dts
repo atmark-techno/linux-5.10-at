@@ -20,6 +20,33 @@
 		status = "okay";
 	};
 
+	panel {
+		compatible = "panel-dpi";
+		label = "lcd";
+
+		panel-timing {
+			clock-frequency = <29232000>;
+			hactive = <800>;
+			vactive = <480>;
+			hback-porch = <40>; /* 88(Blanking) - 48(pulse width) */
+			hfront-porch = <40>;
+			vback-porch = <29>; /* 32(Blanking) - 3(pulse width) */
+			vfront-porch = <13>;
+			hsync-len = <48>;
+			vsync-len = <3>;
+			de-active = <1>;
+			pixelclk-active = <0>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+		};
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&display_out>;
+			};
+		};
+	};
+
 	regulators: regulators0 {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -81,30 +108,11 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lcdif_dat
 		     &pinctrl_lcdif_ctrl>;
-	display = <&display0>;
 	status = "okay";
 
-	display0: display-0 {
-		bits-per-pixel = <32>;
-		bus-width = <18>;
-
-		display-timings {
-			timing0: timing {
-				/* GT800X480A-1013P */
-				clock-frequency = <29232000>;
-				hactive = <800>;
-				vactive = <480>;
-				hback-porch = <40>; /* 88(Blanking) - 48(pulse width) */
-				hfront-porch = <40>;
-				vback-porch = <29>; /* 32(Blanking) - 3(pulse width) */
-				vfront-porch = <13>;
-				hsync-len = <48>;
-				vsync-len = <3>;
-				de-active = <1>;
-				pixelclk-active = <0>;
-				hsync-active = <0>;
-				vsync-active = <0>;
-			};
+	port {
+		display_out: endpoint {
+			remote-endpoint = <&panel_in>;
 		};
 	};
 };
