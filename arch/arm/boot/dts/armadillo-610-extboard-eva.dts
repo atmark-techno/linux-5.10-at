@@ -3,11 +3,17 @@
  * Copyright (C) 2020 Atmark Techno, Inc. All Rights Reserved.
  */
 
-/ {
-	chosen {
-		stdout-path = &uart1;
-	};
+/dts-v1/;
+/plugin/;
 
+#include <dt-bindings/clock/imx6ul-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&{/} {
 	gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -21,10 +27,6 @@
 	};
 
 	gpio-leds {
-		compatible = "gpio-leds";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_gpio_leds>;
-
 		green {
 			label = "green";
 			gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
@@ -110,12 +112,6 @@
 };
 
 &iomuxc {
-	pinctrl-names = "default";
-	pinctrl-0 = <
-			&pinctrl_gpio_amp
-			&pinctrl_gpio_con13b
-		    >;
-
 	pinctrl_wlan_pwren: wlanpwrengrp {
 		fsl,pins = <
 			MX6UL_PAD_UART3_RX_DATA__GPIO1_IO25 0x40000008
@@ -158,7 +154,7 @@
 		>;
 	};
 
-	pinctrl_gpio_leds: gpioledsgrp {
+	pinctrl_ext_gpio_leds: extgpioledsgrp {
 		fsl,pins = <
 			MX6UL_PAD_GPIO1_IO08__GPIO1_IO08   0x00008
 		>;
@@ -169,7 +165,7 @@
 			MX6UL_PAD_UART3_TX_DATA__ANATOP_OTG1_ID 0x17059
 		>;
 	};
-	
+
 	pinctrl_usbotg1_vbus: usbotg1vbusgrp {
 		fsl,pins = <
 			MX6UL_PAD_UART1_RTS_B__GPIO1_IO19  0x00008

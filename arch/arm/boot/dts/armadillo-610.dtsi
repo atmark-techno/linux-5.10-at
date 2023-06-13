@@ -22,7 +22,10 @@
 	gpio-leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_gpio_leds>;
+		pinctrl-0 = <
+			&pinctrl_gpio_leds
+			&pinctrl_ext_gpio_leds /* for dtbo */
+		>;
 
 		yellow {
 			label = "yellow";
@@ -44,18 +47,8 @@
 };
 
 &iomuxc {
-	pinctrl-names = "default";
-	pinctrl-0 = <
-		&pinctrl_lcd70ext_l00hog
-		&pinctrl_expansion_interfacehog
-	>;
-
-	pinctrl_lcd70ext_l00hog: lcd70ext_l00hoggrp {
-		/* this group left empty for lcd70ext-l00 GPIOs */
-	};
-
-	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
-		/* this group left empty for at-dtweb expansion GPIOs */
+	pinctrl_ext_gpio_leds: extgpioledsgrp {
+		/* this group left empty for expansion GPIO LEDs */
 	};
 
 	pinctrl_enet1: enet1grp {
@@ -131,10 +124,12 @@
 &iomuxc_snvs {
 	pinctrl-names = "default";
 	pinctrl-0 = <
-#ifdef ARMADILLO610_AT_DTWEB
 			&pinctrl_expansion_interfacehog_snvs
-#endif
 		    >;
+
+	pinctrl_expansion_interfacehog_snvs: expansioninterfacehogsnvsgrp {
+		/* this group left empty for at-dtweb expansion GPIOs */
+	};
 };
 
 &i2c1 {

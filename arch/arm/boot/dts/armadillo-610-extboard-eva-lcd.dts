@@ -1,8 +1,0 @@
-// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-/*
- * Copyright (C) 2020 Atmark Techno, Inc. All Rights Reserved.
- */
-
-#include "armadillo-610.dtsi"
-#include "armadillo-610-extboard-eva-common.dtsi"
-#include <dt-bindings/pwm/pwm.h>

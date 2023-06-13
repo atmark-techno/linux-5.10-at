@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2023 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+
+#include "armadillo-610.dtsi"
+#include "armadillo-640-default-console.dtsi"
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&pinctrl_lcd70ext_l00hog
+		&pinctrl_expansion_interfacehog
+		&pinctrl_gpio_amp
+		&pinctrl_gpio_con13b
+	>;
+
+	pinctrl_lcd70ext_l00hog: lcd70ext_l00hoggrp {
+		/* this group left empty for lcd70ext-l00 GPIOs */
+	};
+
+	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
+		/* this group left empty for at-dtweb expansion GPIOs */
+	};
+
+	pinctrl_gpio_amp: gpioampgrp {
+		/* this group left empty for at-dtweb amp GPIOs */
+	};
+
+	pinctrl_gpio_con13b: gpiocon13bgrp {
+		/* this group left empty for at-dtweb con13b GPIOs */
+	};
+};

@@ -3,10 +3,14 @@
  * Copyright (C) 2020 Atmark Techno, Inc. All Rights Reserved.
  */
 
-#include "armadillo-610.dtsi"
-#include "armadillo-610-extboard-eva-common.dtsi"
+/dts-v1/;
+/plugin/;
 
-/ {
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&{/} {
 	extreg_3v3: ext-regulator-3v3 {
 		compatible = "regulator-fixed";
 		regulator-name = "3V3";
