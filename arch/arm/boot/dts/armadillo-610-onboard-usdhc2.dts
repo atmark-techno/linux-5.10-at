@@ -9,4 +9,4 @@
 #include <dt-bindings/gpio/gpio.h>
 #include "imx6ull-pinfunc.h"
 
-#include "armadillo-610-onboard-usdhc2.dtsi"
+#include "armadillo-600-onboard-usdhc2.dtsi"
