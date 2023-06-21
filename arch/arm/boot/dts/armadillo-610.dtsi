@@ -6,9 +6,6 @@
 /dts-v1/;
 
 #include "imx6ull.dtsi"
-#ifndef ARMADILLO610_UNUSE_ONBOARD_USDHC2
-#include "armadillo-610-onboard-usdhc2.dtsi"
-#endif
 
 / {
 	model = "Atmark Techno Armadillo-610";
@@ -32,6 +29,17 @@
 			gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "none";
 		};
+	};
+
+	reg_onboard_sd2_vmmc: regulator-onboardsd2vmmc {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_onboard_sd2_vmmc>;
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_ONBOARD_SD2";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio4 10 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 	};
 };
 
@@ -117,6 +125,12 @@
 	pinctrl_wdog: wdoggrp {
 		fsl,pins = <
 			MX6UL_PAD_LCD_RESET__WDOG1_WDOG_ANY    0x30b0
+		>;
+	};
+
+	pinctrl_onboard_sd2_vmmc: sd2vmmcgrp {
+		fsl,pins = <
+			MX6UL_PAD_NAND_ALE__GPIO4_IO10  0x00008
 		>;
 	};
 };

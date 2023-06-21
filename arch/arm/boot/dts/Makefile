@@ -716,8 +716,10 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-640-con9-thread-lwb5plus.dtbo \
 	armadillo-640-lcd70ext-l00.dtbo \
 	armadillo-610.dtb \
+	armadillo-610-onboard-usdhc2.dtbo \
 	armadillo-610-extboard-eva.dtbo \
 	armadillo-610-extboard-eva-grove.dtbo \
+	armadillo-610-extboard-eva-usdhc2.dtbo \
 	armadillo-610-at-dtweb.dtbo \
 	armadillo-iotg-a6e.dtb \
 	armadillo-iotg-a6e-at-dtweb.dtbo \

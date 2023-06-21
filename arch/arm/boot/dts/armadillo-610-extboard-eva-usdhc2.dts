@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2023 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx6ull-pinfunc.h"
+
+&{/} {
+	reg_sd2_vmmc: regulator-sd2vmmc {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sd2_vmmc>;
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_SD2";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2>;
+	cd-gpios = <&gpio1 27 GPIO_ACTIVE_LOW>;
+	wp-gpios = <&gpio1 26 GPIO_ACTIVE_HIGH>;
+	vmmc-supply = <&reg_sd2_vmmc>;
+	no-1-8-v;
+	keep-power-in-suspend;
+	wakeup-source;
+	status = "okay";
+};
+
+&iomuxc {
+	pinctrl_usdhc2: usdhc2grp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA23__USDHC2_DATA3 0x10059
+			MX6UL_PAD_LCD_DATA22__USDHC2_DATA2 0x10059
+			MX6UL_PAD_LCD_DATA21__USDHC2_DATA1 0x10059
+			MX6UL_PAD_LCD_DATA20__USDHC2_DATA0 0x10059
+			MX6UL_PAD_LCD_DATA19__USDHC2_CLK   0x10069
+			MX6UL_PAD_LCD_DATA18__USDHC2_CMD   0x10059
+			MX6UL_PAD_UART3_CTS_B__GPIO1_IO26  0x00 /* WP */
+			MX6UL_PAD_UART3_RTS_B__GPIO1_IO27  0x00 /* CD */
+		>;
+	};
+
+	pinctrl_sd2_vmmc: sd2vmmcgrp {
+		fsl,pins = <
+			MX6UL_PAD_UART2_RTS_B__GPIO1_IO23  0x00008
+		>;
+	};
+};
