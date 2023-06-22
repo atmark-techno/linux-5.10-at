@@ -69,6 +69,12 @@
 		};
 	};
 
+	se050_en: se050-enable {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio4 18 GPIO_ACTIVE_LOW>;
+		reset-assert-in-suspend;
+	};
+
 	/* Armadillo-IoT Gateway A6E is not covered by ERR010661. */
 };
 
@@ -184,6 +190,12 @@
 		fsl,pins = <
 			MX6UL_PAD_UART2_TX_DATA__I2C4_SCL	0x4001b8a0
 			MX6UL_PAD_UART2_RX_DATA__I2C4_SDA	0x4001b8a0
+		>;
+	};
+
+	pinctrl_se050_enable: se050enable {
+		fsl,pins = <
+			MX6UL_PAD_CSI_PIXCLK__GPIO4_IO18	0x08008	/* SE050 ENA */
 		>;
 	};
 };
