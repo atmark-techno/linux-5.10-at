@@ -128,7 +128,7 @@
 		>;
 	};
 
-	pinctrl_onboard_sd2_vmmc: sd2vmmcgrp {
+	pinctrl_onboard_sd2_vmmc: onboardsd2vmmcgrp {
 		fsl,pins = <
 			MX6UL_PAD_NAND_ALE__GPIO4_IO10  0x00008
 		>;
