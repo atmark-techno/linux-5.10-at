@@ -46,11 +46,6 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_i2c4>;
-	clock-frequency = <100000>;
-	status = "okay";
-
 	adc2: adc@49 {
 		compatible = "ti,ads1115";
 		reg = <0x49>;
@@ -131,26 +126,19 @@
 };
 
 &iomuxc {
-	pinctrl_i2c4: pinctrl_i2c4grp {
-		fsl,pins = <
-			MX6UL_PAD_UART2_TX_DATA__I2C4_SCL	0x4001b8a0 /* TCA9534 SCL */
-			MX6UL_PAD_UART2_RX_DATA__I2C4_SDA	0x4001b8a0 /* TCA9534 SDA */
-		>;
-	};
-
-	pinctrl_adc1_vin: pinctrl_adc1_vingrp {
+	pinctrl_adc1_vin: adc1_vingrp {
 		fsl,pins = <
 			MX6UL_PAD_GPIO1_IO01__GPIO1_IO01	0xb0 /* VIN_MONITOR */
 		>;
 	};
 
-	pinctrl_adc2: pinctrl_adc2grp {
+	pinctrl_adc2: adc2grp {
 		fsl,pins = <
 			MX6UL_PAD_CSI_DATA07__GPIO4_IO28	0x1b0b0 /* ADC_INT */
 		>;
 	};
 
-	pinctrl_pi4ioe5v9554_1: pinctrl_pi4ioe5v9554_1grp {
+	pinctrl_pi4ioe5v9554_1: pi4ioe5v9554_1grp {
 		fsl,pins = <
 			MX6UL_PAD_LCD_DATA01__GPIO3_IO06	0x1b0b0 /* 9554 INT */
 		>;
