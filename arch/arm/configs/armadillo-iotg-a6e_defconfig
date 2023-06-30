@@ -483,7 +483,7 @@ CONFIG_NFC_ST95HF=m
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 # CONFIG_STANDALONE is not set
-CONFIG_EXTRA_FIRMWARE="imx/sdma/sdma-imx6q.bin brcm/brcmfmac4373-sdio.txt brcm/brcmfmac4373-sdio.bin brcm/brcmfmac4373-sdio.clm_blob brcm/BCM4373A0.hcd brcm/brcmfmac4373-sdio.atmark,armadillo.txt"
+CONFIG_EXTRA_FIRMWARE="imx/sdma/sdma-imx6q.bin"
 CONFIG_OF_OVERLAY=y
 CONFIG_ZRAM=y
 CONFIG_BLK_DEV_LOOP=m
