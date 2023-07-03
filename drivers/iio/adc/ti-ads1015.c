@@ -76,6 +76,13 @@
 #define ADS1015_DEFAULT_DATA_RATE	4
 #define ADS1015_DEFAULT_CHAN		0
 
+/*
+ * After sending I2C START, in rare cases there may be an interval before
+ * sending ADDRESS. The TI ADS1015 may not respond if there is an interval
+ * of more than 30msec after START, so add a retry to deal with this.
+ */
+#define ADS1015_REGMAP_RETRY	3
+
 enum chip_ids {
 	ADSXXXX = 0,
 	ADS1015,
@@ -344,6 +351,46 @@ static int ads1015_set_power_state(struct ads1015_data *data, bool on)
 #endif /* !CONFIG_PM */
 
 static
+int ads1015_regmap_read(struct regmap *map, unsigned int reg, unsigned int *val)
+{
+	int i, ret;
+
+	for (i = 0; i < ADS1015_REGMAP_RETRY; i++) {
+		ret = regmap_read(map, reg, val);
+		if (ret != -ENXIO)
+			break;
+	}
+	return ret;
+}
+
+static
+int ads1015_regmap_write(struct regmap *map, unsigned int reg, unsigned int val)
+{
+	int i, ret;
+
+	for (i = 0; i < ADS1015_REGMAP_RETRY; i++) {
+		ret = regmap_write(map, reg, val);
+		if (ret != -ENXIO)
+			break;
+	}
+	return ret;
+}
+
+static
+int ads1015_regmap_update_bits(struct regmap *map, unsigned int reg,
+			       unsigned int mask, unsigned int val)
+{
+	int i, ret;
+
+	for (i = 0; i < ADS1015_REGMAP_RETRY; i++) {
+		ret = regmap_update_bits(map, reg, mask, val);
+		if (ret != -ENXIO)
+			break;
+	}
+	return ret;
+}
+
+static
 int ads1015_get_adc_result(struct ads1015_data *data, int chan, int *val)
 {
 	int ret, pga, dr, dr_old, conv_time;
@@ -352,7 +399,7 @@ int ads1015_get_adc_result(struct ads1015_data *data, int chan, int *val)
 	if (chan < 0 || chan >= ADS1015_CHANNELS)
 		return -EINVAL;
 
-	ret = regmap_read(data->regmap, ADS1015_CFG_REG, &old);
+	ret = ads1015_regmap_read(data->regmap, ADS1015_CFG_REG, &old);
 	if (ret)
 		return ret;
 
@@ -373,7 +420,7 @@ int ads1015_get_adc_result(struct ads1015_data *data, int chan, int *val)
 
 	cfg = (old & ~mask) | (cfg & mask);
 	if (old != cfg) {
-		ret = regmap_write(data->regmap, ADS1015_CFG_REG, cfg);
+		ret = ads1015_regmap_write(data->regmap, ADS1015_CFG_REG, cfg);
 		if (ret)
 			return ret;
 		data->conv_invalid = true;
@@ -387,7 +434,7 @@ int ads1015_get_adc_result(struct ads1015_data *data, int chan, int *val)
 		data->conv_invalid = false;
 	}
 
-	return regmap_read(data->regmap, ADS1015_CONV_REG, val);
+	return ads1015_regmap_read(data->regmap, ADS1015_CONV_REG, val);
 }
 
 static irqreturn_t ads1015_trigger_handler(int irq, void *p)
@@ -677,12 +724,12 @@ static int ads1015_enable_event_config(struct ads1015_data *data,
 		low_thresh = max(-1 << (chan->scan_type.realbits - 1),
 				high_thresh - 1);
 	}
-	ret = regmap_write(data->regmap, ADS1015_LO_THRESH_REG,
+	ret = ads1015_regmap_write(data->regmap, ADS1015_LO_THRESH_REG,
 			low_thresh << chan->scan_type.shift);
 	if (ret)
 		return ret;
 
-	ret = regmap_write(data->regmap, ADS1015_HI_THRESH_REG,
+	ret = ads1015_regmap_write(data->regmap, ADS1015_HI_THRESH_REG,
 			high_thresh << chan->scan_type.shift);
 	if (ret)
 		return ret;
@@ -717,10 +764,10 @@ static int ads1015_disable_event_config(struct ads1015_data *data,
 			comp_mode == ADS1015_CFG_COMP_MODE_WINDOW)
 		return 0;
 
-	ret = regmap_update_bits(data->regmap, ADS1015_CFG_REG,
-				ADS1015_CFG_COMP_QUE_MASK,
-				ADS1015_CFG_COMP_DISABLE <<
-					ADS1015_CFG_COMP_QUE_SHIFT);
+	ret = ads1015_regmap_update_bits(data->regmap, ADS1015_CFG_REG,
+					 ADS1015_CFG_COMP_QUE_MASK,
+					 ADS1015_CFG_COMP_DISABLE <<
+						ADS1015_CFG_COMP_QUE_SHIFT);
 	if (ret)
 		return ret;
 
@@ -766,7 +813,7 @@ static irqreturn_t ads1015_event_handler(int irq, void *priv)
 	int ret;
 
 	/* Clear the latched ALERT/RDY pin */
-	ret = regmap_read(data->regmap, ADS1015_CONV_REG, &val);
+	ret = ads1015_regmap_read(data->regmap, ADS1015_CONV_REG, &val);
 	if (ret)
 		return IRQ_HANDLED;
 
@@ -928,9 +975,9 @@ static void ads1015_get_channels_config(struct i2c_client *client)
 
 static int ads1015_set_conv_mode(struct ads1015_data *data, int mode)
 {
-	return regmap_update_bits(data->regmap, ADS1015_CFG_REG,
-				  ADS1015_CFG_MOD_MASK,
-				  mode << ADS1015_CFG_MOD_SHIFT);
+	return ads1015_regmap_update_bits(data->regmap, ADS1015_CFG_REG,
+					  ADS1015_CFG_MOD_MASK,
+					  mode << ADS1015_CFG_MOD_SHIFT);
 }
 
 static int ads1015_probe(struct i2c_client *client,
@@ -1026,8 +1073,8 @@ static int ads1015_probe(struct i2c_client *client,
 			return -EINVAL;
 		}
 
-		ret = regmap_update_bits(data->regmap, ADS1015_CFG_REG,
-					cfg_comp_mask, cfg_comp);
+		ret = ads1015_regmap_update_bits(data->regmap, ADS1015_CFG_REG,
+						 cfg_comp_mask, cfg_comp);
 		if (ret)
 			return ret;
 
