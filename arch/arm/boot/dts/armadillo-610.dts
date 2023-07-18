@@ -27,11 +27,11 @@
 	};
 
 	pinctrl_gpio_amp: gpioampgrp {
-		/* this group left empty for at-dtweb amp GPIOs */
+		/* this group left empty for armadillo-610-extboard-eva amp GPIOs */
 	};
 
 	pinctrl_gpio_con13b: gpiocon13bgrp {
-		/* this group left empty for at-dtweb con13b GPIOs */
+		/* this group left empty for armadillo-610-extboard-eva con13b GPIOs */
 	};
 
 	pinctrl_customize: customizegrp {
