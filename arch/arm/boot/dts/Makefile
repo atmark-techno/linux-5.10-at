@@ -711,16 +711,17 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ulz-14x14-evk-btwifi-sdio3_0.dtb \
 	imx6ulz-14x14-evk-gpmi-weim.dtb \
 	imx6ulz-14x14-evk-emmc.dtb \
-	armadillo-640.dtb \
-	armadillo-640-at-dtweb.dtbo \
-	armadillo-640-con9-thread-lwb5plus.dtbo \
-	armadillo-640-lcd70ext-l00.dtbo \
+	armadillo-600-customize.dtbo \
 	armadillo-610.dtb \
 	armadillo-610-onboard-usdhc2.dtbo \
 	armadillo-610-extboard-eva.dtbo \
 	armadillo-610-extboard-eva-grove.dtbo \
 	armadillo-610-extboard-eva-usdhc2.dtbo \
 	armadillo-610-at-dtweb.dtbo \
+	armadillo-640.dtb \
+	armadillo-640-at-dtweb.dtbo \
+	armadillo-640-con9-thread-lwb5plus.dtbo \
+	armadillo-640-lcd70ext-l00.dtbo \
 	armadillo-iotg-a6e.dtb \
 	armadillo-iotg-a6e-at-dtweb.dtbo \
 	armadillo-iotg-a6e-di8ai4-1st.dtbo \

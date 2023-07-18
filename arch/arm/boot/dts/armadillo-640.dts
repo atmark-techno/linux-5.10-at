@@ -129,6 +129,7 @@
 	pinctrl-0 = <
 		&pinctrl_lcd70ext_l00hog
 		&pinctrl_expansion_interfacehog
+		&pinctrl_customize
 	>;
 
 	pinctrl_lcd70ext_l00hog: lcd70ext_l00hoggrp {
@@ -137,6 +138,10 @@
 
 	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
 		/* this group left empty for at-dtweb expansion GPIOs */
+	};
+
+	pinctrl_customize: customizegrp {
+		/* this group left empty for armadillo-600-customize */
 	};
 
 	pinctrl_uart3: uart3grp {

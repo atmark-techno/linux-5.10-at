@@ -80,6 +80,20 @@
 
 
 &iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&pinctrl_expansion_interfacehog
+		&pinctrl_customize
+	>;
+
+	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
+		/* this group left empty for at-dtweb expansion GPIOs */
+	};
+
+	pinctrl_customize: customizegrp {
+		/* this group left empty for armadillo-600-customize */
+	};
+
 	/* Memo for pinctrl config:
 	 * Note: Not applicable to DRAM, JTAG pins, etc.
 	 *

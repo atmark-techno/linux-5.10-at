@@ -15,6 +15,7 @@
 		&pinctrl_expansion_interfacehog
 		&pinctrl_gpio_amp
 		&pinctrl_gpio_con13b
+		&pinctrl_customize
 	>;
 
 	pinctrl_lcd70ext_l00hog: lcd70ext_l00hoggrp {
@@ -31,5 +32,9 @@
 
 	pinctrl_gpio_con13b: gpiocon13bgrp {
 		/* this group left empty for at-dtweb con13b GPIOs */
+	};
+
+	pinctrl_customize: customizegrp {
+		/* this group left empty for armadillo-600-customize */
 	};
 };
