@@ -625,7 +625,7 @@
 		>;
 	};
 
-	pinctrl_expansion_interfacehog: expansiongrp {
+	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
 		/* this group left empty for at-dtweb expansion GPIOs */
 	};
 
