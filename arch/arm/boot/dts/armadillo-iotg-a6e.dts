@@ -4,7 +4,6 @@
  */
 
 #include "armadillo-610.dtsi"
-#include "armadillo-600-onboard-usdhc2.dtsi"
 
 / {
 	model = "Atmark Techno Armadillo-IoT Gateway A6E Board";

@@ -713,7 +713,6 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ulz-14x14-evk-emmc.dtb \
 	armadillo-600-customize.dtbo \
 	armadillo-610.dtb \
-	armadillo-610-onboard-usdhc2.dtbo \
 	armadillo-610-extboard-eva.dtbo \
 	armadillo-610-extboard-eva-grove.dtbo \
 	armadillo-610-extboard-eva-usdhc2.dtbo \
