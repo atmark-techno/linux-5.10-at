@@ -13,10 +13,6 @@
 #include "imx8mp-pinfunc.h"
 
 &{/} {
-	aliases {
-		i2c2 = &i2c_rpbus_3;
-	};
-
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -59,20 +55,6 @@
 			  &mu 3 1>;
 		memory-region = <&vdevbuffer>, <&vdev0vring0>, <&vdev0vring1>, <&rsc_table>;
 		status = "okay";
-	};
-
-	i2c_rpbus_3: i2c-rpbus-3 {
-		compatible = "fsl,i2c-rpbus";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		status = "okay";
-
-		pca6416: gpio@20 {
-			compatible = "ti,tca6416";
-			reg = <0x20>;
-			gpio-controller;
-			#gpio-cells = <2>;
-		};
 	};
 };
 
