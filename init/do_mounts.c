@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/ramfs.h>
 #include <linux/shmem_fs.h>
+#include <linux/ktime.h>
 
 #include <linux/nfs_fs.h>
 #include <linux/nfs_fs_sb.h>
@@ -328,11 +329,36 @@ static int __init rootwait_setup(char *str)
 {
 	if (*str)
 		return 0;
-	root_wait = 1;
+	root_wait = -1;
 	return 1;
 }
 
 __setup("rootwait", rootwait_setup);
+
+static int __init rootwait_timeout_setup(char *str)
+{
+	int sec;
+
+	if (kstrtoint(str, 0, &sec) || sec < 0) {
+		pr_warn("ignoring invalid rootwait value\n");
+		goto ignore;
+	}
+
+	if (check_mul_overflow(sec, (int)MSEC_PER_SEC, &root_wait)) {
+		pr_warn("ignoring excessive rootwait value\n");
+		goto ignore;
+	}
+
+	return 1;
+
+ignore:
+	/* Fallback to indefinite wait */
+	root_wait = -1;
+
+	return 1;
+}
+
+__setup("rootwait=", rootwait_timeout_setup);
 
 static char * __initdata root_mount_data;
 static int __init root_data_setup(char *str)
@@ -583,6 +609,8 @@ void __init mount_root(void)
  */
 void __init prepare_namespace(void)
 {
+	ktime_t end;
+
 	if (root_delay) {
 		printk(KERN_INFO "Waiting %d sec before mounting root device...\n",
 		       root_delay);
@@ -615,13 +643,18 @@ void __init prepare_namespace(void)
 	if (initrd_load())
 		goto out;
 
+	end = ktime_add_ms(ktime_get_raw(), root_wait);
+
 	/* wait for any asynchronous scanning to complete */
 	if ((ROOT_DEV == 0) && root_wait) {
 		printk(KERN_INFO "Waiting for root device %s...\n",
 			saved_root_name);
 		while (driver_probe_done() != 0 ||
-			(ROOT_DEV = name_to_dev_t(saved_root_name)) == 0)
+			(ROOT_DEV = name_to_dev_t(saved_root_name)) == 0) {
 			msleep(5);
+			if (root_wait > 0 && ktime_after(ktime_get_raw(), end))
+				break;
+		}
 		async_synchronize_full();
 	}
 
