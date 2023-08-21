@@ -204,6 +204,14 @@
 			smsc,disable-energy-detect;
 		};
 	};
+
+	se_en: se-enable {
+		compatible = "gpio-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_se_reset_n>;
+		reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
+		reset-assert-in-suspend;
+	};
 };
 
 &snvs_poweroff {
@@ -225,16 +233,6 @@
 		gpio-hog;
 		gpios = <13 GPIO_ACTIVE_HIGH>;
 		line-name = "SWITCH_LCD_DATA18";
-		output-high;
-	};
-
-	se_rst_n {
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_se_reset_n>;
-
-		gpio-hog;
-		gpios = <15 GPIO_ACTIVE_HIGH>;
-		line-name = "SE_RST_N";
 		output-high;
 	};
 };
