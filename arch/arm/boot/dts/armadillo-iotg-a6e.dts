@@ -70,6 +70,8 @@
 
 	se050_en: se050-enable {
 		compatible = "gpio-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_se050_enable>;
 		reset-gpios = <&gpio4 18 GPIO_ACTIVE_LOW>;
 		reset-assert-in-suspend;
 	};
