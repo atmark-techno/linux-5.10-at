@@ -98,6 +98,14 @@
 		otg1-vbus-reg-supply = <&reg_usbotg1_vbus>;
 		otg2-vbus-reg-supply = <&reg_usbotg2_vbus>;
 	};
+
+	se_en: se-enable {
+		compatible = "gpio-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_se_reset_n>;
+		reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
+		reset-assert-in-suspend;
+	};
 };
 
 #include "armadillo-600-onboard-usdhc2.dtsi"
@@ -174,6 +182,19 @@
 		>;
 	};
 
+	pinctrl_i2c1: i2c1grp {
+		fsl,pins = <
+			MX6UL_PAD_UART4_TX_DATA__I2C1_SCL	0x4001b8b0
+			MX6UL_PAD_UART4_RX_DATA__I2C1_SDA	0x4001b8b0
+		>;
+	};
+
+	pinctrl_se_reset_n: seresetngrp {
+		fsl,pins = <
+			MX6UL_PAD_ENET2_RX_ER__GPIO2_IO15	0x400010b0
+		>;
+	};
+
 	pinctrl_usdhc1: usdhc1grp {
 		fsl,pins = <
 			MX6UL_PAD_SD1_DATA0__USDHC1_DATA0	0x17059
@@ -237,6 +258,15 @@
 			MX6ULL_PAD_SNVS_TAMPER1__GPIO5_IO01 0x1b0b1/*RI*/
 		>;
 	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c1>;
+	clock-frequency = <384000>;
+	status = "okay";
+
+	/* for SE050 secure element */
 };
 
 &usbotg1 {
