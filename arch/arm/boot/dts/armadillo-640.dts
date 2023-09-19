@@ -129,6 +129,7 @@
 	pinctrl-0 = <
 		&pinctrl_lcd70ext_l00hog
 		&pinctrl_expansion_interfacehog
+		&pinctrl_thread_hog
 		&pinctrl_customize
 	>;
 
@@ -138,6 +139,10 @@
 
 	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
 		/* this group left empty for at-dtweb expansion GPIOs */
+	};
+
+	pinctrl_thread_hog: thread_hoggrp {
+		/* this group left empty for armadillo-*-thread* */
 	};
 
 	pinctrl_customize: customizegrp {

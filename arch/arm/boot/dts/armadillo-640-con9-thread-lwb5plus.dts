@@ -103,7 +103,7 @@
 };
 
 &iomuxc {
-	pinctrl_expansion_interfacehog: expansion_interfacehoggrp {
+	pinctrl_thread_hog: thread_hoggrp {
 		fsl,pins = <
 			MX6UL_PAD_UART2_RTS_B__GPIO1_IO23	0x40000008	/* SWDCLK */
 			MX6UL_PAD_UART5_RX_DATA__GPIO1_IO31	0x40010008	/* SWDIO */
