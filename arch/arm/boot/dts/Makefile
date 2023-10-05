@@ -712,6 +712,7 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ulz-14x14-evk-gpmi-weim.dtb \
 	imx6ulz-14x14-evk-emmc.dtb \
 	armadillo-600-customize.dtbo \
+	armadillo-600-button-enter.dtbo \
 	armadillo-610.dtb \
 	armadillo-610-extboard-eva.dtbo \
 	armadillo-610-extboard-eva-grove.dtbo \

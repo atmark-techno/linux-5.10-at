@@ -21,8 +21,8 @@
 
 		sw1 {
 			label = "SW1";
-			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
-			linux,code = <KEY_ENTER>;
+			gpios = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+			linux,code = <KEY_PROG1>;
 		};
 	};
 
