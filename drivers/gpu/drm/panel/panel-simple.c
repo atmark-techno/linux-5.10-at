@@ -2973,6 +2973,45 @@ static const struct panel_desc nlt_nl192108ac18_02d = {
 	.connector_type = DRM_MODE_CONNECTOR_LVDS,
 };
 
+static const struct drm_display_mode noritake_gt800x480a_1013p_mode = {
+	.clock = 29232,
+	.hdisplay = 800,
+	.hsync_start = 800 + 40,
+	.hsync_end = 800 + 40 + 40,
+	.htotal = 800 + 40 + 40 + 48,
+	.vdisplay = 480,
+	.vsync_start = 480 + 13,
+	.vsync_end = 480 + 13 + 29,
+	.vtotal = 480 + 13 + 29 + 3,
+	.flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC,
+};
+
+static const struct panel_desc noritake_gt800x480a_1013p_18bit = {
+	.modes = &noritake_gt800x480a_1013p_mode,
+	.num_modes = 1,
+	.bpc = 6,
+	.size = {
+		.width = 154,
+		.height = 86,
+	},
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE,
+	.bus_format = MEDIA_BUS_FMT_RGB666_1X18,
+	.connector_type = DRM_MODE_CONNECTOR_DPI,
+};
+
+static const struct panel_desc noritake_gt800x480a_1013p_24bit = {
+	.modes = &noritake_gt800x480a_1013p_mode,
+	.num_modes = 1,
+	.bpc = 8,
+	.size = {
+		.width = 154,
+		.height = 86,
+	},
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+	.connector_type = DRM_MODE_CONNECTOR_DPI,
+};
+
 static const struct drm_display_mode nvd_9128_mode = {
 	.clock = 29500,
 	.hdisplay = 800,
@@ -4219,6 +4258,12 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "nlt,nl192108ac18-02d",
 		.data = &nlt_nl192108ac18_02d,
+	}, {
+		.compatible = "noritake,gt800x480a-1013p-18bit",
+		.data = &noritake_gt800x480a_1013p_18bit,
+	}, {
+		.compatible = "noritake,gt800x480a-1013p-24bit",
+		.data = &noritake_gt800x480a_1013p_24bit,
 	}, {
 		.compatible = "nvd,9128",
 		.data = &nvd_9128,
