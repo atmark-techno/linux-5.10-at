@@ -21,24 +21,8 @@
 	};
 
 	panel {
-		compatible = "panel-dpi";
-		label = "lcd";
-
-		panel-timing {
-			clock-frequency = <29232000>;
-			hactive = <800>;
-			vactive = <480>;
-			hback-porch = <40>; /* 88(Blanking) - 48(pulse width) */
-			hfront-porch = <40>;
-			vback-porch = <29>; /* 32(Blanking) - 3(pulse width) */
-			vfront-porch = <13>;
-			hsync-len = <48>;
-			vsync-len = <3>;
-			de-active = <1>;
-			pixelclk-active = <0>;
-			hsync-active = <0>;
-			vsync-active = <0>;
-		};
+		compatible = "noritake,gt800x480a-1013p-18bit";
+		backlight = <&backlight_display>;
 
 		port {
 			panel_in: endpoint {
