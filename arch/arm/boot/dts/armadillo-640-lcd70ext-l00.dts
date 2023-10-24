@@ -22,6 +22,7 @@
 
 	panel {
 		compatible = "noritake,gt800x480a-1013p-18bit";
+		power-supply = <&reg_panel>;
 		backlight = <&backlight_display>;
 
 		port {
@@ -51,6 +52,14 @@
 			regulator-name = "BL";
 			regulator-min-microvolt = <5000000>;
 			regulator-max-microvolt = <5000000>;
+			regulator-boot-on;
+			regulator-always-on;
+		};
+
+		reg_panel: regulator@2 {
+			compatible = "regulator-fixed";
+			reg = <2>;
+			regulator-name = "PANEL";
 			regulator-boot-on;
 			regulator-always-on;
 		};
