@@ -821,6 +821,19 @@ static irqreturn_t ads1015_event_handler(int irq, void *priv)
 		enum iio_event_direction dir;
 		u64 code;
 
+		/*
+		* In case of shared IRQ we do not want to report an event
+		* if the value was in comparator range
+		*/
+		if (data->comp_mode == ADS1015_CFG_COMP_MODE_WINDOW) {
+			if (val > data->thresh_data[data->event_channel].low_thresh &&
+					val < data->thresh_data[data->event_channel].high_thresh)
+				return IRQ_HANDLED;
+		} else {
+			if (val < data->thresh_data[data->event_channel].low_thresh)
+				return IRQ_HANDLED;
+		}
+
 		dir = data->comp_mode == ADS1015_CFG_COMP_MODE_TRAD ?
 					IIO_EV_DIR_RISING : IIO_EV_DIR_EITHER;
 		code = IIO_UNMOD_EVENT_CODE(IIO_VOLTAGE, data->event_channel,
@@ -1080,7 +1093,7 @@ static int ads1015_probe(struct i2c_client *client,
 
 		ret = devm_request_threaded_irq(&client->dev, client->irq,
 						NULL, ads1015_event_handler,
-						irq_trig | IRQF_ONESHOT,
+						irq_trig | IRQF_ONESHOT | IRQF_SHARED,
 						client->name, indio_dev);
 		if (ret)
 			return ret;
