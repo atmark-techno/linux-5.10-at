@@ -22,6 +22,9 @@
 
 		#io-channel-cells = <1>;
 
+		interrupt-parent = <&gpio4>;
+		interrupts = <28 IRQ_TYPE_LEVEL_LOW>;
+
 		channel@4 {
 			reg = <4>;
 			ti,gain = <0>;
