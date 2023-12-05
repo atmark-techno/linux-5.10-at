@@ -39,19 +39,6 @@
 			interrupts = <26 IRQ_TYPE_EDGE_FALLING>;
 		};
 	};
-
-	wlan_pwren_b_reset: awlan-reset {
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_wlan_pwren_b>;
-		compatible = "gpio-reset";
-		reset-gpios = <&gpio3 25 GPIO_ACTIVE_HIGH>;
-
-		/* awl13 needs time for power discharging that takes 500 msec */
-		reset-delay-us = <500000>;
-
-		reset-on-init;
-		#reset-cells = <0>;
-	};
 };
 
 &iomuxc {
@@ -66,12 +53,6 @@
 		fsl,pins = <
 			MX6UL_PAD_LCD_DATA21__GPIO3_IO26  0x08000
 			>;
-	};
-
-	pinctrl_wlan_pwren_b: wlanpwrenbgrp {
-		fsl,pins = <
-			MX6UL_PAD_LCD_DATA20__GPIO3_IO25	0x40000008
-		>;
 	};
 
 	pinctrl_usb2_port_en: usb2portengrp {
