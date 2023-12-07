@@ -251,6 +251,14 @@
 		};
 
 	};
+
+	se_en: se-enable {
+		compatible = "gpio-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_se_enable>;
+		reset-gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
+		reset-assert-in-suspend;
+	};
 };
 
 &aud2htx {
@@ -963,6 +971,12 @@
 	pinctrl_wdog: wdoggrp {
 		fsl,pins = <
 			MX8MP_IOMUXC_GPIO1_IO02__WDOG1_WDOG_B	0xc6
+		>;
+	};
+
+	pinctrl_se_enable: seenablegrp {
+		fsl,pins = <
+			MX8MP_IOMUXC_GPIO1_IO12__GPIO1_IO12		0x0
 		>;
 	};
 };
