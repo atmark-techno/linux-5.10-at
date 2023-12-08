@@ -527,6 +527,15 @@ static int rzg2l_mipi_dsi_attach(struct drm_bridge *bridge,
 				 enum drm_bridge_attach_flags flags)
 {
 	struct rzg2l_mipi_dsi *dsi = bridge_to_rzg2l_mipi_dsi(bridge);
+	int ret;
+
+	dsi->next_bridge = devm_drm_of_get_bridge(dsi->dev, dsi->dev->of_node,
+						  1, 0);
+	if (IS_ERR(dsi->next_bridge)) {
+		ret = PTR_ERR(dsi->next_bridge);
+		dev_err(dsi->dev, "failed to get next bridge: %d\n", ret);
+		return ret;
+	}
 
 	return drm_bridge_attach(bridge->encoder, dsi->next_bridge, bridge,
 				 flags);
@@ -607,7 +616,6 @@ static int rzg2l_mipi_dsi_host_attach(struct mipi_dsi_host *host,
 				      struct mipi_dsi_device *device)
 {
 	struct rzg2l_mipi_dsi *dsi = host_to_rzg2l_mipi_dsi(host);
-	int ret;
 
 	if (device->lanes > dsi->num_data_lanes) {
 		dev_err(dsi->dev,
@@ -628,16 +636,6 @@ static int rzg2l_mipi_dsi_host_attach(struct mipi_dsi_host *host,
 	dsi->lanes = device->lanes;
 	dsi->format = device->format;
 	dsi->mode_flags = device->mode_flags;
-
-	dsi->next_bridge = devm_drm_of_get_bridge(dsi->dev, dsi->dev->of_node,
-						  1, 0);
-	if (IS_ERR(dsi->next_bridge)) {
-		ret = PTR_ERR(dsi->next_bridge);
-		dev_err(dsi->dev, "failed to get next bridge: %d\n", ret);
-		return ret;
-	}
-
-	drm_bridge_add(&dsi->bridge);
 
 	return 0;
 }
@@ -771,6 +769,8 @@ static int rzg2l_mipi_dsi_probe(struct platform_device *pdev)
 	ret = mipi_dsi_host_register(&dsi->host);
 	if (ret < 0)
 		goto err_pm_disable;
+
+	drm_bridge_add(&dsi->bridge);
 
 	return 0;
 
