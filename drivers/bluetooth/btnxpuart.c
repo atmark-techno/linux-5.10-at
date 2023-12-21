@@ -1301,6 +1301,21 @@ static int nxp_serdev_probe(struct serdev_device *serdev)
 {
 	struct hci_dev *hdev;
 	struct btnxpuart_dev *nxpdev;
+	struct net_device *netdev;
+	const char *netdev_name;
+	int ret;
+
+	ret = device_property_read_string(&serdev->dev, "btnxpuart,required-netdev",
+					  &netdev_name);
+	if (!ret) {
+		/* btnxpuart drivers init is external, wait for network interface
+		 * to come up before setting up
+		 */
+		netdev = dev_get_by_name(&init_net, netdev_name);
+		if (!netdev)
+			return -EPROBE_DEFER;
+		dev_put(netdev);
+	}
 
 	nxpdev = devm_kzalloc(&serdev->dev, sizeof(*nxpdev), GFP_KERNEL);
 	if (!nxpdev)
