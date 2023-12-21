@@ -351,7 +351,7 @@ static void ps_control(struct hci_dev *hdev, u8 ps_state)
 		else
 			status = serdev_device_break_ctl(nxpdev->serdev, -1);
 		bt_dev_dbg(hdev, "Set UART break: %s, status=%d",
-			   str_on_off(ps_state == PS_STATE_SLEEP), status);
+			   (ps_state == PS_STATE_SLEEP) ? "on" : "off", status);
 		break;
 	}
 	if (!status)
