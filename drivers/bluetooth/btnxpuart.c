@@ -292,7 +292,7 @@ static struct sk_buff *nxp_drv_send_cmd(struct hci_dev *hdev, u16 opcode,
 	struct sk_buff *skb;
 
 	/* set flag to prevent nxp_enqueue from parsing values from this command and
-	 * calling hci_cmd_sync_queue() again.
+	 * calling __hci_cmd_sync() again.
 	 */
 	psdata->driver_sent_cmd = true;
 	skb = __hci_cmd_sync(hdev, opcode, plen, param, HCI_CMD_TIMEOUT);
@@ -404,7 +404,7 @@ static void ps_wakeup(struct btnxpuart_dev *nxpdev)
 	}
 }
 
-static int send_ps_cmd(struct hci_dev *hdev, void *data)
+static int send_ps_cmd(struct hci_dev *hdev)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
 	struct ps_data *psdata = &nxpdev->psdata;
@@ -442,7 +442,7 @@ static int send_ps_cmd(struct hci_dev *hdev, void *data)
 	return 0;
 }
 
-static int send_wakeup_method_cmd(struct hci_dev *hdev, void *data)
+static int send_wakeup_method_cmd(struct hci_dev *hdev)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
 	struct ps_data *psdata = &nxpdev->psdata;
@@ -519,9 +519,9 @@ static void ps_init(struct hci_dev *hdev)
 	psdata->target_ps_mode = DEFAULT_PS_MODE;
 
 	if (psdata->cur_h2c_wakeupmode != psdata->h2c_wakeupmode)
-		hci_cmd_sync_queue(hdev, send_wakeup_method_cmd, NULL, NULL);
+		send_wakeup_method_cmd(hdev);
 	if (psdata->cur_psmode != psdata->target_ps_mode)
-		hci_cmd_sync_queue(hdev, send_ps_cmd, NULL, NULL);
+		send_ps_cmd(hdev);
 }
 
 /* NXP Firmware Download Feature */
@@ -946,7 +946,7 @@ free_skb:
 	return 0;
 }
 
-static int nxp_set_baudrate_cmd(struct hci_dev *hdev, void *data)
+static int nxp_set_baudrate_cmd(struct hci_dev *hdev)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
 	__le32 new_baudrate = __cpu_to_le32(nxpdev->new_baudrate);
@@ -992,7 +992,7 @@ static int nxp_check_boot_sign(struct btnxpuart_dev *nxpdev)
 					       msecs_to_jiffies(1000));
 }
 
-static int nxp_set_ind_reset(struct hci_dev *hdev, void *data)
+static int nxp_set_ind_reset(struct hci_dev *hdev)
 {
 	static const u8 ir_hw_err[] = { HCI_EV_HARDWARE_ERROR,
 					0x01, BTNXPUART_IR_HW_ERR };
@@ -1030,7 +1030,7 @@ static int nxp_setup(struct hci_dev *hdev)
 
 	if (nxpdev->current_baudrate != HCI_NXP_SEC_BAUDRATE) {
 		nxpdev->new_baudrate = HCI_NXP_SEC_BAUDRATE;
-		hci_cmd_sync_queue(hdev, nxp_set_baudrate_cmd, NULL, NULL);
+		nxp_set_baudrate_cmd(hdev);
 	}
 
 	ps_init(hdev);
@@ -1118,7 +1118,7 @@ static int nxp_enqueue(struct hci_dev *hdev, struct sk_buff *skb)
 				else if (ps_parm.ps_cmd == BT_PS_DISABLE)
 					psdata->target_ps_mode = PS_MODE_DISABLE;
 				psdata->c2h_ps_interval = __le16_to_cpu(ps_parm.c2h_ps_interval);
-				hci_cmd_sync_queue(hdev, send_ps_cmd, NULL, NULL);
+				send_ps_cmd(hdev);
 				goto free_skb;
 			}
 			break;
@@ -1137,7 +1137,7 @@ static int nxp_enqueue(struct hci_dev *hdev, struct sk_buff *skb)
 					psdata->h2c_wakeupmode = WAKEUP_METHOD_BREAK;
 					break;
 				}
-				hci_cmd_sync_queue(hdev, send_wakeup_method_cmd, NULL, NULL);
+				send_wakeup_method_cmd(hdev);
 				goto free_skb;
 			}
 			break;
@@ -1145,13 +1145,13 @@ static int nxp_enqueue(struct hci_dev *hdev, struct sk_buff *skb)
 			if (hdr->plen == sizeof(baudrate_parm)) {
 				memcpy(&baudrate_parm, skb->data + HCI_COMMAND_HDR_SIZE, hdr->plen);
 				nxpdev->new_baudrate = __le32_to_cpu(baudrate_parm);
-				hci_cmd_sync_queue(hdev, nxp_set_baudrate_cmd, NULL, NULL);
+				nxp_set_baudrate_cmd(hdev);
 				goto free_skb;
 			}
 			break;
 		case HCI_NXP_IND_RESET:
 			if (hdr->plen == 1) {
-				hci_cmd_sync_queue(hdev, nxp_set_ind_reset, NULL, NULL);
+				nxp_set_ind_reset(hdev);
 				goto free_skb;
 			}
 			break;
@@ -1387,7 +1387,7 @@ static void nxp_serdev_remove(struct serdev_device *serdev)
 	 */
 	if (nxpdev->current_baudrate != nxpdev->fw_init_baudrate) {
 		nxpdev->new_baudrate = nxpdev->fw_init_baudrate;
-		nxp_set_baudrate_cmd(hdev, NULL);
+		nxp_set_baudrate_cmd(hdev);
 	}
 
 	ps_cancel_timer(nxpdev);
