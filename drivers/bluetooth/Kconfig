@@ -429,6 +429,7 @@ config BT_HCIRSI
 config BT_NXPUART
 	tristate "NXP protocol support"
 	depends on SERIAL_DEV_BUS
+	select CRC8
 	select CRC32
 	help
 	  NXP is serial driver required for NXP Bluetooth
