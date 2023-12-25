@@ -127,6 +127,7 @@ static int gpio_reset_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	struct gpio_reset_data *drvdata;
+	const char *name;
 	enum of_gpio_flags flags;
 	unsigned long gpio_flags;
 	bool initially_in_reset;
@@ -172,7 +173,8 @@ static int gpio_reset_probe(struct platform_device *pdev)
 	else
 		gpio_flags = GPIOF_OUT_INIT_LOW;
 
-	ret = devm_gpio_request_one(&pdev->dev, drvdata->gpio, gpio_flags, NULL);
+	name = of_node_full_name(np);
+	ret = devm_gpio_request_one(&pdev->dev, drvdata->gpio, gpio_flags, name);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to request gpio %d: %d\n",
 			drvdata->gpio, ret);
