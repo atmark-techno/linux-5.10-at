@@ -329,7 +329,13 @@ static int __init rootwait_setup(char *str)
 {
 	if (*str)
 		return 0;
-	root_wait = -1;
+	/* Atmark local patch: default to 10s
+	 * Later kernels probably should respect kernel default, but
+	 * ensuring compatibility with older kernels at uboot level is
+	 * more work than it's worth - if MMC or SD card isn't ready in
+	 * 10s there's a problem.
+	 */
+	root_wait = 10000;
 	return 1;
 }
 
