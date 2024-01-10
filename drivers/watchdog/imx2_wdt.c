@@ -314,10 +314,11 @@ static int __init imx2_wdt_probe(struct platform_device *pdev)
 	wdev->ext_reset = of_property_read_bool(dev->of_node,
 						"fsl,ext-reset-output");
 	/*
-	 * The i.MX7D doesn't support low power mode, so we need to ping the watchdog
-	 * during suspend.
+	 * The i.MX7D and i.MX6UL doesn't support low power mode, so
+	 * we need to ping the watchdog during suspend.
 	 */
-	wdev->no_ping = !of_device_is_compatible(dev->of_node, "fsl,imx7d-wdt");
+	wdev->no_ping = !of_device_is_compatible(dev->of_node, "fsl,imx7d-wdt") &&
+			!of_device_is_compatible(dev->of_node, "fsl,imx6ul-wdt");
 	platform_set_drvdata(pdev, wdog);
 	watchdog_set_drvdata(wdog, wdev);
 	watchdog_set_nowayout(wdog, nowayout);
@@ -420,6 +421,7 @@ static SIMPLE_DEV_PM_OPS(imx2_wdt_pm_ops, imx2_wdt_suspend,
 static const struct of_device_id imx2_wdt_dt_ids[] = {
 	{ .compatible = "fsl,imx21-wdt", },
 	{ .compatible = "fsl,imx7d-wdt", },
+	{ .compatible = "fsl,imx6ul-wdt", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx2_wdt_dt_ids);
