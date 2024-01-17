@@ -11,6 +11,15 @@
 #include <dt-bindings/gpio/gpio.h>
 
 &{/} {
+	aliases {
+		/* Aliases are represented by a string to a full node path.
+		 * For overlays, specifying &adc2 will incorrectly result in a path
+		 * within a fragment, which is not fixed at apply time.
+		 * Specify the full path of the merged node directly.
+		 */
+		iio1 = "/soc/bus@2100000/i2c@21f8000/adc@49";
+	};
+
 	regulators {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -39,7 +48,6 @@
 		};
 
 	};
-
 };
 
 &i2c4 {

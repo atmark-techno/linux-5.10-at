@@ -9,6 +9,17 @@
 #include "imx6ull-pinfunc.h"
 #include <dt-bindings/interrupt-controller/irq.h>
 
+&{/} {
+	aliases {
+		/* Aliases are represented by a string to a full node path.
+		 * For overlays, specifying &adc4 will incorrectly result in a path
+		 * within a fragment, which is not fixed at apply time.
+		 * Specify the full path of the merged node directly.
+		 */
+		iio3 = "/soc/bus@2100000/i2c@21f8000/adc@4B";
+	};
+};
+
 &i2c4 {
 	#address-cells = <1>;
 	#size-cells = <0>;
