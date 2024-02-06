@@ -27,6 +27,7 @@ properties:
     oneOf:
       - items:
           - enum:
+              - andestech,ax45mp
               - sifive,e5
               - sifive,e51
               - sifive,rocket0
