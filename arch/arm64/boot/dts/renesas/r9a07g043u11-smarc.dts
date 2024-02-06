@@ -6,6 +6,10 @@
  */
 
 /dts-v1/;
+
+/* Please set this macro to 1 for enabling SCI0 on PMOD1 */
+#define PMOD_SCI0_EN	0
+
 #include "r9a07g043.dtsi"
 #include "rzg2ul-smarc.dtsi"
 
