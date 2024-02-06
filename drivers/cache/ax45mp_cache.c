@@ -132,6 +132,60 @@ static void ax45mp_dma_cache_wback(phys_addr_t paddr, size_t size)
 	local_irq_restore(flags);
 }
 
+static void ax45mp_dma_cache_wback_inv(phys_addr_t paddr, size_t size)
+{
+	ax45mp_dma_cache_wback(paddr, size);
+	ax45mp_dma_cache_inv(paddr, size);
+}
+
+void arch_sync_dma_for_device(phys_addr_t paddr,
+			      size_t size, enum dma_data_direction dir)
+{
+	switch (dir) {
+	case DMA_TO_DEVICE:
+		ax45mp_dma_cache_wback(paddr, size);
+		break;
+
+	case DMA_FROM_DEVICE:
+		fallthrough;
+
+	case DMA_BIDIRECTIONAL:
+		/* Skip the invalidate here if it's done later */
+		if (IS_ENABLED(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU))
+			ax45mp_dma_cache_wback(paddr, size);
+		else
+			ax45mp_dma_cache_wback_inv(paddr, size);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void arch_sync_dma_for_cpu(phys_addr_t paddr,
+			   size_t size, enum dma_data_direction dir)
+{
+	switch (dir) {
+	case DMA_TO_DEVICE:
+		break;
+
+	case DMA_FROM_DEVICE:
+	case DMA_BIDIRECTIONAL:
+		/* FROM_DEVICE invalidate needed if speculative CPU prefetch only */
+		ax45mp_dma_cache_inv(paddr, size);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
+			const struct iommu_ops *iommu, bool coherent)
+{
+	dev->dma_coherent = coherent;
+}
+
 static int ax45mp_get_l2_line_size(struct device_node *np)
 {
 	int ret;
