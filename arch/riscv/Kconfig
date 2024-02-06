@@ -456,6 +456,8 @@ menu "Power management options"
 
 source "kernel/power/Kconfig"
 
+source "drivers/cpufreq/Kconfig"
+
 endmenu
 
 source "drivers/firmware/Kconfig"
