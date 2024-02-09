@@ -36,7 +36,7 @@
 		gpio-on = <&gpio4 19 GPIO_ACTIVE_HIGH>;
 		gpio-pwr = <&gpio3 18 GPIO_ACTIVE_LOW>;
 		gpio-vusb = <&gpio4 17 GPIO_ACTIVE_HIGH>;
-		poweroff-interval = <10000>; /* 10 sec */
+		poweroff-interval = <20000>; /* 20 sec */
 	};
 
 	gpio-wakeup {
