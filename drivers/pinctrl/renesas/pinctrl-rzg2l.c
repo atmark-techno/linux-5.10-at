@@ -1242,6 +1242,7 @@ static const struct irq_chip rzg2l_gpio_irqchip = {
 	.irq_set_type = rzg2l_gpio_irq_set_type,
 	.irq_eoi = rzg2l_gpio_irqc_eoi,
 	.irq_print_chip = rzg2l_gpio_irq_print_chip,
+	.irq_set_affinity = irq_chip_set_affinity_parent,
 };
 
 static int rzg2l_gpio_child_to_parent_hwirq(struct gpio_chip *gc,
