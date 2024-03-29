@@ -43,50 +43,13 @@
 		#reset-cells = <0>;
 	};
 
-	reg_wlan_pwr_en: regulator-lwb5p {
+	lwb5p_reset: lwb5p-wlan-reset {
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_wlan_pwr_en>;
-		compatible = "regulator-fixed";
-		regulator-name = "VDD_LWB5P";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&gpio3 25 GPIO_ACTIVE_HIGH>;
-		off-on-delay-us = <500000>; // FIXME
-
-		enable-active-high;
-		regulator-boot-on;
-	};
-
-	wlan_reset: lwb5p-wlan-reset {
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_wlan_reset>;
-		compatible = "regulator-fixed";
-		regulator-name = "LWB5P_WL_REG_ON";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&gpio3 23 GPIO_ACTIVE_HIGH>;
-		startup-delay-us = <150000>;
-		off-on-delay-us = <10000>;
-		vin-supply = <&reg_wlan_pwr_en>;
-
-		enable-active-high;
-		regulator-boot-on;
-	};
-
-	bt_reset: lwb5p-bt-reset {
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_bt_reset>;
-		compatible = "regulator-fixed";
-		regulator-name = "LWB5P_BT_REG_ON";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
-		startup-delay-us = <150000>;
-		off-on-delay-us = <10000>;
-		vin-supply = <&reg_wlan_pwr_en>;
-
-		enable-active-high;
-		regulator-boot-on;
+		pinctrl-0 = <&pinctrl_lwb5_reset>;
+		compatible = "lwb5p-reset";
+		lwb5p-pwr-en-gpios = <&gpio3 25 GPIO_ACTIVE_LOW>;
+		lwb5p-wlan-rst-gpios = <&gpio3 23 GPIO_ACTIVE_HIGH>;
+		lwb5p-bt-rst-gpios = <&gpio3 24 GPIO_ACTIVE_HIGH>;
 	};
 
 	reg_ble_pwr_en: regulator-nrf52 {
@@ -110,21 +73,11 @@
 		>;
 	};
 
-	pinctrl_wlan_reset: wlanrstgrp {
-		fsl,pins = <
-			MX6UL_PAD_LCD_DATA18__GPIO3_IO23	0x40000008	/* WLAN_RST */
-		>;
-	};
-
-	pinctrl_bt_reset: btrstgrp {
-		fsl,pins = <
-			MX6UL_PAD_LCD_DATA19__GPIO3_IO24	0x40000008	/* BT_RST */
-		>;
-	};
-
-	pinctrl_wlan_pwr_en: wlanpwrengrp {
+	pinctrl_lwb5_reset: lwb5resetgrp {
 		fsl,pins = <
 			MX6UL_PAD_LCD_DATA20__GPIO3_IO25	0x40000008	/* WLAN_BT_PWREN */
+			MX6UL_PAD_LCD_DATA18__GPIO3_IO23	0x40000008	/* WLAN_RST */
+			MX6UL_PAD_LCD_DATA19__GPIO3_IO24	0x40000008	/* BT_RST */
 		>;
 	};
 
