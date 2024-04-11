@@ -57,6 +57,7 @@
 	adc2: adc@49 {
 		compatible = "ti,ads1115";
 		reg = <0x49>;
+		label = "di8ai4-1";
 
 		#address-cells = <1>;
 		#size-cells = <0>;

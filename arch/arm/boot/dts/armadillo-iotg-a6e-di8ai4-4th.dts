@@ -27,6 +27,7 @@
 	adc5: adc@4A {
 		compatible = "ti,ads1115";
 		reg = <0x4A>;
+		label = "di8ai4-4";
 
 		#address-cells = <1>;
 		#size-cells = <0>;
