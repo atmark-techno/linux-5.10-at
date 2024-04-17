@@ -1,0 +1,392 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+
+#include "armadillo_900.dtsi"
+
+/ {
+	model = "Atmark-Techno Armadillo-IoT Gateway A900 Board";
+	compatible = "atmark,a900", "fsl,imx8ulp";
+
+	aliases {
+		rtc0 = &rv8803_rtc;
+	};
+
+	chosen {
+		stdout-path = &lpuart4;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_leds>;
+
+		c5_led {
+			label = "sys";
+			gpios = <&rpmsg_gpioc 5 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
+		};
+
+		f30_led {
+			label = "app";
+			gpios = <&gpiof 30 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+		};
+
+		f31_led {
+			label = "wwan";
+			gpios = <&gpiof 31 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_keys>;
+
+		gpio_keys_sw1: sw1 {
+			label = "SW1";
+			gpios = <&gpiof 24 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_PROG1>;
+		};
+	};
+
+	reg_usdhc2_vmmc: regulator-usdhc2 {
+		compatible = "regulator-fixed";
+		regulator-name = "VSD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&rpmsg_gpioa 2 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		off-on-delay-us = <400000>;
+	};
+
+	reg_usb1_host_vbus: regulator-usb1-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb1_host_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&rpmsg_gpioa 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+//power
+	reg_vdd_3p3v: regulator-vdd-3p3v {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 7 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_3P3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	reg_vdd_1p8v: regulator-vdd-1p8v {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 8 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_1P8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	usdhc1_pwrseq: usdhc1_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&rpmsg_gpioc 6 GPIO_ACTIVE_LOW>;
+	};
+
+	spi_gpio: spi_gpio {
+		compatible = "spi-gpio";
+		num-chipselects = <1>;
+		miso-gpios = <&rpmsg_gpioc 0 0>;
+		mosi-gpios = <&rpmsg_gpioc 1 0>;
+		sck-gpios = <&rpmsg_gpioc 2 0>;
+		cs-gpios = <&rpmsg_gpioc 3 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spidev1_0: spi@0 {
+			reg = <0>;
+			compatible = "rohm,dh2228fv";
+			spi-max-frequency = <1000000>;
+		};
+	};
+};
+
+// SD card
+&usdhc2 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz", "sleep";
+	pinctrl-0 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-1 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-2 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-3 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	cd-gpios = <&gpiof 28 GPIO_ACTIVE_LOW>;
+	vmmc-supply = <&reg_usdhc2_vmmc>;
+	bus-width = <4>;
+	status = "okay";
+};
+
+// USB
+&usbotg1 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usbmisc1 {
+	status = "okay";
+};
+
+&usbphy1 {
+	status = "okay";
+};
+
+&usbotg2 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usbphy2 {
+	status = "okay";
+};
+
+&usbmisc2 {
+	status = "okay";
+};
+
+// USB hub
+&i2c_rpbus_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	usb2422_usbhub: usb2422@2c {
+		compatible = "microchip,usb2422";
+		reg = <0x2c>;
+		reset-gpios = <&rpmsg_gpioa 19 GPIO_ACTIVE_LOW>;
+	};
+};
+
+//RTC, eeprom
+&lpi2c6 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <384000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpi2c6>;
+	status = "okay";
+
+	rv8803_rtc: rtc@32 {
+		compatible = "microcrystal,rv8803";
+		reg = <0x32>;
+		interrupt-parent = <&rpmsg_gpiob>;
+		interrupts = <13 GPIO_ACTIVE_LOW>;
+		wakeup-source;
+	};
+};
+
+// USB serial
+&lpuart4 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_lpuart4>;
+	pinctrl-1 = <&pinctrl_lpuart4sleep>;
+	status = "okay";
+};
+
+// wlan LBES5PL2EL-923
+&usdhc1 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-0 = <&pinctrl_usdhc1>;
+	pinctrl-1 = <&pinctrl_usdhc1_100mhz>;
+	pinctrl-2 = <&pinctrl_usdhc1_200mhz>;
+	keep-power-in-suspend;
+	non-removable;
+	wakeup-source;
+	mmc-pwrseq = <&usdhc1_pwrseq>;
+	fsl,sdio-interrupt-enable;
+	status = "okay";
+	// reset gpios
+	// wlan gpiod 13
+	// th gpioc 4
+	// bt gpiof 16
+
+	wifi_wake_host {
+		compatible = "nxp,wifi-wake-host";
+		interrupt-parent = <&gpiod>;
+		interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-names = "host-wake";
+		// also, bt wake on gpioe 6
+	};
+};
+
+&lpuart6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpuart6>;
+	status = "okay";
+
+	bluetooth {
+		compatible = "nxp,88w8987-bt";
+		btnxpuart,required-netdev = "mlan0";
+	};
+};
+
+&gpioc_iomuxc {
+	leds {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC5_PTC5 0x20000 /* OBE(1) */
+		>;
+	};
+	spi {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC0_PTC0 0x2 /* PE(1) */
+			IOMUXC_PTC1_PTC1 0x20000 /* OBE(1) */
+			IOMUXC_PTC2_PTC2 0x20000 /* OBE(1) */
+			IOMUXC_PTC3_PTC3 0x20000 /* OBE(1) */
+		>;
+	};
+};
+
+&iomuxc1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_customize>, <&pinctrl_con10_gpio>;
+
+	/* pinctrl memo
+	 * 0x7c00000 deglitch window
+	 * 0x200000 digital filter clock select (0=PCTL*, 1=RTC 1kHz)
+	 * 0x100000 digital filter
+	 * 0x20000 output buffer enable
+	 * 0x10000 input buffer enable
+	 * 0x40 high drive strength
+	 * 0x20 open drain
+	 * 0x4 slew rate
+	 * 0x2 pull-up enable
+	 * 0x1 pull-up selection (0=pull down)
+	 */
+
+	pinctrl_customize: customizegrp {
+	};
+
+	/* overriden by at-dtweb */
+	pinctrl_con10_gpio: con10gpiogrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF4__PTF4    0x0 /* on-board pull-up */
+			MX8ULP_PAD_PTF5__PTF5    0x0 /* on-board pull-up */
+			MX8ULP_PAD_PTF6__PTF6    0x0
+			MX8ULP_PAD_PTF7__PTF7    0x0
+		>;
+	};
+
+	pinctrl_usdhc2: usdhc2grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTE3__SDHC2_CMD	0x0
+			MX8ULP_PAD_PTE2__SDHC2_CLK	0x10000
+			MX8ULP_PAD_PTE1__SDHC2_D0	0x0
+			MX8ULP_PAD_PTE0__SDHC2_D1	0x0
+			MX8ULP_PAD_PTE5__SDHC2_D2	0x0
+			MX8ULP_PAD_PTE4__SDHC2_D3	0x0
+			MX8ULP_PAD_PTF29__SDHC2_VS	0x0
+		>;
+	};
+
+	pinctrl_leds: ledgrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF30__PTF30	0x0
+			MX8ULP_PAD_PTF31__PTF31	0x0
+		>;
+	};
+
+	pinctrl_gpio_keys: gpiokeygrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF24__PTF24		0x1100003
+		>;
+	};
+
+	pinctrl_usdhc2_gpio: usdhc2grp-gpio {
+		fsl,pins = <
+			MX8ULP_PAD_PTF28__PTF28		0x3
+		>;
+	};
+
+	pinctrl_lpi2c6: i2c6grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x24
+			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x24
+		>;
+	};
+
+	pinctrl_lpuart4: lpuart4grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF8__LPUART4_CTS_B	0x0
+			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x0
+			MX8ULP_PAD_PTF10__LPUART4_TX	0x0
+			MX8ULP_PAD_PTF11__LPUART4_RX	0x0
+		>;
+	};
+
+	pinctrl_lpuart4sleep: lpuart4sleepgrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF8__LPUART4_CTS_B	0x0
+			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x0
+			MX8ULP_PAD_PTF10__LPUART4_TX	0x0
+			MX8ULP_PAD_PTF11__LPUART4_RX	0x0
+		>;
+	};
+
+	pinctrl_usdhc1: usdhc1grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x0
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x0
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x0
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x0
+			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x0
+			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0 // IND_RST_WL
+			MX8ULP_PAD_PTF16__PTF16		0x0 // IND_RST_BT
+			MX8ULP_PAD_PTD17__PTD17		0x0 // WL_WAKE_IN
+			MX8ULP_PAD_PTE6__PTE6		0x0 // BT15.4_WAKE_IN
+		>;
+	};
+	pinctrl_usdhc1_100mhz: usdhc1grp-100mhz {
+		fsl,pins = <
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x0
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x0
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x0
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x0
+			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x0
+			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0 // IND_RST_WL
+			MX8ULP_PAD_PTF16__PTF16		0x0 // IND_RST_BT
+			MX8ULP_PAD_PTD17__PTD17		0x0 // WL_WAKE_IN
+			MX8ULP_PAD_PTE6__PTE6		0x0 // BT15.4_WAKE_IN
+		>;
+	};
+	pinctrl_usdhc1_200mhz: usdhc1grp-200mhz {
+		fsl,pins = <
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x0
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x0
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x0
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x0
+			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x0
+			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0 // IND_RST_WL
+			MX8ULP_PAD_PTF16__PTF16		0x0 // IND_RST_BT
+			MX8ULP_PAD_PTD17__PTD17		0x0 // WL_WAKE_IN
+			MX8ULP_PAD_PTE6__PTE6		0x0 // BT15.4_WAKE_IN
+		>;
+	};
+
+	pinctrl_lpuart6: lpuart6grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTE8__LPUART6_CTS_B	0x3
+			MX8ULP_PAD_PTE9__LPUART6_RTS_B	0x3
+			MX8ULP_PAD_PTE10__LPUART6_TX	0x3
+			MX8ULP_PAD_PTE11__LPUART6_RX	0x3
+			MX8ULP_PAD_PTF16__PTF16			0x3
+			MX8ULP_PAD_PTE6__PTE6			0x3
+		>;
+	};
+};

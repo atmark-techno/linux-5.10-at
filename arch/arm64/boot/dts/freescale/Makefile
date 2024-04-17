@@ -224,5 +224,13 @@ dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-rk055hdmipi4m.dtb \
 			  imx8ulp-evk-i3c.dtb imx8ulp-evk-epdc.dtb \
 			  imx8ulp-evk-flexio-i2c.dtb imx8ulp-evk-nd.dtb
 
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_a9e.dtb
+DTC_FLAGS_armadillo_iotg_a9e := -@
+dtb-$(CONFIG_ARCH_MXC) += armadillo_900-customize.dtbo \
+			  armadillo_iotg_a9e-sim7672.dtbo \
+			  armadillo_iotg_a9e-nousb.dtbo \
+			  armadillo_iotg_a9e-usdhc2-alwayson.dtbo \
+			  armadillo_iotg_a9e-at-dtweb.dtbo
+
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
 			  s32v234-sbc.dtb
