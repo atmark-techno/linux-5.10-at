@@ -1,0 +1,223 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2021 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+
+#include "armadillo-900.dtsi"
+
+/{
+	model = "Ogasawara preevaluation board";
+	compatible = "atmark,ogasawara", "fsl,imx8ulp";
+
+	aliases {
+		rtc0 = &rv8803_rtc;
+	};
+
+	chosen {
+		stdout-path = &lpuart4;
+		//stdout-path2 = &rpmsg_gpioa; // lpuart0 uses rpmsg
+	};
+
+	reg_usdhc1_vmmc: regulator-usdhc1 {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_reg_usdhc1_vmmc>;
+		regulator-name = "VSD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpiod 13 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&reg_vdd_3p3v>;
+		enable-active-high;
+		regulator-always-on;
+		off-on-delay-us = <100000>;
+	};
+
+	reg_usb1_host_vbus: regulator-usb1-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb1_host_vbus";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_usb1_vbus>;
+		regulator-min-microvolt = <5000000>;// 5v??
+		regulator-max-microvolt = <5000000>;
+		gpio = <&gpiod 12 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	reg_usb2_host_vbus: regulator-usb2-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb2_host_vbus";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_usb2_vbus>;
+		regulator-min-microvolt = <5000000>;// 5v??
+		regulator-max-microvolt = <5000000>;
+		gpio = <&gpiod 14 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	//VIN Monitor
+	vin_monitor: vin-monitor { // what is the user for vin monitor??
+		interrupt-parent = <&rpmsg_gpioa>; //considered as interrupt?
+		interrupts = <24 GPIO_ACTIVE_HIGH>; //active high/low?
+	};
+
+	// POWER
+	reg_vdd_3p3v: regulator-vdd-3p3v {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpiob 6 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_3P3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+	reg_vdd_1p8v: regulator-vdd-1p8v {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpiob 12 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_1P8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
+};
+
+// SD card
+&usdhc1 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz", "sleep";
+	pinctrl-0 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
+	pinctrl-1 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
+	pinctrl-2 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
+	pinctrl-3 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
+	cd-gpios = <&gpiod 16 GPIO_ACTIVE_LOW>;
+	vmmc-supply = <&reg_usdhc1_vmmc>;
+	bus-width = <4>;
+	status = "okay";
+};
+
+// USB
+&usbotg1 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usbmisc1 {
+	status = "okay";
+};
+
+&usbphy1 {
+	status = "okay";
+};
+
+&usbotg2 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usbmisc2 {
+	status = "okay";
+};
+
+&usbphy2 {
+	status = "okay";
+};
+
+//RTC
+&lpi2c6 {
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpi2c6>;
+	status = "okay";
+
+	rv8803_rtc: rtc@32 {
+		compatible = "microcrystal,rv8803";
+		reg = <0x32>;
+		interrupt-parent = <&rpmsg_gpiob>; // rpmsg で渡す
+		interrupts = <13 GPIO_ACTIVE_LOW>;
+		wakeup-source;
+	};
+};
+
+// USB serial
+&lpuart4 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_lpuart4>;
+	pinctrl-1 = <&pinctrl_lpuart4>;
+	status = "okay";
+};
+
+&iomuxc1 {
+//gpio
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_customize>;
+
+	pinctrl_customize: customizegrp {
+		/* add all other pin here*/
+	};
+
+	pinctrl_reg_usdhc1_vmmc: regusdhc1vmmcgrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTD13__PTD13		0x3
+		>;
+	};
+
+	pinctrl_usdhc1_gpio: usdhc1grp-gpio {
+		fsl,pins = <
+			MX8ULP_PAD_PTD16__SDHC1_CD	0x3
+		>;
+	};
+
+	pinctrl_usdhc1: usdhc1grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x3
+			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x3
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x3
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x3
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x3
+			MX8ULP_PAD_PTD15__SDHC1_VS	0x3
+		>;
+	};
+
+	pinctrl_usb1_vbus: usb1grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTD12__PTD12	0x3
+		>;
+	};
+
+	pinctrl_usb2_vbus: usb2grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTD14__PTD14	0x3
+		>;
+	};
+
+	pinctrl_lpi2c6: i2c6grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x20
+			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x20
+		>;
+	};
+
+	pinctrl_lpuart4: lpuart4grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF8__LPUART4_CTS_B	0x3
+			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x3
+			MX8ULP_PAD_PTF10__LPUART4_TX	0x3
+			MX8ULP_PAD_PTF11__LPUART4_RX	0x3
+		>;
+	};
+};
+
+//MIPI
+&mipi_csi0 {
+	status = "okay";
+};
+
+&dsi {
+	status = "okay";
+};
