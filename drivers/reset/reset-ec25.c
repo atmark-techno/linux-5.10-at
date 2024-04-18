@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * GPIO-based Reset Driver for Quectel EC25
  *
