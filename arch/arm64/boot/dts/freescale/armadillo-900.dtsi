@@ -16,6 +16,17 @@
 		i2c2 = &i2c2_rpbus_2;
 	};
 
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+
+		enet_led {
+			label = "enet_led";
+			gpios = <&gpioe 13 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "29950000.ethernet-1:00:100Mbps";
+		};
+	};
+
 	//secure element
 	i2c2_rpbus_2: i2c2-rpbus-2 {
 		compatible = "fsl,i2c-rpbus";
@@ -59,12 +70,6 @@
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <0>;
 
-			leds {
-				enet_led {
-					label = "enet0_led1_1v8";
-					gpios = <&gpioe 13 GPIO_ACTIVE_HIGH>;
-				};
-			};
 		};
 	};
 };
