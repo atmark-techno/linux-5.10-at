@@ -15,6 +15,7 @@
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
 
+#include "../host/xhci.h"
 #include "core.h"
 
 /* USB wakeup registers */
