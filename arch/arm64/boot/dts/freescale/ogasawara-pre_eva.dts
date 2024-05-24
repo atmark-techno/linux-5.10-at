@@ -20,14 +20,14 @@
 		//stdout-path2 = &rpmsg_gpioa; // lpuart0 uses rpmsg
 	};
 
-	reg_usdhc1_vmmc: regulator-usdhc1 {
+	reg_usdhc2_vmmc: regulator-usdhc2 {
 		compatible = "regulator-fixed";
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_reg_usdhc1_vmmc>;
+		pinctrl-0 = <&pinctrl_reg_usdhc2_vmmc>;
 		regulator-name = "VSD_3V3";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		gpio = <&gpiod 13 GPIO_ACTIVE_HIGH>;
+		gpio = <&gpioe 12 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-always-on;
 		off-on-delay-us = <100000>;
@@ -87,14 +87,15 @@
 };
 
 // SD card
-&usdhc1 {
+&usdhc2 {
 	pinctrl-names = "default", "state_100mhz", "state_200mhz", "sleep";
-	pinctrl-0 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
-	pinctrl-1 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
-	pinctrl-2 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
-	pinctrl-3 = <&pinctrl_usdhc1>, <&pinctrl_usdhc1_gpio>;
+	pinctrl-0 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-1 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-2 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-3 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
 	cd-gpios = <&gpiod 16 GPIO_ACTIVE_LOW>;
-	vmmc-supply = <&reg_usdhc1_vmmc>;
+	max-frequency = <25000000>;
+	vmmc-supply = <&reg_usdhc2_vmmc>;
 	bus-width = <4>;
 	status = "okay";
 };
@@ -159,27 +160,27 @@
 		/* add all other pin here*/
 	};
 
-	pinctrl_reg_usdhc1_vmmc: regusdhc1vmmcgrp {
+	pinctrl_reg_usdhc2_vmmc: regusdhc2vmmcgrp {
 		fsl,pins = <
-			MX8ULP_PAD_PTD13__PTD13		0x3
+			MX8ULP_PAD_PTE12__PTE12		0x3
 		>;
 	};
 
-	pinctrl_usdhc1_gpio: usdhc1grp-gpio {
+	pinctrl_usdhc2_gpio: usdhc2grp-gpio {
 		fsl,pins = <
 			MX8ULP_PAD_PTD16__SDHC1_CD	0x3
 		>;
 	};
 
-	pinctrl_usdhc1: usdhc1grp {
+	pinctrl_usdhc2: usdhc2grp {
 		fsl,pins = <
-			MX8ULP_PAD_PTD23__SDHC1_CMD	0x3
-			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
-			MX8ULP_PAD_PTD21__SDHC1_D0	0x3
-			MX8ULP_PAD_PTD20__SDHC1_D1	0x3
-			MX8ULP_PAD_PTD19__SDHC1_D2	0x3
-			MX8ULP_PAD_PTD18__SDHC1_D3	0x3
-			MX8ULP_PAD_PTD15__SDHC1_VS	0x3
+			MX8ULP_PAD_PTE3__SDHC2_CMD	0x3
+			MX8ULP_PAD_PTE2__SDHC2_CLK	0x10002
+			MX8ULP_PAD_PTE1__SDHC2_D0	0x3
+			MX8ULP_PAD_PTE0__SDHC2_D1	0x3
+			MX8ULP_PAD_PTE5__SDHC2_D2	0x3
+			MX8ULP_PAD_PTE4__SDHC2_D3	0x3
+			MX8ULP_PAD_PTF29__SDHC2_VS	0x3
 		>;
 	};
 
