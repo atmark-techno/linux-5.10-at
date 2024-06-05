@@ -8,8 +8,25 @@
 
 obj-$(CONFIG_MLAN) += mlan.o moal.o
 
+# version
+ccflags-y += -DMLAN_RELEASE_VERSION='"437.p21"' -DFPNUM='"92"'
+
 # CONFIG_DEBUG 1
 ccflags-y += -DDEBUG_LEVEL1
+
+# CONFIG_IMX_SUPPORT
+ccflags-y += -DIMX_SUPPORT
+
+# CONFIG_DUMP_TO_PROC
+ccflags-y += -DDUMP_TO_PROC
+
+# CONFIG_SDIO_SUSPEND_RESUME
+ccflags-y += -DSDIO_SUSPEND_RESUME
+
+# CONFIG_SDIO
+ccflags-y += -DSDIO -DSDIO_MMC
+mlan-y += mlan/mlan_sdio.o
+moal-y += mlinux/moal_sdio_mmc.o
 
 # CONFIG_STA_SUPPORT
 ccflags-y += -DSTA_SUPPORT
@@ -64,8 +81,11 @@ ccflags-y += -DMFG_CMD_SUPPORT
 # CONFIG_DFS_TESTING_SUPPORT
 ccflags-y += -DDFS_TESTING_SUPPORT
 
-# CONFIG_PCIE9098
+# CONFIG_PCIE9098 (88W9098)
 ccflags-y += -DPCIE9098
+
+# CONFIG_SD9177 (IW612)
+ccflags-y += -DSD9177
 
 # CONFIG_PCIE
 ccflags-y += -DPCIE
@@ -80,7 +100,7 @@ moal-y += mlinux/moal_proc.o \
 ccflags-y += -DMLAN_64BIT
 
 # non-option
-ccflags-y += -DLINUX -DFPNUM='"68"'
+ccflags-y += -DLINUX
 moal-y += mlinux/moal_main.o \
                 mlinux/moal_ioctl.o \
                 mlinux/moal_shim.o \

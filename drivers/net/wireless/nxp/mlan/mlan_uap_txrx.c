@@ -36,9 +36,6 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n_aggr.h"
 #include "mlan_11n_rxreorder.h"
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-#include "authenticator_api.h"
-#endif
 
 /********************************************************
 			Local Functions
@@ -65,7 +62,13 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 
 	/* Chop off RxPD */
-	pmbuf->data_len -= prx_pd->rx_pkt_offset;
+	if (pmbuf->data_len > prx_pd->rx_pkt_offset) {
+		pmbuf->data_len -= prx_pd->rx_pkt_offset;
+	} else {
+		PRINTM(MERROR,
+		       "pmbuf->data_len is smaller than prx_pd->rx_pkt_offset\n");
+		pmbuf->status_code = MLAN_ERROR_PKT_INVALID;
+	}
 	pmbuf->data_offset += prx_pd->rx_pkt_offset;
 	pmbuf->pparent = MNULL;
 
@@ -89,9 +92,15 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 		       "uAP Rx Error: moal_recv_packet returned error\n");
 		pmbuf->status_code = MLAN_ERROR_PKT_INVALID;
 	}
-
 	if (ret != MLAN_STATUS_PENDING)
 		pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
+#ifdef USB
+	else if (IS_USB(pmadapter->card_type))
+		pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle,
+							MNULL,
+							pmadapter->rx_data_ep,
+							ret);
+#endif
 	LEAVE();
 
 	return ret;
@@ -225,8 +234,9 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	}
 
 	/* Offset of actual data */
-	plocal_tx_pd->tx_pkt_offset = (t_u16)(
-		(t_ptr)pmbuf->pbuf + pmbuf->data_offset - (t_ptr)plocal_tx_pd);
+	plocal_tx_pd->tx_pkt_offset =
+		(t_u16)((t_ptr)pmbuf->pbuf + pmbuf->data_offset -
+			(t_ptr)plocal_tx_pd);
 
 	if (!plocal_tx_pd->tx_control) {
 		/* TxCtrl set by user or default */
@@ -269,6 +279,37 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 			plocal_tx_pd->tx_control |= TXPD_RETRY_ENABLE;
 		}
 	}
+	if (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT) {
+		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
+		mc_tx_ctrl *mc_ctrl =
+			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
+		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
+			ctrl->mc_cycle_start = MTRUE;
+		else
+			ctrl->mc_cycle_start = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_CYCLE)
+			ctrl->mc_cycle_end = MTRUE;
+		else
+			ctrl->mc_cycle_end = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_AMPDU)
+			ctrl->mc_ampdu_start = MTRUE;
+		else
+			ctrl->mc_ampdu_start = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_AMPDU)
+			ctrl->mc_ampdu_end = MTRUE;
+		else
+			ctrl->mc_ampdu_end = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_RETRY)
+			ctrl->mc_pkt_retry = MTRUE;
+		else
+			ctrl->mc_pkt_retry = MFALSE;
+		ctrl->bw = pmbuf->u.mc_tx_info.bandwidth & 0x7;
+		ctrl->tx_rate = pmbuf->u.mc_tx_info.mcs_index & 0x1f;
+		mc_ctrl->abs_tsf_expirytime =
+			wlan_cpu_to_le32(pmbuf->u.mc_tx_info.pkt_expiry);
+		mc_ctrl->mc_seq = wlan_cpu_to_le16(pmbuf->u.mc_tx_info.seq_num);
+	}
 
 	endian_convert_TxPD(plocal_tx_pd);
 
@@ -303,9 +344,6 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	t_u8 ta[MLAN_MAC_ADDR_LENGTH];
 	t_u16 rx_pkt_type = 0;
 	sta_node *sta_ptr = MNULL;
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	t_u8 eapol_type[2] = {0x88, 0x8e};
-#endif
 	t_u16 adj_rx_rate = 0;
 	t_u8 antenna = 0;
 
@@ -316,7 +354,8 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	wlan_802_11_header *pwlan_hdr;
 	IEEEtypes_FrameCtl_t *frmctl;
 	pmlan_buffer pmbuf2 = MNULL;
-	mlan_802_11_mac_addr src_addr, dest_addr;
+	mlan_802_11_mac_addr src_addr = {0x00};
+	mlan_802_11_mac_addr dest_addr = {0x00};
 	t_u16 hdr_len;
 	t_u8 snap_eth_hdr[5] = {0xaa, 0xaa, 0x03, 0x00, 0x00};
 	t_u8 ext_rate_info = 0;
@@ -541,21 +580,6 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 			sta_ptr->stats.rx_bytes += prx_pd->rx_pkt_length;
 		}
 	}
-
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	/**process eapol packet for uap*/
-	if (IsAuthenticatorEnabled(priv->psapriv) &&
-	    (!memcmp(pmadapter, &prx_pkt->eth803_hdr.h803_len, eapol_type,
-		     sizeof(eapol_type)))) {
-		ret = AuthenticatorProcessEapolPacket(
-			priv->psapriv, ((t_u8 *)prx_pd + prx_pd->rx_pkt_offset),
-			prx_pd->rx_pkt_length);
-		if (ret == MLAN_STATUS_SUCCESS) {
-			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-			goto done;
-		}
-	}
-#endif
 
 	pmbuf->priority |= prx_pd->priority;
 	if (pmadapter->enable_net_mon &&
@@ -841,6 +865,76 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 		    (wlan_get_station_entry(priv,
 					    prx_pkt->eth803_hdr.dest_addr))) {
 			/* Forwarding Intra-BSS packet */
+#ifdef USB
+			if (IS_USB(pmadapter->card_type)) {
+				if (pmbuf->flags & MLAN_BUF_FLAG_RX_DEAGGR) {
+					newbuf = wlan_alloc_mlan_buffer(
+						pmadapter,
+						MLAN_TX_DATA_BUF_SIZE_2K, 0,
+						MOAL_MALLOC_BUFFER);
+					if (newbuf) {
+						newbuf->bss_index =
+							pmbuf->bss_index;
+						newbuf->buf_type =
+							pmbuf->buf_type;
+						newbuf->priority =
+							pmbuf->priority;
+						newbuf->in_ts_sec =
+							pmbuf->in_ts_sec;
+						newbuf->in_ts_usec =
+							pmbuf->in_ts_usec;
+						newbuf->data_offset =
+							(sizeof(TxPD) +
+							 priv->intf_hr_len +
+							 DMA_ALIGNMENT);
+						util_scalar_increment(
+							pmadapter->pmoal_handle,
+							&pmadapter->pending_bridge_pkts,
+							pmadapter->callbacks
+								.moal_spin_lock,
+							pmadapter->callbacks
+								.moal_spin_unlock);
+						newbuf->flags |=
+							MLAN_BUF_FLAG_BRIDGE_BUF;
+
+						/* copy the data, skip rxpd */
+						memcpy_ext(
+							pmadapter,
+							(t_u8 *)newbuf->pbuf +
+								newbuf->data_offset,
+							pmbuf->pbuf +
+								pmbuf->data_offset +
+								prx_pd->rx_pkt_offset,
+							pmbuf->data_len -
+								prx_pd->rx_pkt_offset,
+							pmbuf->data_len -
+								prx_pd->rx_pkt_offset);
+						newbuf->data_len =
+							pmbuf->data_len -
+							prx_pd->rx_pkt_offset;
+						wlan_wmm_add_buf_txqueue(
+							pmadapter, newbuf);
+						if (util_scalar_read(
+							    pmadapter->pmoal_handle,
+							    &pmadapter->pending_bridge_pkts,
+							    pmadapter->callbacks
+								    .moal_spin_lock,
+							    pmadapter->callbacks
+								    .moal_spin_unlock) >
+						    RX_HIGH_THRESHOLD)
+							wlan_drop_tx_pkts(priv);
+						wlan_recv_event(
+							priv,
+							MLAN_EVENT_ID_DRV_DEFER_HANDLING,
+							MNULL);
+					}
+					pmadapter->callbacks.moal_recv_complete(
+						pmadapter->pmoal_handle, pmbuf,
+						pmadapter->rx_data_ep, ret);
+					goto done;
+				}
+			}
+#endif
 			pmbuf->data_len -= prx_pd->rx_pkt_offset;
 			pmbuf->data_offset += prx_pd->rx_pkt_offset;
 			pmbuf->flags |= MLAN_BUF_FLAG_BRIDGE_BUF;
@@ -903,6 +997,13 @@ upload:
 
 	if (ret != MLAN_STATUS_PENDING)
 		pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
+#ifdef USB
+	else if (IS_USB(pmadapter->card_type))
+		pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle,
+							MNULL,
+							pmadapter->rx_data_ep,
+							ret);
+#endif
 done:
 	LEAVE();
 	return ret;

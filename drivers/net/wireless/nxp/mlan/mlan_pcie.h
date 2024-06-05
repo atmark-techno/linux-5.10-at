@@ -169,8 +169,12 @@ Change log:
 #define ADMA_BD_FLAG_DST_HOST MBIT(4)
 /** ADMA MIN PKT SIZE */
 #define ADMA_MIN_PKT_SIZE 128
+/** ADMA MIN PKT SIZE 32 */
+#define ADMA_MIN_PKT_SIZE_32 32
 /** ADMA dual descriptor mode requir 8 bytes alignment in buf size */
 #define ADMA_ALIGN_SIZE 8
+/** ADMA dual descriptor mode requir 8 bytes alignment in buf size */
+#define ADMA_ALIGN_SIZE_1 1
 /** ADMA RW_PTR wrap mask */
 #define ADMA_RW_PTR_WRAP_MASK 0x00001FFF
 /** ADMA MSIX DOORBEEL DATA */
@@ -182,7 +186,8 @@ Change log:
 /** PF start bit */
 #define ADMA_MSIX_PF_BIT 24
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 /** PCIE9098 dev_id/vendor id reg */
 #define PCIE9098_DEV_ID_REG 0x0000
 /** PCIE revision ID register */
@@ -409,10 +414,13 @@ Change log:
 #define HOST_INTR_CMD_DONE MBIT(2)
 /** Event ready interrupt for host */
 #define HOST_INTR_EVENT_RDY MBIT(3)
+/** Command download interrupt for host */
+#define HOST_INTR_CMD_DNLD MBIT(7)
+
 /** Interrupt mask for host */
 #define HOST_INTR_MASK                                                         \
 	(HOST_INTR_DNLD_DONE | HOST_INTR_UPLD_RDY | HOST_INTR_CMD_DONE |       \
-	 HOST_INTR_EVENT_RDY)
+	 HOST_INTR_EVENT_RDY | HOST_INTR_CMD_DNLD)
 
 /** Lower 32bits command address holding register */
 #define REG_CMD_ADDR_LO PCIE_SCRATCH_0_REG
@@ -465,9 +473,6 @@ mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter);
 
 /** Set PCIE host buffer configurations */
 mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv);
-
-/** Init write pointer */
-mlan_status wlan_pcie_init_fw(pmlan_adapter pmadapter);
 
 #if defined(PCIE8997) || defined(PCIE8897)
 /** Prepare command PCIE host buffer config */

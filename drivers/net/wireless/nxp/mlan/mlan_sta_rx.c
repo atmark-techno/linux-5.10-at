@@ -34,9 +34,6 @@ Change log:
 #include "mlan_11n_aggr.h"
 #include "mlan_11n_rxreorder.h"
 #include "mlan_11ax.h"
-#ifdef DRV_EMBEDDED_SUPPLICANT
-#include "authenticator_api.h"
-#endif
 
 /********************************************************
 		Local Variables
@@ -510,9 +507,6 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	t_u8 appletalk_aarp_type[2] = {0x80, 0xf3};
 	t_u8 ipx_snap_type[2] = {0x81, 0x37};
 	t_u8 tdls_action_type[2] = {0x89, 0x0d};
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	t_u8 eapol_type[2] = {0x88, 0x8e};
-#endif
 	t_u8 ext_rate_info = 0;
 
 	ENTER();
@@ -632,23 +626,6 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		}
 	}
 
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	if (supplicantIsEnabled(priv->psapriv) &&
-	    (!memcmp(pmadapter, &prx_pkt->eth803_hdr.h803_len, eapol_type,
-		     sizeof(eapol_type)))) {
-		// BML_SET_OFFSET(bufDesc, offset);
-		if (ProcessEAPoLPkt(priv->psapriv, pmbuf)) {
-			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-			ret = MLAN_STATUS_SUCCESS;
-			PRINTM(MMSG,
-			       "host supplicant eapol pkt process done.\n");
-
-			LEAVE();
-			return ret;
-		}
-	}
-#endif
-
 mon_process:
 	if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
 		// Use some rxpd space to save rxpd info for radiotap header
@@ -681,6 +658,13 @@ mon_process:
 done:
 	if (ret != MLAN_STATUS_PENDING)
 		pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
+#ifdef USB
+	else if (IS_USB(pmadapter->card_type))
+		pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle,
+							MNULL,
+							pmadapter->rx_data_ep,
+							MLAN_STATUS_SUCCESS);
+#endif
 	LEAVE();
 
 	return ret;
@@ -705,7 +689,8 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	wlan_802_11_header *pwlan_hdr;
 	IEEEtypes_FrameCtl_t *frmctl;
 	pmlan_buffer pmbuf2 = MNULL;
-	mlan_802_11_mac_addr src_addr, dest_addr;
+	mlan_802_11_mac_addr dest_addr = {0x00};
+	mlan_802_11_mac_addr src_addr = {0x00};
 	t_u16 hdr_len;
 	t_u8 snap_eth_hdr[5] = {0xaa, 0xaa, 0x03, 0x00, 0x00};
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
@@ -905,8 +890,12 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	 */
 	if ((!IS_11N_ENABLED(priv) &&
 	     !(prx_pd->flags & RXPD_FLAG_PKT_DIRECT_LINK)) ||
-	    memcmp(priv->adapter, priv->curr_addr,
-		   prx_pkt->eth803_hdr.dest_addr, MLAN_MAC_ADDR_LENGTH)) {
+	    (memcmp(priv->adapter, priv->curr_addr,
+		    prx_pkt->eth803_hdr.dest_addr, MLAN_MAC_ADDR_LENGTH) &&
+	     !(prx_pd->flags & RXPD_FLAG_PKT_EASYMESH)) ||
+	    ((prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) &&
+	     (is_bcast_addr(prx_pkt->eth803_hdr.dest_addr) ||
+	      is_mcast_addr(prx_pkt->eth803_hdr.dest_addr)))) {
 		priv->snr = prx_pd->snr;
 		priv->nf = prx_pd->nf;
 		wlan_process_rx_packet(pmadapter, pmbuf);
@@ -953,9 +942,14 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	}
 	if ((priv->port_ctrl_mode == MTRUE && priv->port_open == MFALSE) &&
 	    (rx_pkt_type != PKT_TYPE_BAR)) {
-		mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num, prx_pd->priority,
-				       ta, (t_u8)prx_pd->rx_pkt_type,
-				       (t_void *)RX_PKT_DROPPED_IN_FW);
+		if (MLAN_STATUS_SUCCESS !=
+		    mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num,
+					   prx_pd->priority, ta,
+					   (t_u8)prx_pd->rx_pkt_type,
+					   (t_void *)RX_PKT_DROPPED_IN_FW))
+			PRINTM(MINFO, "RX pkt reordering failure seq_num:%d\n",
+			       prx_pd->seq_num);
+
 		if (rx_pkt_type == PKT_TYPE_AMSDU) {
 			pmbuf->data_len = prx_pd->rx_pkt_length;
 			pmbuf->data_offset += prx_pd->rx_pkt_offset;

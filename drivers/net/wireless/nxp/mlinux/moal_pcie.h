@@ -47,16 +47,23 @@ Change log:
 #define PCIE_DEVICE_ID_88W9097 (0x2b56)
 #endif
 
-#ifdef PCIE9098
+#if defined(PCIE9098) || defined(PCIEAW693)
 /** PCIE device ID for 9098 card FN0 */
 #define PCIE_DEVICE_ID_88W9098P_FN0 (0x2b43)
 /** PCIE device ID for 9098 card FN1 */
 #define PCIE_DEVICE_ID_88W9098P_FN1 (0x2b44)
 #endif
 
-#ifdef PCIENW62X
-/** PCIE device ID for NW62X card FN0 */
-#define PCIE_DEVICE_ID_88WNW62X (0x3000)
+#ifdef PCIEIW624
+/** PCIE device ID for IW624 card FN0 */
+#define PCIE_DEVICE_ID_88WIW624 (0x3000)
+#endif
+
+#if defined(PCIE9098) || defined(PCIEAW693)
+/** PCIE device ID for AW693 card FN0 */
+#define PCIE_DEVICE_ID_88WAW693_FN0 (0x3003)
+/** PCIE device ID for AW693 card FN1 */
+#define PCIE_DEVICE_ID_88WAW693_FN1 (0x3004)
 #endif
 
 #include <linux/version.h>
@@ -70,7 +77,7 @@ Change log:
 
 /** Default firmware name */
 #ifdef PCIE8997
-#define PCIE8997_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8997_combo_v4.bin"
+#define PCIE8997_DEFAULT_COMBO_FW_NAME "nxp/pcieusb8997_combo_v4.bin"
 #define PCIEUART8997_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8997_combo_v4.bin"
 #define PCIEUSB8997_DEFAULT_COMBO_FW_NAME "nxp/pcieusb8997_combo_v4.bin"
 #define PCIE8997_DEFAULT_WLAN_FW_NAME "nxp/pcie8997_wlan_v4.bin"
@@ -80,16 +87,22 @@ Change log:
 #endif /* PCIE8997 */
 
 #ifdef PCIE8897
-#define PCIE8897_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8897_combo.bin"
+#define PCIE8897_DEFAULT_COMBO_FW_NAME "nxp/pcie8897_uapsta.bin"
 #define PCIE8897_DEFAULT_WLAN_FW_NAME "nxp/pcie8897_wlan.bin"
 #endif /* PCIE8897*/
+
+#ifdef PCIEAW693
+#define PCIEUARTAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieuartaw693_combo.bin"
+#define PCIEAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieuartaw693_combo.bin"
+#define PCIEAW693_DEFAULT_WLAN_FW_NAME "nxp/pcieaw693_wlan.bin"
+#endif /* PCIEAW693*/
 
 #ifdef PCIE9098
 #define PCIE9098_Z1Z2 0x00
 #define PCIE9098_A0 0x01
 #define PCIE9098_A1 0x02
 #define PCIE9098_A2 0x03
-#define PCIE9098_DEFAULT_COMBO_FW_NAME "nxp/pcieuart9098_combo.bin"
+#define PCIE9098_DEFAULT_COMBO_FW_NAME "nxp/pcieusb9098_combo.bin"
 #define PCIEUART9098_DEFAULT_COMBO_FW_NAME "nxp/pcieuart9098_combo.bin"
 #define PCIEUSB9098_DEFAULT_COMBO_FW_NAME "nxp/pcieusb9098_combo.bin"
 #define PCIEPCIE9098_DEFAULT_COMBO_FW_NAME "nxp/pciepcie9098_combo.bin"
@@ -104,7 +117,7 @@ Change log:
 #define PCIE9097_A0 0x00
 #define PCIE9097_B0 0x01
 #define PCIE9097_B1 0x02
-#define PCIE9097_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw620_combo.bin"
+#define PCIE9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw620_combo.bin"
 #define PCIEUART9097_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw620_combo.bin"
 #define PCIEUSB9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw620_combo.bin"
 #define PCIEUART9097_COMBO_V1_FW_NAME "nxp/pcieuartiw620_combo_v1.bin"
@@ -113,14 +126,19 @@ Change log:
 #define PCIE9097_WLAN_V1_FW_NAME "nxp/pcieiw620_wlan_v1.bin"
 #endif /* PCIE9097 */
 
-#ifdef PCIENW62X
-#define PCIENW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartnw62x_combo.bin"
-#define PCIEUARTNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartnw62x_combo.bin"
-#define PCIEUSBNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbnw62x_combo.bin"
-#define PCIENW62X_DEFAULT_WLAN_FW_NAME "nxp/pcienw62x_wlan.bin"
-#endif /* PCIENW62X */
+#ifdef PCIEIW624
+#define PCIEIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEUARTIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw624_combo.bin"
+#define PCIEUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEUARTUARTIW624_DEFAULT_COMBO_FW_NAME                                \
+	"nxp/pcieuartuartiw624_combo.bin"
+#define PCIEUARTSPIIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartspiiw624_combo.bin"
+#define PCIEUSBUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbusbiw624_combo.bin"
+#define PCIEIW624_DEFAULT_WLAN_FW_NAME "nxp/pcieiw624_wlan.bin"
+#endif /* PCIEIW624 */
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 #define PCIE_NUM_MSIX_VECTORS 32
 #else
 #define PCIE_NUM_MSIX_VECTORS 4
@@ -139,6 +157,10 @@ typedef struct _pcie_service_card {
 	struct pci_dev *dev;
 	/** moal_handle structure pointer */
 	moal_handle *handle;
+	/** reset work*/
+	struct work_struct reset_work;
+	/** work flag */
+	t_u8 work_flags;
 	/** I/O memory regions pointer to the bus */
 	void __iomem *pci_mmap;
 	/** I/O memory regions pointer to the bus */

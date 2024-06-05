@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2022 NXP
+ * Copyright 2011-2022, 2024 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -56,13 +56,8 @@
 #endif
 #endif
 
-#ifndef WLAN_CIPHER_SUITE_FILS_PSK
-#define WLAN_CIPHER_SUITE_FILS_PSK 0x000FACFF
-#endif
-
 /* define for custom ie operation */
 #define MLAN_CUSTOM_IE_AUTO_IDX_MASK 0xffff
-#define MLAN_CUSTOM_IE_NEW_MASK 0x8000
 #define IE_MASK_WPS 0x0001
 #define IE_MASK_P2P 0x0002
 #define IE_MASK_WFD 0x0004
@@ -75,12 +70,10 @@
 #define MRVL_PKT_TYPE_MGMT_EASYMESH 0xCF
 #endif
 
-t_u8 woal_check_fils_capability(const t_u8 *ie, int len);
-
 mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 				  t_u32 cipher, const t_u8 *key, int key_len,
 				  const t_u8 *seq, int seq_len, t_u8 key_index,
-				  const t_u8 *addr, int disable,
+				  const t_u8 *addr, int disable, t_u8 pairwise,
 				  t_u8 wait_option);
 
 mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,
@@ -138,7 +131,7 @@ int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 int woal_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed);
 
 int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
-#if IMX_ANDROID_13
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -148,7 +141,7 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 			  const t_u8 *mac_addr, struct key_params *params);
 
 int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
-#if IMX_ANDROID_13
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -172,7 +165,8 @@ int woal_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 				   unsigned int link_id,
 #endif
 				   const u8 *peer,
@@ -223,7 +217,7 @@ int woal_cfg80211_set_channel(struct wiphy *wiphy,
 
 #if KERNEL_VERSION(2, 6, 37) < CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_key(struct wiphy *wiphy, struct net_device *dev,
-#if IMX_ANDROID_13
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 				  int link_id,
 #endif
 				  t_u8 key_index, bool ucast, bool mcast);
@@ -235,7 +229,7 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy, struct net_device *dev,
 #if KERNEL_VERSION(2, 6, 30) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       struct net_device *netdev,
-#if IMX_ANDROID_13
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 				       int link_id,
 #endif
 				       t_u8 key_index);
@@ -244,7 +238,7 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
 					 struct net_device *netdev,
-#if IMX_ANDROID_13
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 					 int link_id,
 #endif
 					 t_u8 key_index);
@@ -437,7 +431,13 @@ int woal_cfg80211_set_coalesce(struct wiphy *wiphy,
 			       struct cfg80211_coalesce *coalesce);
 #endif
 
-#if KERNEL_VERSION(3, 4, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 7, 0) <= CFG80211_VERSION_CODE
+int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_ap_settings *params);
+
+int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_ap_update *info);
+#elif KERNEL_VERSION(3, 4, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct cfg80211_ap_settings *params);
 
@@ -451,7 +451,8 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct beacon_parameters *params);
 #endif
 
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     unsigned int link_id);
 #else
@@ -512,7 +513,7 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 #endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-void woal_deauth_event(moal_private *priv, int reason_code);
+void woal_deauth_event(moal_private *priv, int reason_code, u8 *bssid);
 #endif
 
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
@@ -524,6 +525,8 @@ mlan_status woal_chandef_create(moal_private *priv,
 #if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
 void woal_cfg80211_setup_he_cap(moal_private *priv,
 				struct ieee80211_supported_band *band);
+#else
+void woal_cfg80211_setup_uap_he_cap(moal_private *priv, t_u8 wait_option);
 #endif
 
 void woal_cfg80211_free_bands(struct wiphy *wiphy);
@@ -538,7 +541,6 @@ int woal_cfg80211_mgmt_frame_ie(
 	t_u8 wait_option);
 
 int woal_get_active_intf_freq(moal_private *priv);
-int woal_get_rx_freq(moal_private *priv, t_u8 band_config, t_u8 chan_num);
 
 void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
 				t_u32 dev_cap, t_u8 *mcs_set,
@@ -554,4 +556,7 @@ void woal_clear_wiphy_dfs_state(struct wiphy *wiphy);
 void woal_update_channel_dfs_state(t_u8 channel, t_u8 dfs_state);
 int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
 				  mlan_ds_11h_chan_dfs_state *ch_dfs_state);
+
+mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason);
+
 #endif /* _MOAL_CFG80211_H_ */

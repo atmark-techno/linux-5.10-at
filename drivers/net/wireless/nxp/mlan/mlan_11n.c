@@ -623,75 +623,6 @@ static mlan_status wlan_11n_ioctl_addba_reject(pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief Set/get ibss ampdu param
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_SUCCESS --success, otherwise fail
- */
-static mlan_status wlan_11n_ioctl_ibss_ampdu_param(pmlan_adapter pmadapter,
-						   pmlan_ioctl_req pioctl_req)
-{
-	int i = 0;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_11n_cfg *cfg = MNULL;
-
-	ENTER();
-
-	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
-
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		PRINTM(MINFO, "Get IBSS AMPDU param\n");
-		for (i = 0; i < MAX_NUM_TID; i++) {
-			cfg->param.ibss_ampdu.ampdu[i] = pmpriv->ibss_ampdu[i];
-			cfg->param.ibss_ampdu.addba_reject[i] =
-				pmpriv->ibss_addba_reject[i];
-		}
-	} else {
-		for (i = 0; i < MAX_NUM_TID; i++) {
-			/* For AMPDU  RX*/
-			if (cfg->param.ibss_ampdu.addba_reject[i] >
-			    ADDBA_RSP_STATUS_REJECT) {
-				pioctl_req->status_code =
-					MLAN_ERROR_INVALID_PARAMETER;
-				ret = MLAN_STATUS_FAILURE;
-				break;
-			}
-			pmpriv->ibss_addba_reject[i] =
-				cfg->param.ibss_ampdu.addba_reject[i];
-			/* For AMPDU TX*/
-			if ((cfg->param.ibss_ampdu.ampdu[i] > HIGH_PRIO_TID) &&
-			    (cfg->param.ibss_ampdu.ampdu[i] !=
-			     BA_STREAM_NOT_ALLOWED)) {
-				pioctl_req->status_code =
-					MLAN_ERROR_INVALID_PARAMETER;
-				ret = MLAN_STATUS_FAILURE;
-				break;
-			}
-			pmpriv->ibss_ampdu[i] = cfg->param.ibss_ampdu.ampdu[i];
-		}
-		PRINTM(MMSG, "IBSS addba reject: %d %d %d %d %d %d %d %d\n",
-		       pmpriv->ibss_addba_reject[0],
-		       pmpriv->ibss_addba_reject[1],
-		       pmpriv->ibss_addba_reject[2],
-		       pmpriv->ibss_addba_reject[3],
-		       pmpriv->ibss_addba_reject[4],
-		       pmpriv->ibss_addba_reject[5],
-		       pmpriv->ibss_addba_reject[6],
-		       pmpriv->ibss_addba_reject[7]);
-		PRINTM(MMSG, "IBSS ampdu %d %d %d %d %d %d %d %d\n",
-		       pmpriv->ibss_ampdu[0], pmpriv->ibss_ampdu[1],
-		       pmpriv->ibss_ampdu[2], pmpriv->ibss_ampdu[3],
-		       pmpriv->ibss_ampdu[4], pmpriv->ibss_ampdu[5],
-		       pmpriv->ibss_ampdu[6], pmpriv->ibss_ampdu[7]);
-	}
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Set/Get Minimum BA Threshold
  *
  *  @param pmadapter   A pointer to mlan_adapter structure
@@ -1536,10 +1467,14 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 			 pmadapter->hw_mpdu_density);
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDNW62X(pmadapter->card_type) ||
-	    IS_CARD9097(pmadapter->card_type)) {
+	    IS_CARDIW624(pmadapter->card_type) ||
+	    IS_CARD9097(pmadapter->card_type) ||
+	    IS_CARDAW693(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
 				rx_mcs_supp,
@@ -1611,10 +1546,14 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 	SETAMPDU_SPACING(pht_cap->ht_cap.ampdu_param, 0);
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDNW62X(pmadapter->card_type) ||
-	    IS_CARD9097(pmadapter->card_type)) {
+	    IS_CARDIW624(pmadapter->card_type) ||
+	    IS_CARD9097(pmadapter->card_type) ||
+	    IS_CARDAW693(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
 				rx_mcs_supp,
@@ -1870,15 +1809,8 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 		if (padd_ba_rsp->add_rsp_result != BA_RESULT_TIMEOUT) {
 #ifdef UAP_SUPPORT
 			if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-				PRINTM(MERROR,
-				       "ADDBA failed, disable AMPDU of the STA: " MACSTR
-				       " tid=%d, "
-				       "result=%d\n",
-				       MAC2STR(padd_ba_rsp->peer_mac_addr), tid,
-				       padd_ba_rsp->add_rsp_result);
-
-			disable_station_ampdu(priv, tid,
-					      padd_ba_rsp->peer_mac_addr);
+				disable_station_ampdu(
+					priv, tid, padd_ba_rsp->peer_mac_addr);
 #endif /* UAP_SUPPORT */
 			if (ra_list && ra_list->is_tdls_link)
 				disable_station_ampdu(
@@ -1887,12 +1819,27 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 				BA_STREAM_NOT_ALLOWED;
 
 		} else {
+			t_u8 event_buf[256];
+			mlan_event *pevent = (mlan_event *)event_buf;
+			addba_timeout_event *evtbuf =
+				(addba_timeout_event *)pevent->event_buf;
 			if (ra_list) {
 				ra_list->packet_count = 0;
 				ra_list->ba_packet_threshold =
 					wlan_get_random_ba_threshold(
 						priv->adapter);
 			}
+			memset(priv->adapter, event_buf, 0x00,
+			       sizeof(event_buf));
+			pevent->bss_index = priv->bss_index;
+			pevent->event_id = MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT;
+			pevent->event_len = sizeof(addba_timeout_event);
+			memcpy_ext(priv->adapter, evtbuf->peer_mac_addr,
+				   padd_ba_rsp->peer_mac_addr,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+			evtbuf->tid = tid;
+			wlan_recv_event(priv, MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT,
+					pevent);
 		}
 	}
 
@@ -2331,7 +2278,7 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	t_u8 chan2Offset = SEC_CHAN_NONE;
 
 	/* Special Case: 20Mhz-only Channel */
-	if (chan == 165)
+	if (priv->adapter->region_code != COUNTRY_CODE_US && chan == 165)
 		return chan2Offset;
 
 	switch (chan) {
@@ -2347,6 +2294,8 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	case 140:
 	case 149:
 	case 157:
+	case 165:
+	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -2361,6 +2310,8 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	case 144:
 	case 153:
 	case 161:
+	case 169:
+	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
 		break;
 	}
@@ -2507,6 +2458,7 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	MrvlIETypes_HTCap_t *pht_cap;
 	MrvlIEtypes_ChanListParamSet_t *pchan_list;
+	ChanScanParamSet_t *pchan_param;
 	MrvlIETypes_2040BSSCo_t *p2040_bss_co;
 	MrvlIETypes_ExtCap_t *pext_cap;
 	t_u32 usr_dot_11n_dev_cap, orig_usr_dot_11n_dev_cap = 0;
@@ -2534,10 +2486,7 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	else
 		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_bg;
 
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
-		usr_dot_11ac_bw = BW_FOLLOW_VHTCAP;
-	else
-		usr_dot_11ac_bw = pmpriv->usr_dot_11ac_bw;
+	usr_dot_11ac_bw = pmpriv->usr_dot_11ac_bw;
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G | BAND_A)) &&
 	    ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !wlan_check_chan_width_ht40_by_region(pmpriv, pbss_desc)) {
@@ -2583,12 +2532,12 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 
 	if (pbss_desc->pht_info) {
 		pchan_list = (MrvlIEtypes_ChanListParamSet_t *)*ppbuffer;
-		memset(pmadapter, pchan_list, 0,
-		       sizeof(MrvlIEtypes_ChanListParamSet_t));
 		pchan_list->header.type = wlan_cpu_to_le16(TLV_TYPE_CHANLIST);
-		pchan_list->header.len =
-			sizeof(MrvlIEtypes_ChanListParamSet_t) -
-			sizeof(MrvlIEtypesHeader_t);
+		pchan_list->header.len = sizeof(ChanScanParamSet_t);
+
+		pchan_param = (ChanScanParamSet_t *)pchan_list->chan_scan_param;
+		memset(pmadapter, pchan_param, 0x00,
+		       sizeof(ChanScanParamSet_t));
 		pchan_list->chan_scan_param[0].chan_number =
 			pbss_desc->pht_info->ht_info.pri_chan;
 		pchan_list->chan_scan_param[0].bandcfg.chanBand =
@@ -2622,11 +2571,14 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		pchan_list->chan_scan_param[0].bandcfg.scanMode =
 			SCAN_MODE_USER;
 		HEXDUMP("ChanList", (t_u8 *)pchan_list,
-			sizeof(MrvlIEtypes_ChanListParamSet_t));
+			sizeof(ChanScanParamSet_t) +
+				sizeof(MrvlIEtypesHeader_t));
 		HEXDUMP("pht_info", (t_u8 *)pbss_desc->pht_info,
 			sizeof(MrvlIETypes_HTInfo_t) - 2);
-		*ppbuffer += sizeof(MrvlIEtypes_ChanListParamSet_t);
-		ret_len += sizeof(MrvlIEtypes_ChanListParamSet_t);
+		*ppbuffer += sizeof(ChanScanParamSet_t) +
+			     sizeof(MrvlIEtypesHeader_t);
+		ret_len += sizeof(ChanScanParamSet_t) +
+			   sizeof(MrvlIEtypesHeader_t);
 		pchan_list->header.len =
 			wlan_cpu_to_le16(pchan_list->header.len);
 	}
@@ -2760,9 +2712,6 @@ mlan_status wlan_11n_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_11N_CFG_TX_AGGR_CTRL:
 		status = wlan_11n_ioctl_txaggrctrl(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_11N_CFG_IBSS_AMPDU_PARAM:
-		status = wlan_11n_ioctl_ibss_ampdu_param(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_11N_CFG_MIN_BA_THRESHOLD:
 		status = wlan_11n_ioctl_min_ba_threshold_cfg(pmadapter,
@@ -3011,10 +2960,11 @@ int wlan_send_addba(mlan_private *priv, int tid, t_u8 *peer_mac)
 	PRINTM(MCMND, "Send addba: TID %d, " MACSTR "\n", tid,
 	       MAC2STR(peer_mac));
 
-	add_ba_req.block_ack_param_set = (t_u16)(
-		(tid << BLOCKACKPARAM_TID_POS) |
-		(priv->add_ba_param.tx_win_size << BLOCKACKPARAM_WINSIZE_POS) |
-		IMMEDIATE_BLOCK_ACK);
+	add_ba_req.block_ack_param_set =
+		(t_u16)((tid << BLOCKACKPARAM_TID_POS) |
+			(priv->add_ba_param.tx_win_size
+			 << BLOCKACKPARAM_WINSIZE_POS) |
+			IMMEDIATE_BLOCK_ACK);
 	/** enable AMSDU inside AMPDU */
 	if (priv->add_ba_param.tx_amsdu &&
 	    (priv->aggr_prio_tbl[tid].amsdu != BA_STREAM_NOT_ALLOWED))
@@ -3221,12 +3171,7 @@ int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
  */
 t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AN);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);
 		else if (bss_band & BAND_A)

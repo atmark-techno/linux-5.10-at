@@ -264,7 +264,11 @@ t_u8 wlan_fill_he_op_ie(mlan_private *pmpriv, IEEEtypes_HeOp_t *heop_ie)
 	heop_ie->bss_color_info.bss_color_disabled = 0;
 	// Rx HE MCS MAP
 	heop_ie->basic_he_mcs_nss.max_mcs_1ss = 0;
+#if defined(SD9177)
+	heop_ie->basic_he_mcs_nss.max_mcs_2ss = 3;
+#else
 	heop_ie->basic_he_mcs_nss.max_mcs_2ss = 0;
+#endif
 	heop_ie->basic_he_mcs_nss.max_mcs_3ss = 3;
 	heop_ie->basic_he_mcs_nss.max_mcs_4ss = 3;
 	heop_ie->basic_he_mcs_nss.max_mcs_5ss = 3;
@@ -291,7 +295,10 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	t_u16 len = 0;
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
@@ -319,9 +326,13 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 	}
 	phe_cap->type = wlan_cpu_to_le16(phe_cap->type);
 	phe_cap->len = wlan_cpu_to_le16(phe_cap->len);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(pmpriv->adapter->card_type) ||
-	    IS_CARD9097(pmpriv->adapter->card_type)) {
+	    IS_CARD9097(pmpriv->adapter->card_type) ||
+	    IS_CARDAW693(pmpriv->adapter->card_type)) {
 		if (band & BAND_AAX) {
 			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
 					       8);
@@ -339,7 +350,10 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 	for (nss = 1; nss <= 8; nss++) {
 		cfg_value = GET_HE_NSSMCS(phecap->rx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->rx_mcs_80, nss);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 		if ((rx_nss != 0) && (nss > rx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -353,7 +367,10 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 	for (nss = 1; nss <= 8; nss++) {
 		cfg_value = GET_HE_NSSMCS(phecap->tx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->tx_mcs_80, nss);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 		if ((tx_nss != 0) && (nss > tx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -388,7 +405,10 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
 	int len = 0;
 	t_u8 bw_80p80 = MFALSE;
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	t_u8 nss = 0;
@@ -431,10 +451,14 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	}
 	phecap->type = wlan_cpu_to_le16(phecap->type);
 	phecap->len = wlan_cpu_to_le16(phecap->len);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(pmpriv->adapter->card_type) ||
-	    IS_CARDNW62X(pmpriv->adapter->card_type) ||
-	    IS_CARD9097(pmpriv->adapter->card_type)) {
+	    IS_CARDIW624(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type) ||
+	    IS_CARDAW693(pmpriv->adapter->card_type)) {
 		if (pbss_desc->bss_band & band_selected) {
 			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
 					       8);
@@ -454,7 +478,10 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	for (nss = 1; nss <= 8; nss++) {
 		cfg_value = GET_HE_NSSMCS(phecap->rx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->rx_mcs_80, nss);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 		if ((rx_nss != 0) && (nss > rx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -468,7 +495,10 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	for (nss = 1; nss <= 8; nss++) {
 		cfg_value = GET_HE_NSSMCS(phecap->tx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->tx_mcs_80, nss);
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
+	defined(USBIW624) || defined(SD9097)
 		if ((tx_nss != 0) && (nss > tx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -607,12 +637,7 @@ t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv,
 	t_u16 bss_band = pbss_desc->bss_band;
 	if (pbss_desc->disable_11n)
 		return MFALSE;
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GAX);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AAX);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAX);
 		else if (bss_band & BAND_A)
@@ -904,6 +929,12 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		(mlan_ds_11ax_txomi_cmd *)&ds_11ax_cmd->param;
 	mlan_ds_11ax_toltime_cmd *toltime_cmd =
 		(mlan_ds_11ax_toltime_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_set_bsrp_cmd *set_bsrp_cmd =
+		(mlan_ds_11ax_set_bsrp_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_llde_cmd *llde_cmd =
+		(mlan_ds_11ax_llde_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_rutxpwr_cmd *rutxpwr_cmd =
+		(mlan_ds_11ax_rutxpwr_cmd *)&ds_11ax_cmd->param;
 	MrvlIEtypes_Data_t *tlv = MNULL;
 
 	ENTER();
@@ -937,14 +968,31 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		break;
 	case MLAN_11AXCMD_TXOMI_SUBID:
 		memcpy_ext(pmadapter, axcmd->val, &txomi_cmd->omi,
-			   sizeof(t_u16), sizeof(t_u16));
-		cmd->size += sizeof(t_u16);
+			   sizeof(mlan_ds_11ax_txomi_cmd),
+			   sizeof(mlan_ds_11ax_txomi_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_txomi_cmd);
 		break;
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, axcmd->val, &toltime_cmd->tol_time,
 			   sizeof(t_u32), sizeof(t_u32));
 		cmd->size += sizeof(t_u32);
 		break;
+	case MLAN_11AXCMD_SET_BSRP_SUBID:
+		axcmd->val[0] = set_bsrp_cmd->value;
+		cmd->size += sizeof(t_u8);
+		break;
+	case MLAN_11AXCMD_LLDE_SUBID:
+		memcpy_ext(pmadapter, axcmd->val, &llde_cmd->llde,
+			   sizeof(mlan_ds_11ax_llde_cmd),
+			   sizeof(mlan_ds_11ax_llde_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_llde_cmd);
+		break;
+	case MLAN_11AXCMD_RUTXSUBPWR_SUBID:
+		memcpy_ext(pmadapter, axcmd->val, &rutxpwr_cmd->subBand,
+			   sizeof(t_u8), sizeof(t_u8));
+		cmd->size += sizeof(t_u8);
+		break;
+
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", ds_11ax_cmd->sub_id);
 		break;
@@ -1014,11 +1062,27 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		break;
 	case MLAN_11AXCMD_TXOMI_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.txomi_cfg.omi, axcmd->val,
-			   sizeof(t_u16), sizeof(t_u16));
+			   sizeof(mlan_ds_11ax_txomi_cmd),
+			   sizeof(mlan_ds_11ax_txomi_cmd));
 		break;
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.toltime_cfg.tol_time,
 			   axcmd->val, sizeof(t_u32), sizeof(t_u32));
+		break;
+	case MLAN_11AXCMD_SET_BSRP_SUBID:
+		cfg->param.setbsrp_cfg.value = *axcmd->val;
+		break;
+	case MLAN_11AXCMD_LLDE_SUBID:
+		memcpy_ext(pmadapter, &cfg->param.llde_cfg.llde, axcmd->val,
+			   sizeof(mlan_ds_11ax_llde_cmd),
+			   sizeof(mlan_ds_11ax_llde_cmd));
+		pmadapter->llde_enabled = cfg->param.llde_cfg.llde;
+		pmadapter->llde_mode = cfg->param.llde_cfg.mode;
+		break;
+	case MLAN_11AXCMD_RUTXSUBPWR_SUBID:
+		memcpy_ext(pmadapter, &cfg->param.rutxpwr_cfg, axcmd->val,
+			   sizeof(mlan_ds_11ax_rutxpwr_cmd),
+			   sizeof(mlan_ds_11ax_rutxpwr_cmd));
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", axcmd->sub_id);
@@ -1049,6 +1113,8 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	mlan_ds_twtcfg *ds_twtcfg = (mlan_ds_twtcfg *)pdata_buf;
 	hostcmd_twt_setup *twt_setup_params = MNULL;
 	hostcmd_twt_teardown *twt_teardown_params = MNULL;
+	hostcmd_twt_report *twt_report_params = MNULL;
+	hostcmd_twt_information *twt_information_params = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -1100,6 +1166,24 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		twt_teardown_params->teardown_all_twt =
 			ds_twtcfg->param.twt_teardown.teardown_all_twt;
 		cmd->size += sizeof(hostcmd_twtcfg->param.twt_teardown);
+		break;
+	case MLAN_11AX_TWT_REPORT_SUBID:
+		twt_report_params = &hostcmd_twtcfg->param.twt_report;
+		memset(pmpriv->adapter, twt_report_params, 0x00,
+		       sizeof(hostcmd_twtcfg->param.twt_report));
+		twt_report_params->type = ds_twtcfg->param.twt_report.type;
+		cmd->size += sizeof(hostcmd_twtcfg->param.twt_report);
+		break;
+	case MLAN_11AX_TWT_INFORMATION_SUBID:
+		twt_information_params = &hostcmd_twtcfg->param.twt_information;
+		// coverity[bad_memset: SUPPRESS]
+		memset(pmadapter, twt_information_params, 0x00,
+		       sizeof(hostcmd_twtcfg->param.twt_information));
+		twt_information_params->flow_identifier =
+			ds_twtcfg->param.twt_information.flow_identifier;
+		twt_information_params->suspend_duration = wlan_cpu_to_le32(
+			ds_twtcfg->param.twt_information.suspend_duration);
+		cmd->size += sizeof(hostcmd_twtcfg->param.twt_information);
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", ds_twtcfg->sub_id);

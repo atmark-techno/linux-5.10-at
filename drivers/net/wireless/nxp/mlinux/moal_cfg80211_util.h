@@ -163,9 +163,10 @@ enum logger_attributes {
 
 /* Below events refer to the wifi_connectivity_event ring and shall be supported
  */
-enum { WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
-       WIFI_EVENT_AUTH_COMPLETE,
-       WIFI_EVENT_ASSOC_COMPLETE,
+enum {
+	WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
+	WIFI_EVENT_AUTH_COMPLETE,
+	WIFI_EVENT_ASSOC_COMPLETE,
 };
 
 enum {
@@ -175,11 +176,13 @@ enum {
 	RING_BUFFER_ENTRY_FLAGS_HAS_TIMESTAMP = (1 << (1))
 };
 
-enum { ENTRY_TYPE_CONNECT_EVENT = 1,
-       ENTRY_TYPE_PKT,
-       ENTRY_TYPE_WAKE_LOCK,
-       ENTRY_TYPE_POWER_EVENT,
-       ENTRY_TYPE_DATA };
+enum {
+	ENTRY_TYPE_CONNECT_EVENT = 1,
+	ENTRY_TYPE_PKT,
+	ENTRY_TYPE_WAKE_LOCK,
+	ENTRY_TYPE_POWER_EVENT,
+	ENTRY_TYPE_DATA
+};
 
 /** WiFi ring buffer entry structure */
 typedef struct {
@@ -486,7 +489,12 @@ int woal_packet_fate_monitor(moal_private *priv,
  * Version of APF instruction set processed by accept_packet().
  * Should be returned by wifi_get_packet_filter_info.
  */
+#if (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34)
+#define APF_VERSION 4
+#else
 #define APF_VERSION 2
+#endif
+
 /** =========== Define Copied from apf_interpreter.h END =========== */
 
 /** =========== Define Copied from apf_interpreter.c START =========== */
@@ -506,9 +514,10 @@ int woal_packet_fate_monitor(moal_private *priv,
 #define APF_FRAME_HEADER_SIZE 14
 #define PACKET_FILTER_MAX_LEN 1024
 
-enum { PACKET_FILTER_STATE_INIT = 0,
-       PACKET_FILTER_STATE_STOP,
-       PACKET_FILTER_STATE_START,
+enum {
+	PACKET_FILTER_STATE_INIT = 0,
+	PACKET_FILTER_STATE_STOP,
+	PACKET_FILTER_STATE_START,
 };
 
 enum wifi_attr_packet_filter {
@@ -616,7 +625,21 @@ typedef enum wifi_attr {
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
+enum mrvl_wlan_vendor_attr_secure_ranging_ctx {
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_INVALID = 0,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION = 1,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR = 2,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR = 3,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE = 4,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK = 5,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER = 6,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED = 7,
 
+	/* keep last */
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX =
+		MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST - 1,
+};
 enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };
@@ -641,6 +664,7 @@ enum vendor_event {
 	event_rtt_result = 0x07,
 	event_set_key_mgmt_offload = 0x10001,
 	event_fw_roam_success = 0x10002,
+	event_cloud_keep_alive = 0x10003,
 	event_dfs_radar_detected = 0x10004,
 	event_dfs_cac_started = 0x10005,
 	event_dfs_cac_finished = 0x10006,
@@ -703,10 +727,12 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi);
 enum vendor_sub_command {
 	sub_cmd_set_drvdbg = 0,
 	sub_cmd_set_roaming_offload_key = 0x0002,
+	sub_cmd_start_keep_alive = 0x0003,
+	sub_cmd_stop_keep_alive = 0x0004,
 	sub_cmd_dfs_capability = 0x0005,
-	sub_cmd_get_correlated_time = 0x0006,
 	sub_cmd_set_scan_mac_oui = 0x0007,
 	sub_cmd_set_scan_band = 0x0008,
+	sub_cmd_secure_ranging_ctx = 0x0009,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,
@@ -765,6 +791,22 @@ typedef enum {
 	ATTR_ND_OFFLOAD_AFTER_LAST,
 	ATTR_ND_OFFLOAD_MAX = ATTR_ND_OFFLOAD_AFTER_LAST - 1,
 } ND_OFFLOAD_ATTR;
+
+#define MKEEP_ALIVE_IP_PKT_MAX 256
+enum mkeep_alive_attributes {
+	MKEEP_ALIVE_ATTRIBUTE_INVALID = 0,
+	MKEEP_ALIVE_ATTRIBUTE_ID,
+	MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE,
+	MKEEP_ALIVE_ATTRIBUTE_IP_PKT,
+	MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN,
+	MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR,
+	MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR,
+	MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC,
+	MKEEP_ALIVE_ATTRIBUTE_RETRY_INTERVAL,
+	MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT,
+	MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST,
+	MKEEP_ALIVE_ATTRIBUTE_MAX = MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST - 1
+};
 
 int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len);
 

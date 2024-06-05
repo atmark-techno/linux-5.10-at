@@ -23,9 +23,6 @@
 #ifndef _MLAN_DECL_H_
 #define _MLAN_DECL_H_
 
-/** MLAN release version */
-#define MLAN_RELEASE_VERSION "366.p23"
-
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
 typedef signed char t_s8, *t_ps8;
@@ -274,6 +271,47 @@ typedef t_s32 t_sval;
 /** pcie inband reset */
 #define FW_RELOAD_PCIE_INBAND_RESET 6
 
+/** auto fw reload enable */
+#define AUTO_FW_RELOAD_ENABLE MBIT(0)
+/** auto fw reload enable pcie inband reset */
+#define AUTO_FW_RELOAD_PCIE_INBAND_RESET MBIT(1)
+
+#ifdef PCIE
+/* Interrupt type */
+enum {
+	RX_DATA,
+	RX_EVENT,
+	TX_COMPLETE,
+	RX_CMD_RESP,
+	RX_CMD_DNLD,
+	RX_DATA_DELAY
+};
+#endif
+#ifdef USB
+#define MLAN_USB_BLOCK_SIZE (512)
+#define MLAN_USB_AGGR_MODE_NUM (0)
+#define MLAN_USB_AGGR_MODE_LEN (1)
+#define MLAN_USB_AGGR_MODE_LEN_V2 (2)
+#define MLAN_USB_TX_AGGR_MAX_LEN (16000)
+#define MLAN_USB_TX_AGGR_MAX_NUM 10
+#define MLAN_USB_TX_AGGR_V2_ALIGN 4
+#define MLAN_USB_TX_AGGR_HEADER 4
+#define MLAN_USB_MAX_PKT_SIZE (MLAN_USB_BLOCK_SIZE * 4)
+
+#define MLAN_USB_RX_ALIGN_SIZE MLAN_USB_BLOCK_SIZE
+#define MLAN_USB_RX_MAX_AGGR_NUM (8)
+#define MLAN_USB_RX_DEAGGR_TIMEOUT_USEC (200)
+
+#define MLAN_USB_TX_AGGR_ALIGN (MLAN_USB_BLOCK_SIZE * 4)
+#define MLAN_USB_TX_MAX_AGGR_NUM (8)
+#define MLAN_USB_TX_MAX_AGGR_SIZE                                              \
+	(MLAN_USB_BLOCK_SIZE * 4 * MLAN_USB_TX_MAX_AGGR_NUM)
+#define MLAN_USB_TX_MIN_AGGR_TIMEOUT (1)
+#define MLAN_USB_TX_MAX_AGGR_TIMEOUT (4)
+#define MLAN_USB_TX_AGGR_TIMEOUT_MSEC MLAN_USB_TX_MIN_AGGR_TIMEOUT
+#define MLAN_USB_TX_AGGR_TIMEOUT_DYN (0xFFFF)
+#endif /*USB*/
+
 /** MLAN MAC Address Length */
 #define MLAN_MAC_ADDR_LENGTH (6)
 /** MLAN 802.11 MAC Address */
@@ -299,6 +337,29 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 
 /** max Wmm AC queues */
 #define MAX_AC_QUEUES 4
+
+#ifdef SDIO
+/** define SDIO block size for data Tx/Rx */
+/* We support up to 480-byte block size due to FW buffer limitation. */
+#define MLAN_SDIO_BLOCK_SIZE 256
+
+/** define SDIO block size for firmware download */
+#define MLAN_SDIO_BLOCK_SIZE_FW_DNLD MLAN_SDIO_BLOCK_SIZE
+
+/** define allocated buffer size */
+#define ALLOC_BUF_SIZE MLAN_RX_DATA_BUF_SIZE
+/** SDIO MP aggr pkt limit */
+#define SDIO_MP_AGGR_DEF_PKT_LIMIT (16)
+/** SDIO MP aggr pkt limit 8 */
+#define SDIO_MP_AGGR_DEF_PKT_LIMIT_8 (8)
+/** max SDIO MP aggr pkt limit */
+#define SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX (16)
+
+/** SDIO IO Port mask */
+#define MLAN_SDIO_IO_PORT_MASK 0xfffff
+/** SDIO Block/Byte mode mask */
+#define MLAN_SDIO_BYTE_MODE_MASK 0x80000000
+#endif /* SDIO */
 
 /** SD Interface */
 #define INTF_SD MBIT(0)
@@ -331,7 +392,11 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 /** 8801 card type */
 #define CARD_TYPE_8801 0x0a
 /** OWL card type */
-#define CARD_TYPE_NW62X 0x0b
+#define CARD_TYPE_IW624 0x0b
+/** Black bird card type */
+#define CARD_TYPE_AW693 0x0c
+/** IW615 card type */
+#define CARD_TYPE_IW615 0x0d
 
 /** 9098 A0 reverion num */
 #define CHIP_9098_REV_A0 1
@@ -342,6 +407,76 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define INTF_MASK 0xff
 #define CARD_TYPE_MASK 0xff
 
+#ifdef SDIO
+/** SD8887 card type */
+#define CARD_TYPE_SD8887 (CARD_TYPE_8887 | (INTF_SD << 8))
+/** SD8897 card type */
+#define CARD_TYPE_SD8897 (CARD_TYPE_8897 | (INTF_SD << 8))
+/** SD8977 card type */
+#define CARD_TYPE_SD8977 (CARD_TYPE_8977 | (INTF_SD << 8))
+/** SD8978 card type */
+#define CARD_TYPE_SD8978 (CARD_TYPE_8978 | (INTF_SD << 8))
+/** SD8997 card type */
+#define CARD_TYPE_SD8997 (CARD_TYPE_8997 | (INTF_SD << 8))
+/** SD8987 card type */
+#define CARD_TYPE_SD8987 (CARD_TYPE_8987 | (INTF_SD << 8))
+/** SD9097 card type */
+#define CARD_TYPE_SD9097 (CARD_TYPE_9097 | (INTF_SD << 8))
+/** SD9098 card type */
+#define CARD_TYPE_SD9098 (CARD_TYPE_9098 | (INTF_SD << 8))
+/** SD9177 card type */
+#define CARD_TYPE_SD9177 (CARD_TYPE_9177 | (INTF_SD << 8))
+/** SD8801 card type */
+#define CARD_TYPE_SD8801 (CARD_TYPE_8801 | (INTF_SD << 8))
+/** SD_IW624 card type */
+#define CARD_TYPE_SDIW624 (CARD_TYPE_IW624 | (INTF_SD << 8))
+/** SD_IW624 card type */
+#define CARD_TYPE_SDAW693 (CARD_TYPE_AW693 | (INTF_SD << 8))
+/** SD_IW615 card type */
+#define CARD_TYPE_SDIW615 (CARD_TYPE_IW615 | (INTF_SD << 8))
+
+#define IS_SD8887(ct) (CARD_TYPE_SD8887 == (ct))
+#define IS_SD8897(ct) (CARD_TYPE_SD8897 == (ct))
+#define IS_SD8977(ct) (CARD_TYPE_SD8977 == (ct))
+#define IS_SD8978(ct) (CARD_TYPE_SD8978 == (ct))
+#define IS_SD8997(ct) (CARD_TYPE_SD8997 == (ct))
+#define IS_SD8987(ct) (CARD_TYPE_SD8987 == (ct))
+#define IS_SD9097(ct) (CARD_TYPE_SD9097 == (ct))
+#define IS_SD9098(ct) (CARD_TYPE_SD9098 == (ct))
+#define IS_SD9177(ct) (CARD_TYPE_SD9177 == (ct))
+#define IS_SD8801(ct) (CARD_TYPE_SD8801 == (ct))
+#define IS_SDIW624(ct) (CARD_TYPE_SDIW624 == (ct))
+#define IS_SDAW693(ct) (CARD_TYPE_SDAW693 == (ct))
+#define IS_SDIW615(ct) (CARD_TYPE_SDIW615 == (ct))
+
+/** SD8887 Card */
+#define CARD_SD8887 "SD8887"
+/** SD8897 Card */
+#define CARD_SD8897 "SD8897"
+/** SD8977 Card */
+#define CARD_SD8977 "SD8977"
+/** SD8978 Card */
+#define CARD_SD8978 "SDIW416"
+/** SD8997 Card */
+#define CARD_SD8997 "SD8997"
+/** SD8987 Card */
+#define CARD_SD8987 "SD8987"
+/** SD9097 Card */
+#define CARD_SD9097 "SDIW620"
+/** SD9098 Card */
+#define CARD_SD9098 "SD9098"
+/** SD9177 Card */
+#define CARD_SD9177 "SDIW612"
+/** SD8801 Card */
+#define CARD_SD8801 "SD8801"
+/** SDIW624 Card */
+#define CARD_SDIW624 "SDIW624"
+/** SDAW693 Card */
+#define CARD_SDAW693 "SDAW693"
+/** SDIW615 Card */
+#define CARD_SDIW615 "SDIW615"
+#endif
+
 #ifdef PCIE
 /** PCIE8897 card type */
 #define CARD_TYPE_PCIE8897 (CARD_TYPE_8897 | (INTF_PCIE << 8))
@@ -351,14 +486,17 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_PCIE9097 (CARD_TYPE_9097 | (INTF_PCIE << 8))
 /** PCIE9098 card type */
 #define CARD_TYPE_PCIE9098 (CARD_TYPE_9098 | (INTF_PCIE << 8))
-/** PCIENW62X card type */
-#define CARD_TYPE_PCIENW62X (CARD_TYPE_NW62X | (INTF_PCIE << 8))
+/** PCIEIW624 card type */
+#define CARD_TYPE_PCIEIW624 (CARD_TYPE_IW624 | (INTF_PCIE << 8))
+/** PCIEAW693 card type */
+#define CARD_TYPE_PCIEAW693 (CARD_TYPE_AW693 | (INTF_PCIE << 8))
 
 #define IS_PCIE8897(ct) (CARD_TYPE_PCIE8897 == (ct))
 #define IS_PCIE8997(ct) (CARD_TYPE_PCIE8997 == (ct))
 #define IS_PCIE9097(ct) (CARD_TYPE_PCIE9097 == (ct))
 #define IS_PCIE9098(ct) (CARD_TYPE_PCIE9098 == (ct))
-#define IS_PCIENW62X(ct) (CARD_TYPE_PCIENW62X == (ct))
+#define IS_PCIEIW624(ct) (CARD_TYPE_PCIEIW624 == (ct))
+#define IS_PCIEAW693(ct) (CARD_TYPE_PCIEAW693 == (ct))
 
 /** PCIE8897 Card */
 #define CARD_PCIE8897 "PCIE8897"
@@ -372,10 +510,57 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_PCIE9098 "PCIE9098"
 /** PCIEAW690 Card */
 #define CARD_PCIEAW690 "PCIEAW690"
-/** PCIENW62X Card */
-#define CARD_PCIENW62X "PCIENW62X"
+/** PCIEIW624 Card */
+#define CARD_PCIEIW624 "PCIEIW624"
+/** PCIEAW693 Card */
+#define CARD_PCIEAW693 "PCIEAW693"
 /** PCIEIW629 Card */
 #define CARD_PCIEIW629 "PCIEIW629"
+#endif
+
+#ifdef USB
+/** USB8801 card type */
+#define CARD_TYPE_USB8801 (CARD_TYPE_8801 | (INTF_USB << 8))
+/** USB8897 card type */
+#define CARD_TYPE_USB8897 (CARD_TYPE_8897 | (INTF_USB << 8))
+/** USB8997 card type */
+#define CARD_TYPE_USB8997 (CARD_TYPE_8997 | (INTF_USB << 8))
+/** USB8978 card type */
+#define CARD_TYPE_USB8978 (CARD_TYPE_8978 | (INTF_USB << 8))
+/** USB9098 card type */
+#define CARD_TYPE_USB9098 (CARD_TYPE_9098 | (INTF_USB << 8))
+/** USB9097 card type */
+#define CARD_TYPE_USB9097 (CARD_TYPE_9097 | (INTF_USB << 8))
+/** USBIW624 card type */
+#define CARD_TYPE_USBIW624 (CARD_TYPE_IW624 | (INTF_USB << 8))
+/** USBIW615 card type */
+#define CARD_TYPE_USBIW615 (CARD_TYPE_IW615 | (INTF_USB << 8))
+
+#define IS_USB8801(ct) (CARD_TYPE_USB8801 == (ct))
+#define IS_USB8897(ct) (CARD_TYPE_USB8897 == (ct))
+#define IS_USB8997(ct) (CARD_TYPE_USB8997 == (ct))
+#define IS_USB8978(ct) (CARD_TYPE_USB8978 == (ct))
+#define IS_USB9098(ct) (CARD_TYPE_USB9098 == (ct))
+#define IS_USB9097(ct) (CARD_TYPE_USB9097 == (ct))
+#define IS_USBIW624(ct) (CARD_TYPE_USBIW624 == (ct))
+#define IS_USBIW615(ct) (CARD_TYPE_USBIW615 == (ct))
+
+/** USB8801 Card */
+#define CARD_USB8801 "USB8801"
+/** USB8897 Card */
+#define CARD_USB8897 "USB8897"
+/** USB8997 Card */
+#define CARD_USB8997 "USB8997"
+/** USB8978 Card */
+#define CARD_USB8978 "USBIW416"
+/** USB9098 Card */
+#define CARD_USB9098 "USB9098"
+/** USB9097 Card */
+#define CARD_USB9097 "USBIW620"
+/** USBIW624 Card */
+#define CARD_USBIW624 "USBIW624"
+/** USBIW615 Card */
+#define CARD_USBIW615 "USBIW615"
 #endif
 
 #define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct)&0xf))
@@ -387,7 +572,9 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_CARD9098(ct) (CARD_TYPE_9098 == ((ct)&0xf))
 #define IS_CARD9097(ct) (CARD_TYPE_9097 == ((ct)&0xf))
 #define IS_CARD9177(ct) (CARD_TYPE_9177 == ((ct)&0xf))
-#define IS_CARDNW62X(ct) (CARD_TYPE_NW62X == ((ct)&0xf))
+#define IS_CARDIW624(ct) (CARD_TYPE_IW624 == ((ct)&0xf))
+#define IS_CARDAW693(ct) (CARD_TYPE_AW693 == ((ct)&0xf))
+#define IS_CARDIW615(ct) (CARD_TYPE_IW615 == ((ct)&0xf))
 
 typedef struct _card_type_entry {
 	t_u16 card_type;
@@ -395,7 +582,7 @@ typedef struct _card_type_entry {
 	char *name;
 } card_type_entry;
 
-#if defined(PCIE)
+#if defined(SDIO) || defined(PCIE)
 /** Max retry number of IO write */
 #define MAX_WRITE_IOMEM_RETRY 2
 #endif /* SDIO || PCIE */
@@ -427,6 +614,17 @@ typedef enum {
 /** Buffer flag for bridge packet */
 #define MLAN_BUF_FLAG_BRIDGE_BUF MBIT(3)
 
+#ifdef USB
+/** Buffer flag for deaggregated rx packet */
+#define MLAN_BUF_FLAG_RX_DEAGGR MBIT(5)
+
+/** Buffer flag for sleep confirm resp packet */
+#define MLAN_BUF_FLAG_SLEEPCFM_RESP MBIT(6)
+
+/** Buffer flag for USB TX AGGR */
+#define MLAN_BUF_FLAG_USB_TX_AGGR MBIT(7)
+#endif
+
 /** Buffer flag for TDLS */
 #define MLAN_BUF_FLAG_TDLS MBIT(8)
 
@@ -446,11 +644,9 @@ typedef enum {
 
 #define MLAN_BUF_FLAG_TX_CTRL MBIT(14)
 
-#ifdef MAC80211_SUPPORT
-#define MLAN_BUF_FLAG_RATE_ADAPT_PROBE_PKT MBIT(15)
-#endif
-
 #define MLAN_BUF_FLAG_EASYMESH MBIT(16)
+
+#define MLAN_BUF_FLAG_MC_AGGR_PKT MBIT(17)
 
 #ifdef DEBUG_LEVEL1
 /** Debug level bit definition */
@@ -471,6 +667,7 @@ typedef enum {
 #define MEVT_D MBIT(18)
 #define MFW_D MBIT(19)
 #define MIF_D MBIT(20)
+#define MFWDP_D MBIT(21)
 
 #define MENTRY MBIT(28)
 #define MWARN MBIT(29)
@@ -482,6 +679,8 @@ typedef enum {
 #define MLAN_MEM_DMA MBIT(0)
 /** Memory allocation flag: ATOMIC */
 #define MLAN_MEM_FLAG_ATOMIC MBIT(1)
+/** Memory allocation flag: DIRTY - do not memset to 0 buffer */
+#define MLAN_MEM_FLAG_DIRTY MBIT(2)
 
 /** Default memory allocation flag */
 #define MLAN_MEM_DEF 0
@@ -492,6 +691,10 @@ typedef enum _mlan_status {
 	MLAN_STATUS_SUCCESS = 0,
 	MLAN_STATUS_PENDING,
 	MLAN_STATUS_RESOURCE,
+#ifdef USB
+	/* Status pending and no resource */
+	MLAN_STATUS_PRESOURCE,
+#endif
 	MLAN_STATUS_COMPLETE,
 	MLAN_STATUS_FILE_ERR,
 } mlan_status;
@@ -531,6 +734,9 @@ typedef enum _mlan_buf_type {
 	MLAN_BUF_TYPE_DATA,
 	MLAN_BUF_TYPE_EVENT,
 	MLAN_BUF_TYPE_RAW_DATA,
+#ifdef SDIO
+	MLAN_BUF_TYPE_SPA_DATA,
+#endif
 } mlan_buf_type;
 
 #define SCAN_STATE_SCAN_START MBIT(0)
@@ -545,6 +751,22 @@ typedef enum _mlan_buf_type {
 #define SCAN_STATE_EXT_SCAN_STATUS MBIT(9)
 #define SCAN_STATE_SCAN_COMPLETE MBIT(10)
 
+#ifdef USB
+/** mlan_usb_ep */
+typedef enum _mlan_usb_ep {
+	MLAN_USB_EP_CTRL = 0,
+	MLAN_USB_EP_CMD_EVENT = 1,
+	MLAN_USB_EP_DATA = 2,
+	MLAN_USB_EP_DATA_CH2 = 3,
+	MLAN_USB_EP_CMD_EVENT_IF2 = 4,
+	MLAN_USB_EP_DATA_IF2 = 5,
+	MLAN_USB_EP_DATA_CH2_IF2 = 6,
+} mlan_usb_ep;
+
+/** Timeout in milliseconds for usb_bulk_msg function */
+#define MLAN_USB_BULK_MSG_TIMEOUT 100
+#endif /* USB */
+
 /** MLAN BSS type */
 typedef enum _mlan_bss_type {
 	MLAN_BSS_TYPE_STA = 0,
@@ -553,9 +775,6 @@ typedef enum _mlan_bss_type {
 	MLAN_BSS_TYPE_WIFIDIRECT = 2,
 #endif
 	MLAN_BSS_TYPE_NAN = 4,
-#ifdef MAC80211_SUPPORT
-	MLAN_BSS_TYPE_MAC80211 = 6,
-#endif
 	MLAN_BSS_TYPE_DFS = 8,
 	MLAN_BSS_TYPE_ANY = 0xff,
 } mlan_bss_type;
@@ -564,9 +783,6 @@ typedef enum _mlan_bss_type {
 typedef enum _mlan_bss_role {
 	MLAN_BSS_ROLE_STA = 0,
 	MLAN_BSS_ROLE_UAP = 1,
-#ifdef MAC80211_SUPPORT
-	MLAN_BSS_ROLE_MAC80211 = 2,
-#endif
 	MLAN_BSS_ROLE_ANY = 0xff,
 } mlan_bss_role;
 
@@ -586,8 +802,6 @@ typedef enum _mlan_data_frame_type {
 typedef enum _mlan_event_id {
 	/* Event generated by firmware (MSB=0) */
 	MLAN_EVENT_ID_FW_UNKNOWN = 0x00000001,
-	MLAN_EVENT_ID_FW_ADHOC_LINK_SENSED = 0x00000002,
-	MLAN_EVENT_ID_FW_ADHOC_LINK_LOST = 0x00000003,
 	MLAN_EVENT_ID_FW_DISCONNECTED = 0x00000004,
 	MLAN_EVENT_ID_FW_MIC_ERR_UNI = 0x00000005,
 	MLAN_EVENT_ID_FW_MIC_ERR_MUL = 0x00000006,
@@ -634,6 +848,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_SSU_DUMP_FILE = 0x00000039,
 #endif /* SSU_SUPPORT */
 	MLAN_EVENT_ID_CSI = 0x00000040,
+	MLAN_EVENT_ID_FW_TX_BULK_STATUS = 0x00000043,
 	/* Event generated by MLAN driver (MSB=1) */
 	MLAN_EVENT_ID_DRV_CONNECTED = 0x80000001,
 	MLAN_EVENT_ID_DRV_DEFER_HANDLING = 0x80000002,
@@ -664,6 +879,15 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_DISCONNECT_LOGGER = 0x80000028,
 	MLAN_EVENT_ID_DRV_WIFI_STATUS = 0x80000029,
 	MLAN_EVENT_ID_STORE_HOST_CMD_RESP = 0x80000030,
+	MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT = 0x80000031,
+#ifdef PCIE
+	MLAN_EVENT_ID_DRV_DEFER_RX_DATA = 0x80000032,
+	MLAN_EVENT_ID_DRV_DEFER_RX_EVENT = 0x80000033,
+	MLAN_EVENT_ID_DRV_DEFER_CMDRESP = 0x80000034,
+	MLAN_EVENT_ID_DRV_DEFER_TX_COMPLTE = 0x80000035,
+	MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE = 0x80000036,
+#endif
+	MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH = 0x80000037,
 } mlan_event_id;
 
 /** Data Structures */
@@ -713,7 +937,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
 
 #define OID_TYPE_CAL 0x2
 #define OID_TYPE_DPD 0xa
+#define NONE_TYPE_DPD 0xb
 #define UNKNOW_DPD_LENGTH 0xffffffff
+#define NONE_DPD_LENGTH 0xfafafafa
 
 /** Custom data structure */
 typedef struct _mlan_init_param {
@@ -742,29 +968,34 @@ enum mlan_channel_type {
 };
 
 /** channel band */
-enum { BAND_2GHZ = 0,
-       BAND_5GHZ = 1,
-       BAND_6GHZ = 2,
-       BAND_4GHZ = 3,
+enum {
+	BAND_2GHZ = 0,
+	BAND_5GHZ = 1,
+	BAND_6GHZ = 2,
+	BAND_4GHZ = 3,
 };
 
 /** channel offset */
-enum { SEC_CHAN_NONE = 0,
-       SEC_CHAN_ABOVE = 1,
-       SEC_CHAN_5MHZ = 2,
-       SEC_CHAN_BELOW = 3 };
+enum {
+	SEC_CHAN_NONE = 0,
+	SEC_CHAN_ABOVE = 1,
+	SEC_CHAN_5MHZ = 2,
+	SEC_CHAN_BELOW = 3
+};
 
 /** channel bandwidth */
-enum { CHAN_BW_20MHZ = 0,
-       CHAN_BW_10MHZ,
-       CHAN_BW_40MHZ,
-       CHAN_BW_80MHZ,
+enum {
+	CHAN_BW_20MHZ = 0,
+	CHAN_BW_10MHZ,
+	CHAN_BW_40MHZ,
+	CHAN_BW_80MHZ,
 };
 
 /** scan mode */
-enum { SCAN_MODE_MANUAL = 0,
-       SCAN_MODE_ACS,
-       SCAN_MODE_USER,
+enum {
+	SCAN_MODE_MANUAL = 0,
+	SCAN_MODE_ACS,
+	SCAN_MODE_USER,
 };
 
 /** DFS state */
@@ -811,10 +1042,10 @@ typedef MLAN_PACK_START struct _Band_Config_t {
 	t_u8 chan2Offset : 2;
 	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
 	t_u8 chanWidth : 2;
-	/** Band Info - (00)=2.4GHz, (01)=5GHz */
+	/** Band Info - (00)=2.4GHz, (01)=5GHz, (10)=6GHz */
 	t_u8 chanBand : 2;
 #else
-	/** Band Info - (00)=2.4GHz, (01)=5GHz */
+	/** Band Info - (00)=2.4GHz, (01)=5GHz, (10)=6GHz */
 	t_u8 chanBand : 2;
 	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
 	t_u8 chanWidth : 2;
@@ -1079,6 +1310,37 @@ typedef MLAN_PACK_START struct _pkt_rxinfo {
 	t_u8 rssi;
 } MLAN_PACK_END pkt_rxinfo, *ppkt_rxinfo;
 
+#define MC_FLAG_RETRY MBIT(0)
+#define MC_FLAG_START_CYCLE MBIT(1)
+#define MC_FLAG_END_CYCLE MBIT(2)
+#define MC_FLAG_START_AMPDU MBIT(3)
+#define MC_FLAG_END_AMPDU MBIT(4)
+/* mc pkt txcontrol */
+typedef MLAN_PACK_START struct _mc_txcontrol {
+	/** Data rate in mcs index, 0-7 */
+	t_u8 mcs_index;
+	/** band width 0-20Mhz, 1-40Mhz */
+	t_u8 bandwidth;
+	/** seq_num */
+	t_u16 seq_num;
+	/** packet expiry time */
+	t_u32 pkt_expiry;
+	/** mc_pkt_flags */
+	t_u8 mc_pkt_flags;
+} MLAN_PACK_END mc_txcontrol, *pmc_txcontrol;
+typedef MLAN_PACK_START struct MAPP_Stats_Mcast_drv {
+	t_u32 cycle_recv_under_2300usec;
+	t_u32 cycle_recv_in_time;
+	t_u32 cycle_recv_over_2900usec;
+	t_u32 cycle_recv_over_3500usec;
+	t_u32 cycle_recv_over_5000usec;
+	t_u32 cycle_recv_over_10000usec;
+	t_u32 cycle_recv_over_15000usec;
+	t_u32 spent_time_under_1000usec;
+	t_u32 spent_time_over_1000usec;
+	t_u32 spent_time_over_2000usec;
+	t_u32 spent_time_over_3000usec;
+} MLAN_PACK_END Stats_mcast_drv_t, *pStats_mcast_drv_t;
 /** mlan_buffer data structure */
 typedef struct _mlan_buffer {
 	/** Pointer to previous mlan_buffer */
@@ -1120,6 +1382,10 @@ typedef struct _mlan_buffer {
 	t_u32 out_ts_usec;
 	/** tx_seq_num */
 	t_u32 tx_seq_num;
+	/** Time stamp when packet is deque from rx_q(seconds) */
+	t_u32 extra_ts_sec;
+	/** Time stamp when packet is dequed from rx_q(micro seconds) */
+	t_u32 extra_ts_usec;
 	/** When TX ra mac address,  When Rx Ta mac address*/
 	t_u8 mac[MLAN_MAC_ADDR_LENGTH];
 	/** Fields below are valid for MLAN module only */
@@ -1128,6 +1394,7 @@ typedef struct _mlan_buffer {
 	/** Use count for this buffer */
 	t_u32 use_count;
 	union {
+		mc_txcontrol mc_tx_info;
 		pkt_txctrl tx_info;
 		pkt_rxinfo rx_info;
 	} u;
@@ -1511,6 +1778,14 @@ typedef struct _tdls_tear_down_event {
 	t_u16 reason_code;
 } tdls_tear_down_event;
 
+/** Event structure for addba timeout */
+typedef struct _addba_timeout_event {
+	/** Peer mac address */
+	t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+	/** Tid */
+	t_u8 tid;
+} addba_timeout_event;
+
 /** channel width */
 typedef enum wifi_channel_width {
 	WIFI_CHAN_WIDTH_20 = 0,
@@ -1568,6 +1843,15 @@ typedef struct {
 	t_u32 time_usec;
 } wifi_timeval;
 
+#define timeval_to_msec(timeval)                                               \
+	(t_u64)((t_u64)(timeval.time_sec) * 1000 +                             \
+		(t_u64)(timeval.time_usec) / 1000)
+#define timeval_to_usec(timeval)                                               \
+	(t_u64)((t_u64)(timeval.time_sec) * 1000 * 1000 +                      \
+		(t_u64)(timeval.time_usec))
+#define is_zero_timeval(timeval)                                               \
+	((timeval.time_sec == 0) && (timeval.time_usec == 0))
+
 #define MAX_NUM_RATE 32
 #define MAX_RADIO 2
 #define MAX_NUM_CHAN 1
@@ -1595,7 +1879,6 @@ typedef enum {
 typedef enum {
 	MLAN_INTERFACE_STA = 0,
 	MLAN_INTERFACE_SOFTAP = 1,
-	MLAN_INTERFACE_IBSS = 2,
 	MLAN_INTERFACE_P2P_CLIENT = 3,
 	MLAN_INTERFACE_P2P_GO = 4,
 	MLAN_INTERFACE_NAN = 5,
@@ -1648,15 +1931,6 @@ typedef struct {
 	 */
 	t_u32 cca_busy_time;
 } wifi_channel_stat;
-
-#define timeval_to_msec(timeval)                                               \
-	(t_u64)((t_u64)(timeval.time_sec) * 1000 +                             \
-		(t_u64)(timeval.time_usec) / 1000)
-#define timeval_to_usec(timeval)                                               \
-	(t_u64)((t_u64)(timeval.time_sec) * 1000 * 1000 +                      \
-		(t_u64)(timeval.time_usec))
-#define is_zero_timeval(timeval)                                               \
-	((timeval.time_sec == 0) && (timeval.time_usec == 0))
 
 /** radio statistics */
 typedef struct {
@@ -1728,6 +2002,14 @@ typedef enum {
 	WIFI_PEER_INVALID,
 } wifi_peer_type;
 
+typedef struct bssload_info {
+	/** station count */
+	t_u16 sta_count;
+	/** channel utilization */
+	t_u16 chan_util;
+	t_u8 PAD[4];
+} bssload_info_t;
+
 /** per peer statistics */
 typedef struct {
 	/** peer type (AP, TDLS, GO etc.) */
@@ -1736,6 +2018,8 @@ typedef struct {
 	t_u8 peer_mac_address[6];
 	/** peer WIFI_CAPABILITY_XXX */
 	t_u32 capabilities;
+	/** STA count and channel utilization */
+	bssload_info_t bssload;
 	/** number of rates */
 	t_u32 num_rate;
 	/** per rate statistics, number of entries  = num_rate */
@@ -2212,7 +2496,12 @@ typedef struct _mlan_callbacks {
 	/** moal_free_mlan_buffer */
 	mlan_status (*moal_free_mlan_buffer)(t_void *pmoal, pmlan_buffer pmbuf);
 
-#if defined(PCIE)
+#ifdef USB
+	/** moal_write_data_async */
+	mlan_status (*moal_write_data_async)(t_void *pmoal, pmlan_buffer pmbuf,
+					     t_u32 port);
+#endif /* USB */
+#if defined(SDIO) || defined(PCIE)
 	/** moal_write_reg */
 	mlan_status (*moal_write_reg)(t_void *pmoal, t_u32 reg, t_u32 data);
 	/** moal_read_reg */
@@ -2306,20 +2595,29 @@ typedef struct _mlan_callbacks {
 				     t_u8 antenna);
 	t_void (*moal_updata_peer_signal)(t_void *pmoal, t_u32 bss_index,
 					  t_u8 *peer_addr, t_s8 snr, t_s8 nflr);
-	mlan_status (*moal_get_host_time_ns)(t_u64 *time);
 	t_u64 (*moal_do_div)(t_u64 num, t_u32 base);
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-	mlan_status (*moal_wait_hostcmd_complete)(t_void *pmoal,
-						  t_u32 bss_index);
-	mlan_status (*moal_notify_hostcmd_complete)(t_void *pmoal,
-						    t_u32 bss_index);
-#endif
+	void (*moal_tp_accounting)(t_void *pmoal, t_void *buf,
+				   t_u32 drop_point);
+	void (*moal_tp_accounting_rx_param)(t_void *pmoal, unsigned int type,
+					    unsigned int rsvd1);
+	void (*moal_amsdu_tp_accounting)(t_void *pmoal, t_s32 delay,
+					 t_s32 copy_delay);
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Parameter unchanged, use MLAN default setting */
 #define ROBUSTCOEX_GPIO_UNCHANGED 0
 /** Parameter enabled, override MLAN default setting */
 #define ROBUSTCOEX_GPIO_CFG 1
+
+#if defined(SDIO)
+/** Interrupt Mode SDIO */
+#define INT_MODE_SDIO 0
+/** Interrupt Mode GPIO */
+#define INT_MODE_GPIO 1
+/** New mode: GPIO-1 as a duplicated signal of interrupt as appear of SDIO_DAT1
+ */
+#define GPIO_INT_NEW_MODE 255
+#endif
 
 /** Parameter unchanged, use MLAN default setting */
 #define MLAN_INIT_PARA_UNCHANGED 0
@@ -2332,12 +2630,20 @@ typedef struct _mlan_callbacks {
 #define FEATURE_CTRL_STREAM_2X2 MBIT(0)
 /** Control bit for DFS support */
 #define FEATURE_CTRL_DFS_SUPPORT MBIT(1)
+#ifdef USB
+/** Control bit for winner check & not wait for FW ready event */
+#define FEATURE_CTRL_USB_NEW_INIT MBIT(2)
+#endif
 /** Default feature control */
 #define FEATURE_CTRL_DEFAULT 0xffffffff
 /** Check if stream 2X2 enabled */
 #define IS_STREAM_2X2(x) ((x)&FEATURE_CTRL_STREAM_2X2)
 /** Check if DFS support enabled */
 #define IS_DFS_SUPPORT(x) ((x)&FEATURE_CTRL_DFS_SUPPORT)
+#ifdef USB
+/** Check if winner check & not wait for FW ready event */
+#define IS_USB_NEW_INIT(x) ((x)&FEATURE_CTRL_USB_NEW_INIT)
+#endif
 
 /*
 #define DRV_MODE_NAN                 MBIT(4)
@@ -2361,6 +2667,12 @@ typedef struct _mlan_device {
 #ifdef PCIE
 	t_u16 ring_size;
 #endif
+#if defined(SDIO)
+	/** SDIO interrupt mode (0: INT_MODE_SDIO, 1: INT_MODE_GPIO) */
+	t_u32 int_mode;
+	/** GPIO interrupt pin number */
+	t_u32 gpio_pin;
+#endif
 #ifdef DEBUG_LEVEL1
 	/** Driver debug bit masks */
 	t_u32 drvdbg;
@@ -2371,6 +2683,14 @@ typedef struct _mlan_device {
 	t_u32 mpa_tx_cfg;
 	/** SDIO MPA Rx */
 	t_u32 mpa_rx_cfg;
+#ifdef SDIO
+	/** SDIO Single port rx aggr */
+	t_u8 sdio_rx_aggr_enable;
+	/* see blk_queue_max_segment_size */
+	t_u32 max_seg_size;
+	/* see blk_queue_max_segments */
+	t_u16 max_segs;
+#endif
 	/** Auto deep sleep */
 	t_u32 auto_ds;
 	/** IEEE PS mode */
@@ -2405,10 +2725,25 @@ typedef struct _mlan_device {
 	t_u8 hs_mimo_switch;
 	/** channel time and mode for DRCS*/
 	t_u32 drcs_chantime_mode;
+#ifdef USB
+	/** Tx CMD endpoint address */
+	t_u8 tx_cmd_ep;
+	/** Rx CMD/EVT endpoint address */
+	t_u8 rx_cmd_ep;
+
+	/** Rx data endpoint address */
+	t_u8 rx_data_ep;
+	/** Tx data endpoint address */
+	t_u8 tx_data_ep;
+	/** Tx data second endpoint address */
+	t_u8 tx_data2_ep;
+#endif
 	/** passive to active scan */
 	t_u8 passive_to_active_scan;
 	/** uap max supported station per chip */
 	t_u8 uap_max_sta;
+	/** wacp mode */
+	t_u8 wacp_mode;
 	/** drv mode */
 	t_u32 drv_mode;
 	/** dfs w53 cfg */
@@ -2421,6 +2756,12 @@ typedef struct _mlan_device {
 	t_u8 mcs32;
 	/** second mac flag */
 	t_u8 second_mac;
+	/** napi */
+	t_u8 napi;
+	/** antcfg */
+	t_u32 antcfg;
+	/** dmcs */
+	t_u8 dmcs;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */
@@ -2455,6 +2796,18 @@ mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts);
 /** Packet Transmission */
 MLAN_API mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf);
 
+#ifdef USB
+/** mlan_write_data_async_complete */
+MLAN_API mlan_status mlan_write_data_async_complete(t_void *padapter,
+						    pmlan_buffer pmbuf,
+						    t_u32 port,
+						    mlan_status status);
+
+/** Packet Reception */
+MLAN_API mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf,
+			       t_u32 port);
+#endif /* USB */
+
 /** Packet Reception complete callback */
 MLAN_API mlan_status mlan_recv_packet_complete(t_void *padapter,
 					       pmlan_buffer pmbuf,
@@ -2463,7 +2816,7 @@ MLAN_API mlan_status mlan_recv_packet_complete(t_void *padapter,
 /** handle amsdu deaggregated packet */
 void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop);
 
-#if defined(PCIE)
+#if defined(SDIO) || defined(PCIE)
 /** interrupt handler */
 MLAN_API mlan_status mlan_interrupt(t_u16 msg_id, t_void *padapter);
 
@@ -2489,7 +2842,103 @@ MLAN_API t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid);
 MLAN_API mlan_status mlan_disable_host_int(t_void *padapter);
 /** mlan unmask host interrupt */
 MLAN_API mlan_status mlan_enable_host_int(t_void *padapter);
+#ifdef PCIE
+MLAN_API void mlan_process_pcie_interrupt_cb(t_void *pmadapter, int type);
+#endif
 
 #define CSI_SIGNATURE 0xABCD
+
+/** secure add/sub **/
+#ifndef SINT8_MAX
+#define SINT8_MAX 0x7f
+#endif
+
+#ifndef SINT8_MIN
+#define SINT8_MIN 0x80
+#endif
+
+#ifndef UINT8_MAX
+#define UINT8_MAX 0xff
+#endif
+
+#ifndef SINT16_MAX
+#define SINT16_MAX 0x7fff
+#endif
+
+#ifndef SINT16_MIN
+#define SINT16_MIN 0x8000
+#endif
+
+#ifndef UINT16_MAX
+#define UINT16_MAX 0xffff
+#endif
+
+#ifndef SINT32_MAX
+#define SINT32_MAX 0x7fffffff
+#endif
+
+#ifndef SINT32_MIN
+#define SINT32_MIN 0x80000000
+#endif
+
+#ifndef UINT32_MAX
+#define UINT32_MAX 0xffffffff
+#endif
+
+#ifndef SINT64_MAX
+#define SINT64_MAX 0x7fffffffffffffff
+#endif
+
+#ifndef SINT64_MIN
+#define SINT64_MIN 0x8000000000000000
+#endif
+
+#ifndef UINT64_MAX
+#define UINT64_MAX 0xffffffffffffffff
+#endif
+
+#ifndef PTR_MAX
+#ifdef MLAN_64BIT
+#define PTR_MAX UINT64_MAX
+#else
+#define PTR_MAX UINT32_MAX
+#endif
+#endif
+
+#ifndef SINT_MAX
+#ifdef MLAN_64BIT
+#define SINT_MAX SINT64_MAX
+#else
+#define SINT_MAX SINT32_MAX
+#endif
+#endif
+
+#ifndef SINT_MIN
+#ifdef MLAN_64BIT
+#define SINT_MIN SINT64_MIN
+#else
+#define SINT_MIN SINT32_MIN
+#endif
+#endif
+
+#ifndef UINT_MAX
+#ifdef MLAN_64BIT
+#define UINT_MAX UINT64_MAX
+#else
+#define UINT_MAX UINT32_MAX
+#endif
+#endif
+
+typedef enum {
+	TYPE_SINT8,
+	TYPE_UINT8,
+	TYPE_SINT16,
+	TYPE_UINT16,
+	TYPE_SINT32,
+	TYPE_UINT32,
+	TYPE_SINT64,
+	TYPE_UINT64,
+	TYPE_PTR,
+} data_type;
 
 #endif /* !_MLAN_DECL_H_ */

@@ -35,6 +35,9 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
 #include "mlan_11ax.h"
+#ifdef SDIO
+#include "mlan_sdio.h"
+#endif /* SDIO */
 #ifdef PCIE
 #include "mlan_pcie.h"
 #endif /* PCIE */
@@ -657,6 +660,18 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 				/* Ignore data pkts from a BSS if tx pause */
 				goto next_intf;
 			}
+#if defined(USB)
+			if (!wlan_is_port_ready(pmadapter,
+						priv_tmp->port_index)) {
+				PRINTM(MINFO,
+				       "get_highest_prio_ptr(): "
+				       "usb port is busy,Ignore pkts from BSS%d\n",
+				       priv_tmp->bss_index);
+				/* Ignore data pkts from a BSS if usb port is
+				 * busy */
+				goto next_intf;
+			}
+#endif
 
 			pmadapter->callbacks.moal_spin_lock(
 				pmadapter->pmoal_handle,
@@ -953,6 +968,11 @@ static INLINE void wlan_send_processed_packet(pmlan_private priv,
 		ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
 						  &tx_param);
 		switch (ret) {
+#ifdef USB
+		case MLAN_STATUS_PRESOURCE:
+			PRINTM(MINFO, "MLAN_STATUS_PRESOURCE is returned\n");
+			break;
+#endif
 		case MLAN_STATUS_RESOURCE:
 			PRINTM(MINFO, "MLAN_STATUS_RESOURCE is returned\n");
 			pmadapter->callbacks.moal_spin_lock(
@@ -1038,6 +1058,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
 	int tid_del = 0;
 	int tid = 0;
+	mlan_buffer *pmbuf = MNULL;
 
 	ENTER();
 
@@ -1074,6 +1095,33 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	}
 	if (ptr->del_ba_count >= DEL_BA_THRESHOLD)
 		wlan_update_del_ba_count(priv, ptr);
+	if (pmadapter->tp_state_on) {
+		pmbuf = (pmlan_buffer)util_peek_list(
+			pmadapter->pmoal_handle, &ptr->buf_head, MNULL, MNULL);
+		if (pmbuf) {
+			pmadapter->callbacks.moal_tp_accounting(
+				pmadapter->pmoal_handle, pmbuf, 3);
+			if (pmadapter->tp_state_drop_point == 3) {
+				pmbuf = (pmlan_buffer)util_dequeue_list(
+					pmadapter->pmoal_handle, &ptr->buf_head,
+					MNULL, MNULL);
+				PRINTM(MERROR, "Dequeuing the packet %p %p\n",
+				       ptr, pmbuf);
+				priv->wmm.pkts_queued[ptrindex]--;
+				util_scalar_decrement(pmadapter->pmoal_handle,
+						      &priv->wmm.tx_pkts_queued,
+						      MNULL, MNULL);
+				ptr->total_pkts--;
+				pmadapter->callbacks.moal_spin_unlock(
+					pmadapter->pmoal_handle,
+					priv->wmm.ra_list_spinlock);
+				wlan_write_data_complete(pmadapter, pmbuf,
+							 MLAN_STATUS_SUCCESS);
+				LEAVE();
+				return MLAN_STATUS_SUCCESS;
+			}
+		}
+	}
 	if (!ptr->is_wmm_enabled || priv->adapter->remain_on_channel ||
 	    (ptr->ba_status || ptr->del_ba_count >= DEL_BA_THRESHOLD)
 #ifdef STA_SUPPORT
@@ -1412,8 +1460,9 @@ t_u8 wlan_get_random_ba_threshold(pmlan_adapter pmadapter)
 	sec = (sec & 0xFFFF) + (sec >> 16);
 	usec = (usec & 0xFFFF) + (usec >> 16);
 
-	ba_threshold = (((sec << 16) + usec) % BA_SETUP_MAX_PACKET_THRESHOLD) +
-		       pmadapter->min_ba_threshold;
+	ba_threshold =
+		(t_u8)((((sec << 16) + usec) % BA_SETUP_MAX_PACKET_THRESHOLD) +
+		       pmadapter->min_ba_threshold);
 	PRINTM(MINFO, "pmadapter->min_ba_threshold = %d\n",
 	       pmadapter->min_ba_threshold);
 	PRINTM(MINFO, "setup BA after %d packets\n", ba_threshold);
@@ -1441,6 +1490,10 @@ t_void wlan_clean_txrx(pmlan_private priv)
 	}
 	wlan_11n_cleanup_reorder_tbl(priv);
 	wlan_11n_deleteall_txbastream_tbl(priv);
+#if defined(USB)
+	if (IS_USB(pmadapter->card_type))
+		wlan_reset_usb_tx_aggr(priv->adapter);
+#endif
 #ifdef PCIE
 	if (IS_PCIE(pmadapter->card_type))
 		wlan_clean_pcie_ring_buf(priv->adapter);
@@ -1455,6 +1508,16 @@ t_void wlan_clean_txrx(pmlan_private priv)
 		tos_to_tid_inv[tos_to_tid[i]] = (t_u8)i;
 #ifdef UAP_SUPPORT
 	priv->num_drop_pkts = 0;
+#endif
+#ifdef SDIO
+	if (IS_SD(pmadapter->card_type)) {
+		memset(pmadapter, pmadapter->pcard_sd->mpa_tx_count, 0,
+		       sizeof(pmadapter->pcard_sd->mpa_tx_count));
+		pmadapter->pcard_sd->mpa_sent_no_ports = 0;
+		pmadapter->pcard_sd->mpa_sent_last_pkt = 0;
+		memset(pmadapter, pmadapter->pcard_sd->mpa_rx_count, 0,
+		       sizeof(pmadapter->pcard_sd->mpa_rx_count));
+	}
 #endif
 	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
 					      priv->wmm.ra_list_spinlock);
@@ -1775,8 +1838,6 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 				priv->aggr_prio_tbl[i].ampdu_ap =
 					priv->aggr_prio_tbl[i].ampdu_user =
 						tos_to_tid_inv[i];
-				priv->ibss_ampdu[i] =
-					priv->aggr_prio_tbl[i].ampdu_user;
 				priv->wmm.pkts_queued[i] = 0;
 				priv->wmm.pkts_paused[i] = 0;
 				priv->wmm.tid_tbl_ptr[i].ra_list_curr = MNULL;
@@ -1788,13 +1849,10 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 			priv->aggr_prio_tbl[6].ampdu_ap =
 				priv->aggr_prio_tbl[6].ampdu_user =
 					BA_STREAM_NOT_ALLOWED;
-			priv->ibss_ampdu[6] = BA_STREAM_NOT_ALLOWED;
 
 			priv->aggr_prio_tbl[7].ampdu_ap =
 				priv->aggr_prio_tbl[7].ampdu_user =
 					BA_STREAM_NOT_ALLOWED;
-			priv->ibss_ampdu[7] = BA_STREAM_NOT_ALLOWED;
-
 			priv->add_ba_param.timeout =
 				MLAN_DEFAULT_BLOCK_ACK_TIMEOUT;
 #ifdef STA_SUPPORT
@@ -1903,6 +1961,10 @@ int wlan_wmm_lists_empty(pmlan_adapter pmadapter)
 			}
 			if (priv->tx_pause)
 				continue;
+#if defined(USB)
+			if (!wlan_is_port_ready(pmadapter, priv->port_index))
+				continue;
+#endif
 
 			if (util_scalar_read(
 				    pmadapter->pmoal_handle,
@@ -2210,7 +2272,13 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 	ENTER();
 
 	send_wmm_event = MFALSE;
-
+	if (resp_len < (int)sizeof(ptlv_hdr->header)) {
+		PRINTM(MINFO,
+		       "WMM: WMM_GET_STATUS err: cmdresp low length received: %d\n",
+		       resp_len);
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	PRINTM(MINFO, "WMM: WMM_GET_STATUS cmdresp received: %d\n", resp_len);
 	HEXDUMP("CMD_RESP: WMM_GET_STATUS", pcurrent, resp_len);
 
@@ -2228,11 +2296,11 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 		case TLV_TYPE_WMMQSTATUS:
 			ptlv_wmm_q_status =
 				(MrvlIEtypes_WmmQueueStatus_t *)ptlv_hdr;
-			PRINTM(MEVENT, "WMM_STATUS: QSTATUS TLV: %d\n",
+			PRINTM(MEVENT, "WMM_STATUS: QSTATUS TLV: %u\n",
 			       ptlv_wmm_q_status->queue_index);
 
 			PRINTM(MINFO,
-			       "CMD_RESP: WMM_GET_STATUS: QSTATUS TLV: %d, %d, %d\n",
+			       "CMD_RESP: WMM_GET_STATUS: QSTATUS TLV: %u, %d, %d\n",
 			       ptlv_wmm_q_status->queue_index,
 			       ptlv_wmm_q_status->flow_required,
 			       ptlv_wmm_q_status->disabled);
@@ -2241,15 +2309,17 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 			 * bounds */
 			ptlv_wmm_q_status->queue_index = MIN(
 				ptlv_wmm_q_status->queue_index, MAX_AC_QUEUES);
-
-			pac_status =
-				&priv->wmm.ac_status[ptlv_wmm_q_status
-							     ->queue_index];
-			pac_status->disabled = ptlv_wmm_q_status->disabled;
-			pac_status->flow_required =
-				ptlv_wmm_q_status->flow_required;
-			pac_status->flow_created =
-				ptlv_wmm_q_status->flow_created;
+			if (ptlv_wmm_q_status->queue_index < MAX_AC_QUEUES) {
+				pac_status =
+					&priv->wmm.ac_status
+						 [ptlv_wmm_q_status->queue_index];
+				pac_status->disabled =
+					ptlv_wmm_q_status->disabled;
+				pac_status->flow_required =
+					ptlv_wmm_q_status->flow_required;
+				pac_status->flow_created =
+					ptlv_wmm_q_status->flow_created;
+			}
 			break;
 
 		case TLV_TYPE_VENDOR_SPECIFIC_IE: /* WMM_IE */
@@ -2435,14 +2505,29 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 	t_u8 ret_val = 0;
 	t_u32 out_ts_sec, out_ts_usec;
 	t_s32 queue_delay;
-
+	t_s32 temp_delay = 0;
 	ENTER();
 
 	priv->adapter->callbacks.moal_get_system_time(
 		priv->adapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
-	queue_delay = (t_s32)(out_ts_sec - pmbuf->in_ts_sec) * 1000;
-	queue_delay += (t_s32)(out_ts_usec - pmbuf->in_ts_usec) / 1000;
+	if (priv->adapter->tp_state_on) {
+		pmbuf->out_ts_sec = out_ts_sec;
+		pmbuf->out_ts_usec = out_ts_usec;
+		if (pmbuf->in_ts_sec)
+			priv->adapter->callbacks.moal_tp_accounting(
+				priv->adapter->pmoal_handle, pmbuf, 11);
+	}
+	if (!wlan_secure_sub(&out_ts_sec, pmbuf->in_ts_sec, &temp_delay,
+			     TYPE_SINT32))
+		PRINTM(MERROR, "%s:TS(sec) not valid \n", __func__);
 
+	queue_delay = temp_delay * 1000;
+
+	if (!wlan_secure_sub(&out_ts_usec, pmbuf->in_ts_usec, &temp_delay,
+			     TYPE_SINT32))
+		PRINTM(MERROR, "%s:TS(usec) not valid \n", __func__);
+
+	queue_delay += temp_delay / 1000;
 	/*
 	 * Queue delay is passed as a uint8 in units of 2ms (ms shifted
 	 *  by 1). Min value (other than 0) is therefore 2ms, max is 510ms.
@@ -2473,11 +2558,22 @@ void wlan_wmm_process_tx(pmlan_adapter pmadapter)
 	do {
 		if (wlan_dequeue_tx_packet(pmadapter))
 			break;
+#ifdef SDIO
+		if (IS_SD(pmadapter->card_type) &&
+		    (pmadapter->ireg & UP_LD_CMD_PORT_HOST_INT_STATUS)) {
+			wlan_send_mp_aggr_buf(pmadapter);
+			break;
+		}
+#endif
 
 #ifdef PCIE
 		if (IS_PCIE(pmadapter->card_type) &&
 		    (pmadapter->ireg &
 		     pmadapter->pcard_pcie->reg->host_intr_event_rdy))
+			break;
+#endif
+#ifdef USB
+		if (IS_USB(pmadapter->card_type) && pmadapter->event_received)
 			break;
 #endif
 		/* Check if busy */
@@ -3604,8 +3700,8 @@ void wlan_dump_ralist(mlan_private *priv)
 	tx_pkts_queued =
 		util_scalar_read(pmadapter->pmoal_handle,
 				 &priv->wmm.tx_pkts_queued, MNULL, MNULL);
-	PRINTM(MERROR, "bss_index = %d, tx_pkts_queued = %d\n", priv->bss_index,
-	       tx_pkts_queued);
+	PRINTM(MERROR, "bss_index = %d, tx_pkts_queued = %d tx_pause\n",
+	       priv->bss_index, tx_pkts_queued, priv->tx_pause);
 	if (!tx_pkts_queued)
 		return;
 	for (i = 0; i < MAX_NUM_TID; i++) {

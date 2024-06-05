@@ -94,9 +94,6 @@ extern void wlan_11h_cleanup(mlan_adapter *pmadapter);
 /** Initialize the 11h interface structure */
 extern void wlan_11h_priv_init(mlan_private *pmpriv);
 
-/** Get an initial random channel to start an adhoc network on */
-extern t_u8 wlan_11h_get_adhoc_start_channel(mlan_private *priv);
-
 /** Get channel that has been closed via Channel Switch Announcement */
 extern t_u8 wlan_11h_get_csa_closed_channel(mlan_private *priv);
 
@@ -152,7 +149,6 @@ mlan_status wlan_11h_print_event_radar_detected(mlan_private *priv,
 						t_u8 *radar_chan,
 						t_u8 *bandwidth);
 
-#ifdef DFS_TESTING_SUPPORT
 t_s32 wlan_11h_cancel_radar_detect(mlan_private *priv);
 /** Handler for DFS_TESTING IOCTL */
 extern mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
@@ -161,7 +157,6 @@ extern mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 						   pmlan_ioctl_req pioctl_req);
 extern mlan_status wlan_11h_ioctl_nop_channel_list(pmlan_adapter pmadapter,
 						   pmlan_ioctl_req pioctl_req);
-#endif
 
 extern mlan_status wlan_11h_ioctl_dfs_chan_report(mlan_private *priv,
 						  pmlan_ioctl_req pioctl_req);
@@ -171,6 +166,8 @@ extern mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
 /** get/set channel dfs state */
 mlan_status wlan_11h_ioctl_chan_dfs_state(pmlan_adapter pmadapter,
 					  pmlan_ioctl_req pioctl_req);
+t_void wlan_11h_reset_dfs_checking_chan_dfs_state(mlan_private *priv,
+						  dfs_state_t dfs_state);
 
 /** get/set dfs w53 cfg */
 mlan_status wlan_11h_ioctl_dfs_w53_cfg(pmlan_adapter pmadapter,

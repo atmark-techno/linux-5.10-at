@@ -29,20 +29,26 @@ Change log:
 #include <linux/module.h>
 #include "mlan_decl.h"
 #include "mlan_ioctl.h"
-
+#ifdef PCIE
+EXPORT_SYMBOL(mlan_process_pcie_interrupt_cb);
+#endif
 EXPORT_SYMBOL(mlan_register);
 EXPORT_SYMBOL(mlan_unregister);
 EXPORT_SYMBOL(mlan_init_fw);
 EXPORT_SYMBOL(mlan_set_init_param);
 EXPORT_SYMBOL(mlan_dnld_fw);
 EXPORT_SYMBOL(mlan_shutdown_fw);
+#ifdef USB
+EXPORT_SYMBOL(mlan_write_data_async_complete);
+EXPORT_SYMBOL(mlan_recv);
+#endif
 EXPORT_SYMBOL(mlan_send_packet);
 EXPORT_SYMBOL(mlan_ioctl);
 EXPORT_SYMBOL(mlan_main_process);
 EXPORT_SYMBOL(mlan_rx_process);
 EXPORT_SYMBOL(mlan_select_wmm_queue);
 EXPORT_SYMBOL(mlan_process_deaggr_pkt);
-#if defined(PCIE)
+#if defined(SDIO) || defined(PCIE)
 EXPORT_SYMBOL(mlan_interrupt);
 #if defined(SYSKT)
 EXPORT_SYMBOL(mlan_hs_callback);

@@ -5,7 +5,7 @@
  *  related code
  *
  *
- *  Copyright 2009-2022 NXP
+ *  Copyright 2009-2024 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -32,6 +32,7 @@
 #include "mlan_fw.h"
 #include "mlan_join.h"
 #include "mlan_main.h"
+#include "mlan_11h.h"
 
 /********************************************************
  *			Local Variables
@@ -346,7 +347,10 @@ static chan_freq_power_t channel_freq_power_A[] = {
 	{153, 5765, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{161, 5805, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{165, 5825, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}}};
+	{165, 5825, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{169, 5845, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{173, 5865, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{177, 5885, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}}};
 
 /** Band: 'A', Region: Canada IC */
 static chan_freq_power_t channel_freq_power_CAN_A[] = {
@@ -576,10 +580,10 @@ static chan_freq_power_t channel_freq_power_low_middle_high_band[] = {
 	{40, 5200, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{44, 5220, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{48, 5240, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{52, 5260, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{56, 5280, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{60, 5300, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{64, 5320, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{52, 5260, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{56, 5280, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{60, 5300, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{64, 5320, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
 	{149, 5745, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{153, 5765, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
@@ -687,20 +691,21 @@ static cfp_table_t cfp_table_A[] = {
 /** Number of the CFP tables for 5GHz */
 #define MLAN_CFP_TABLE_SIZE_A (NELEMENTS(cfp_table_A))
 
-enum { RATEID_DBPSK1Mbps, //(0)
-       RATEID_DQPSK2Mbps, //(1)
-       RATEID_CCK5_5Mbps, //(2)
-       RATEID_CCK11Mbps, //(3)
-       RATEID_CCK22Mbps, //(4)
-       RATEID_OFDM6Mbps, //(5)
-       RATEID_OFDM9Mbps, //(6)
-       RATEID_OFDM12Mbps, //(7)
-       RATEID_OFDM18Mbps, //(8)
-       RATEID_OFDM24Mbps, //(9)
-       RATEID_OFDM36Mbps, //(10)
-       RATEID_OFDM48Mbps, //(11)
-       RATEID_OFDM54Mbps, //(12)
-       RATEID_OFDM72Mbps, //(13)
+enum {
+	RATEID_DBPSK1Mbps, //(0)
+	RATEID_DQPSK2Mbps, //(1)
+	RATEID_CCK5_5Mbps, //(2)
+	RATEID_CCK11Mbps, //(3)
+	RATEID_CCK22Mbps, //(4)
+	RATEID_OFDM6Mbps, //(5)
+	RATEID_OFDM9Mbps, //(6)
+	RATEID_OFDM12Mbps, //(7)
+	RATEID_OFDM18Mbps, //(8)
+	RATEID_OFDM24Mbps, //(9)
+	RATEID_OFDM36Mbps, //(10)
+	RATEID_OFDM48Mbps, //(11)
+	RATEID_OFDM54Mbps, //(12)
+	RATEID_OFDM72Mbps, //(13)
 };
 
 static const t_u8 rateUnit_500Kbps[] = {
@@ -973,30 +978,6 @@ t_u16 region_code_index[MRVDRV_MAX_REGION_CODE] = {0x00, 0x10, 0x20, 0x30, 0x40,
 
 /** The table to keep CFP code for A */
 t_u16 cfp_code_index_a[MRVDRV_MAX_CFP_CODE_A] = {0x1, 0x2, 0x3, 0x4, 0x5};
-
-/**
- * The rates supported for ad-hoc B mode
- */
-t_u8 AdhocRates_B[B_SUPPORTED_RATES] = {0x82, 0x84, 0x8b, 0x96, 0};
-
-/**
- * The rates supported for ad-hoc G mode
- */
-t_u8 AdhocRates_G[G_SUPPORTED_RATES] = {0x8c, 0x12, 0x98, 0x24, 0xb0,
-					0x48, 0x60, 0x6c, 0x00};
-
-/**
- * The rates supported for ad-hoc BG mode
- */
-t_u8 AdhocRates_BG[BG_SUPPORTED_RATES] = {0x82, 0x84, 0x8b, 0x96, 0x0c,
-					  0x12, 0x18, 0x24, 0x30, 0x48,
-					  0x60, 0x6c, 0x00};
-
-/**
- * The rates supported in A mode for ad-hoc
- */
-t_u8 AdhocRates_A[A_SUPPORTED_RATES] = {0x8c, 0x12, 0x98, 0x24, 0xb0,
-					0x48, 0x60, 0x6c, 0x00};
 
 /**
  * The rates supported in A mode (used for BAND_A)
@@ -1406,6 +1387,9 @@ t_bool wlan_is_etsi_country(pmlan_adapter pmadapter, t_u8 *country_code)
 t_u8 wlan_adjust_antenna(pmlan_private priv, RxPD *prx_pd)
 {
 	t_u8 antenna = prx_pd->antenna;
+#if defined(SD8887) || defined(SD8987)
+	t_u32 rx_channel = (prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;
+#endif
 	if (prx_pd->antenna == 0xff)
 		return 0;
 	if (priv->adapter->pcard_info->v16_fw_api) {
@@ -1416,6 +1400,25 @@ t_u8 wlan_adjust_antenna(pmlan_private priv, RxPD *prx_pd)
 		else if (antenna & MBIT(0))
 			antenna = 0;
 	}
+
+#if defined(SD8887) || defined(SD8987)
+#define ANTENNA_OFFSET 2
+	if (MFALSE
+#ifdef SD8887
+	    || IS_SD8887(priv->adapter->card_type)
+#endif
+#ifdef SD8987
+	    || IS_SD8987(priv->adapter->card_type)
+#endif
+	) {
+		if ((priv->adapter->antinfo & ANT_DIVERSITY_2G) &&
+		    (priv->adapter->antinfo & ANT_DIVERSITY_5G)) {
+#define MAX_2G_CHAN 14
+			if (rx_channel > MAX_2G_CHAN)
+				antenna += ANTENNA_OFFSET;
+		}
+	}
+#endif
 
 	return antenna;
 }
@@ -1910,9 +1913,9 @@ t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u16 band,
 							(cfp_a + j)
 								->max_tx_power);
 					else
-						tx_power = (t_u8)(
-							(cfp_a + j)
-								->max_tx_power);
+						tx_power =
+							(t_u8)((cfp_a + j)
+								       ->max_tx_power);
 					break;
 				}
 			}
@@ -2178,7 +2181,7 @@ int wlan_get_rate_index(pmlan_adapter pmadapter, t_u16 *rate_bitmap, int size)
  *
  *  @return                 BAND_B|BAND_G|BAND_A
  */
-t_u16 wlan_convert_config_bands(t_u16 config_bands)
+static t_u16 wlan_convert_config_bands(t_u16 config_bands)
 {
 	t_u16 bands = 0;
 	if (config_bands & BAND_B)
@@ -2240,30 +2243,6 @@ t_u32 wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 			PRINTM(MINFO, "Band: Infra A\n");
 			k = wlan_copy_rates(rates, k, SupportedRates_A,
 					    sizeof(SupportedRates_A));
-		}
-	} else {
-		/* Adhoc. mode */
-		if (bands == BAND_B) {
-			/* B only */
-			PRINTM(MINFO, "Band: Adhoc B\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_B,
-					    sizeof(AdhocRates_B));
-		} else if (bands == BAND_G) {
-			/* G only */
-			PRINTM(MINFO, "Band: Adhoc G\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_G,
-					    sizeof(AdhocRates_G));
-
-		} else if (bands & BAND_A) {
-			/* support A */
-			PRINTM(MINFO, "Band: Adhoc A\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_A,
-					    sizeof(AdhocRates_A));
-
-		} else {
-			PRINTM(MINFO, "Band: Adhoc BG\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_BG,
-					    sizeof(AdhocRates_BG));
 		}
 	}
 
@@ -2422,9 +2401,6 @@ static oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
 		poper_bw_chan = oper_bw_chan_eu;
 		*arraysize = sizeof(oper_bw_chan_eu);
 		break;
-	default:
-		PRINTM(MERROR, "Country not support!\n");
-		break;
 	}
 
 	LEAVE();
@@ -2437,11 +2413,12 @@ static oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
  *  @param pmpriv             A pointer to mlan_private structure
  *  @param channel            Channel number
  *  @param oper_class         operating class
+ *  @param bandwidth          band width
  *
  *  @return                   MLAN_STATUS_PENDING --success, otherwise fail
  */
 mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
-					    t_u8 oper_class)
+					    t_u8 oper_class, t_u8 bandwidth)
 {
 	int arraysize = 0, i = 0, channum = 0;
 	oper_bw_chan *poper_bw_chan = MNULL;
@@ -2464,7 +2441,7 @@ mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 	}
 	if (oper_class >= 128) {
 		center_freq_idx = wlan_get_center_freq_idx(
-			pmpriv, BAND_AAC, channel, CHANNEL_BW_80MHZ);
+			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_80MHZ);
 		channel = center_freq_idx;
 	}
 	poper_bw_chan = wlan_get_nonglobal_operclass_table(pmpriv, &arraysize);
@@ -2534,7 +2511,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 	}
 	if (bw == BW_80MHZ) {
 		center_freq_idx = wlan_get_center_freq_idx(
-			pmpriv, BAND_AAC, channel, CHANNEL_BW_80MHZ);
+			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_80MHZ);
 		channel = center_freq_idx;
 	}
 
@@ -2572,14 +2549,16 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 int wlan_add_supported_oper_class_ie(mlan_private *pmpriv, t_u8 **pptlv_out,
 				     t_u8 curr_oper_class)
 {
-	t_u8 oper_class_us[] = {1,  2,	3,  4,	5,  12, 22, 23,	 24,  25, 26,
-				27, 28, 29, 30, 31, 32, 33, 128, 129, 130};
-	t_u8 oper_class_eu[] = {1, 2,  3,  4,  5,  6,	7,   8,
-				9, 10, 11, 12, 17, 128, 129, 130};
-	t_u8 oper_class_jp[] = {1,  30, 31, 32, 33,  34,  35, 36,
-				37, 38, 39, 40, 41,  42,  43, 44,
-				45, 56, 57, 58, 128, 129, 130};
-	t_u8 oper_class_cn[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 128, 129, 130};
+	t_u8 oper_class_us[] = {115, 118, 124, 121, 125, 81,  116,
+				119, 122, 126, 126, 117, 120, 123,
+				127, 127, 83,  84,  128, 129, 130};
+	t_u8 oper_class_eu[] = {115, 118, 121, 81, 116, 119, 122, 117,
+				120, 123, 83,  84, 125, 128, 129, 130};
+	t_u8 oper_class_jp[] = {115, 81,  82,  118, 118, 121, 121, 116,
+				119, 119, 122, 122, 117, 120, 120, 123,
+				123, 83,  84,  121, 128, 129, 130};
+	t_u8 oper_class_cn[] = {115, 118, 125, 116, 119, 126,
+				81,  83,  84,  128, 129, 130};
 	t_u8 country_code[][COUNTRY_CODE_LEN] = {"US", "JP", "CN"};
 	int country_id = 0, ret = 0;
 	MrvlIETypes_SuppOperClass_t *poper_class = MNULL;
@@ -2689,11 +2668,12 @@ mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u16 band)
 
 		if ((j < MAX_REGION_CHANNEL_NUM) &&
 		    (region_chan_old[j].valid == MTRUE)) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no,
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
 					      region_chan_old[j].pcfp,
 					      region_chan_old[j].num_cfp);
 		} else if (cfp) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no, MNULL, 0);
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
+					      MNULL, 0);
 		}
 		i++;
 	}
@@ -2721,11 +2701,12 @@ mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u16 band)
 				break;
 		}
 		if ((j < MAX_REGION_CHANNEL_NUM) && region_chan_old[j].valid) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no,
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
 					      region_chan_old[j].pcfp,
 					      region_chan_old[j].num_cfp);
 		} else if (cfp) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no, MNULL, 0);
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
+					      MNULL, 0);
 		}
 		i++;
 	}
@@ -3341,27 +3322,49 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 					break;
 				}
 			}
+			PRINTM(MCMND,
+			       "OTP region: region_code=%d %c%c dfs_region=%d\n",
+			       pmadapter->otp_region->region_code,
+			       pmadapter->otp_region->country_code[0],
+			       pmadapter->otp_region->country_code[1],
+			       pmadapter->otp_region->dfs_region);
+
 			/* Update the region code and the country code in
 			 * pmadapter
 			 */
 			pmadapter->region_code =
 				pmadapter->otp_region->region_code;
-			pmadapter->country_code[0] =
-				pmadapter->otp_region->country_code[0];
-			pmadapter->country_code[1] =
-				pmadapter->otp_region->country_code[1];
+			if (pmadapter->otp_region->force_reg) {
+				/* Region is enforced. Use FW country code only
+				 */
+				pmadapter->country_code[0] =
+					pmadapter->otp_region->country_code[0];
+				pmadapter->country_code[1] =
+					pmadapter->otp_region->country_code[1];
+			} else if (memcmp(pmadapter,
+					  pmadapter->otp_region->country_code,
+					  pmadapter->country_code,
+					  COUNTRY_CODE_LEN - 1)) {
+				PRINTM(MERROR,
+				       "FW country code %c%c does not match with %c%c\n",
+				       pmadapter->otp_region->country_code[0],
+				       pmadapter->otp_region->country_code[1],
+				       pmadapter->country_code[0],
+				       pmadapter->country_code[1]);
+
+				/* FW code mismatch, replace with the driver
+				 * code */
+				pmadapter->otp_region->country_code[0] =
+					pmadapter->country_code[0];
+				pmadapter->otp_region->country_code[1] =
+					pmadapter->country_code[1];
+			}
 			pmadapter->country_code[2] = '\0';
 			pmadapter->domain_reg.country_code[0] =
 				pmadapter->otp_region->country_code[0];
 			pmadapter->domain_reg.country_code[1] =
 				pmadapter->otp_region->country_code[1];
 			pmadapter->domain_reg.country_code[2] = '\0';
-			PRINTM(MCMND,
-			       "OTP region: region_code=%d %c%c dfs_region=%d\n",
-			       pmadapter->otp_region->region_code,
-			       pmadapter->country_code[0],
-			       pmadapter->country_code[1],
-			       pmadapter->otp_region->dfs_region);
 			pmadapter->cfp_code_bg =
 				pmadapter->otp_region->region_code;
 			pmadapter->cfp_code_a =
@@ -3675,6 +3678,13 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 
 	if (!pioctl_req || !pioctl_req->pbuf) {
 		PRINTM(MERROR, "MLAN IOCTL information is not present!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto out;
+	}
+	ret = wlan_11h_ioctl_nop_channel_list(pmadapter, pioctl_req);
+	if (ret) {
+		PRINTM(MERROR,
+		       "cfpinfo wlan_11h_ioctl_nop_channel_list failed!\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto out;
 	}

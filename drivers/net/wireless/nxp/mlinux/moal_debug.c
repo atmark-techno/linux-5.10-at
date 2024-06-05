@@ -26,6 +26,9 @@ Change log:
 ********************************************************/
 
 #include "moal_main.h"
+#ifdef USB
+#include "moal_usb.h"
+#endif
 
 /********************************************************
 		Global Variables
@@ -50,6 +53,13 @@ Change log:
 #define item_handle_size(n) (sizeof(((moal_handle *)0)->n))
 /** Get moal_handle member address */
 #define item_handle_addr(n) ((t_ptr) & (((moal_handle *)0)->n))
+
+#ifdef USB
+/** Get moal card member size */
+#define item_card_size(n) (sizeof(((struct usb_card_rec *)0)->n))
+/** Get moal card member address */
+#define item_card_addr(n) ((t_ptr) & (((struct usb_card_rec *)0)->n))
+#endif
 
 #ifdef STA_SUPPORT
 static struct debug_data items[] = {
@@ -103,6 +113,7 @@ static struct debug_data items[] = {
 	{"tx_lock_flag", item_size(tx_lock_flag), item_addr(tx_lock_flag),
 	 INFO_ADDR},
 	{"port_open", item_size(port_open), item_addr(port_open), INFO_ADDR},
+	{"tx_pause", item_size(tx_pause), item_addr(tx_pause), INFO_ADDR},
 	{"bypass_pkt_count", item_size(bypass_pkt_count),
 	 item_addr(bypass_pkt_count), INFO_ADDR},
 	{"scan_processing", item_size(scan_processing),
@@ -138,6 +149,27 @@ static struct debug_data items[] = {
 	 item_addr(num_tx_host_to_card_failure), INFO_ADDR},
 	{"num_alloc_buffer_failure", item_size(num_alloc_buffer_failure),
 	 item_addr(num_alloc_buffer_failure), INFO_ADDR},
+#ifdef SDIO
+	{"num_cmdevt_c2h_fail", item_size(num_cmdevt_card_to_host_failure),
+	 item_addr(num_cmdevt_card_to_host_failure),
+	 INFO_ADDR | (INTF_SD << 8)},
+	{"num_rx_c2h_fail", item_size(num_rx_card_to_host_failure),
+	 item_addr(num_rx_card_to_host_failure), INFO_ADDR | (INTF_SD << 8)},
+	{"num_int_read_fail", item_size(num_int_read_failure),
+	 item_addr(num_int_read_failure), INFO_ADDR | (INTF_SD << 8)},
+	{"last_int_status", item_size(last_int_status),
+	 item_addr(last_int_status), INFO_ADDR | (INTF_SD << 8)},
+	{"num_of_irq", item_size(num_of_irq), item_addr(num_of_irq),
+	 INFO_ADDR | (INTF_SD << 8)},
+	{"mp_invalid_update", item_size(mp_invalid_update),
+	 item_addr(mp_invalid_update), INFO_ADDR | (INTF_SD << 8)},
+	{"sdio_rx_aggr", item_size(sdio_rx_aggr), item_addr(sdio_rx_aggr),
+	 INFO_ADDR | (INTF_SD << 8)},
+	{"mpa_sent_last_pkt", item_size(mpa_sent_last_pkt),
+	 item_addr(mpa_sent_last_pkt), INFO_ADDR | (INTF_SD << 8)},
+	{"mpa_sent_no_ports", item_size(mpa_sent_no_ports),
+	 item_addr(mpa_sent_no_ports), INFO_ADDR | (INTF_SD << 8)},
+#endif
 	{"num_evt_deauth", item_size(num_event_deauth),
 	 item_addr(num_event_deauth), INFO_ADDR},
 	{"num_evt_disassoc", item_size(num_event_disassoc),
@@ -183,6 +215,18 @@ static struct debug_data items[] = {
 	{"event_received", item_size(event_received), item_addr(event_received),
 	 INFO_ADDR},
 
+#ifdef USB
+	{"tx_cmd_urb_pending", item_card_size(tx_cmd_urb_pending),
+	 item_card_addr(tx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+	{"tx_data_urb_pending", item_card_size(tx_data_urb_pending),
+	 item_card_addr(tx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+#ifdef USB_CMD_DATA_EP
+	{"rx_cmd_urb_pending", item_card_size(rx_cmd_urb_pending),
+	 item_card_addr(rx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+#endif
+	{"rx_data_urb_pending", item_card_size(rx_data_urb_pending),
+	 item_card_addr(rx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+#endif /* USB */
 	{"num_tx_timeout", item_priv_size(num_tx_timeout),
 	 item_priv_addr(num_tx_timeout), PRIV_ADDR},
 	{"ioctl_pending", item_handle_size(ioctl_pending),
@@ -207,6 +251,12 @@ static struct debug_data items[] = {
 	 item_handle_addr(main_state), HANDLE_ADDR},
 	{"driver_state", item_handle_size(driver_state),
 	 item_handle_addr(driver_state), HANDLE_ADDR},
+#ifdef SDIO_MMC_DEBUG
+	{"sdiocmd53w", item_handle_size(cmd53w), item_handle_addr(cmd53w),
+	 HANDLE_ADDR},
+	{"sdiocmd53r", item_handle_size(cmd53r), item_handle_addr(cmd53r),
+	 HANDLE_ADDR},
+#endif
 	{"hs_skip_count", item_handle_size(hs_skip_count),
 	 item_handle_addr(hs_skip_count), HANDLE_ADDR},
 	{"hs_force_count", item_handle_size(hs_force_count),
@@ -262,6 +312,7 @@ static struct debug_data uap_items[] = {
 	 INFO_ADDR},
 	{"tx_pkts_queued", item_size(tx_pkts_queued), item_addr(tx_pkts_queued),
 	 INFO_ADDR},
+	{"tx_pause", item_size(tx_pause), item_addr(tx_pause), INFO_ADDR},
 	{"bypass_pkt_count", item_size(bypass_pkt_count),
 	 item_addr(bypass_pkt_count), INFO_ADDR},
 	{"num_bridge_pkts", item_size(num_bridge_pkts),
@@ -298,6 +349,27 @@ static struct debug_data uap_items[] = {
 	 item_addr(num_tx_host_to_card_failure), INFO_ADDR},
 	{"num_alloc_buffer_failure", item_size(num_alloc_buffer_failure),
 	 item_addr(num_alloc_buffer_failure), INFO_ADDR},
+#ifdef SDIO
+	{"num_cmdevt_c2h_fail", item_size(num_cmdevt_card_to_host_failure),
+	 item_addr(num_cmdevt_card_to_host_failure),
+	 INFO_ADDR | (INTF_SD << 8)},
+	{"num_rx_c2h_fail", item_size(num_rx_card_to_host_failure),
+	 item_addr(num_rx_card_to_host_failure), INFO_ADDR | (INTF_SD << 8)},
+	{"num_int_read_fail", item_size(num_int_read_failure),
+	 item_addr(num_int_read_failure), INFO_ADDR | (INTF_SD << 8)},
+	{"last_int_status", item_size(last_int_status),
+	 item_addr(last_int_status), INFO_ADDR | (INTF_SD << 8)},
+	{"num_of_irq", item_size(num_of_irq), item_addr(num_of_irq),
+	 INFO_ADDR | (INTF_SD << 8)},
+	{"mp_invalid_update", item_size(mp_invalid_update),
+	 item_addr(mp_invalid_update), INFO_ADDR | (INTF_SD << 8)},
+	{"sdio_rx_aggr", item_size(sdio_rx_aggr), item_addr(sdio_rx_aggr),
+	 INFO_ADDR | (INTF_SD << 8)},
+	{"mpa_sent_last_pkt", item_size(mpa_sent_last_pkt),
+	 item_addr(mpa_sent_last_pkt), INFO_ADDR | (INTF_SD << 8)},
+	{"mpa_sent_no_ports", item_size(mpa_sent_no_ports),
+	 item_addr(mpa_sent_no_ports), INFO_ADDR | (INTF_SD << 8)},
+#endif
 	{"cmd_sent", item_size(cmd_sent), item_addr(cmd_sent), INFO_ADDR},
 	{"data_sent", item_size(data_sent), item_addr(data_sent), INFO_ADDR},
 	{"data_sent_cnt", item_size(data_sent_cnt), item_addr(data_sent_cnt),
@@ -329,6 +401,18 @@ static struct debug_data uap_items[] = {
 	{"event_received", item_size(event_received), item_addr(event_received),
 	 INFO_ADDR},
 
+#ifdef USB
+	{"tx_cmd_urb_pending", item_card_size(tx_cmd_urb_pending),
+	 item_card_addr(tx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+	{"tx_data_urb_pending", item_card_size(tx_data_urb_pending),
+	 item_card_addr(tx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+#ifdef USB_CMD_DATA_EP
+	{"rx_cmd_urb_pending", item_card_size(rx_cmd_urb_pending),
+	 item_card_addr(rx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+#endif
+	{"rx_data_urb_pending", item_card_size(rx_data_urb_pending),
+	 item_card_addr(rx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
+#endif /* USB */
 	{"num_tx_timeout", item_priv_size(num_tx_timeout),
 	 item_priv_addr(num_tx_timeout), PRIV_ADDR},
 	{"ioctl_pending", item_handle_size(ioctl_pending),
@@ -353,6 +437,12 @@ static struct debug_data uap_items[] = {
 	 item_handle_addr(main_state), HANDLE_ADDR},
 	{"driver_state", item_handle_size(driver_state),
 	 item_handle_addr(driver_state), HANDLE_ADDR},
+#ifdef SDIO_MMC_DEBUG
+	{"sdiocmd53w", item_handle_size(cmd53w), item_handle_addr(cmd53w),
+	 HANDLE_ADDR | (INTF_SD << 8)},
+	{"sdiocmd53r", item_handle_size(cmd53r), item_handle_addr(cmd53r),
+	 HANDLE_ADDR | (INTF_SD << 8)},
+#endif
 	{"hs_skip_count", item_handle_size(hs_skip_count),
 	 item_handle_addr(hs_skip_count), HANDLE_ADDR},
 	{"hs_force_count", item_handle_size(hs_force_count),
@@ -893,6 +983,9 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 	mlan_debug_info *info = NULL;
 	t_u32 intf_mask = INTF_MASK << 8;
 	unsigned int j;
+#ifdef SDIO
+	t_u8 mp_aggr_pkt_limit = 0;
+#endif
 
 	ENTER();
 
@@ -945,6 +1038,43 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 		else
 			seq_printf(sfp, "%s=%d\n", d[i].name, val);
 	}
+#ifdef SDIO
+	if (IS_SD(priv->phandle->card_type)) {
+		mp_aggr_pkt_limit = info->mp_aggr_pkt_limit;
+		seq_printf(sfp, "last_recv_wr_bitmap=0x%x last_mp_index=%d\n",
+			   info->last_recv_wr_bitmap, info->last_mp_index);
+		seq_printf(sfp,
+			   "last_recv_rd_bitmap=0x%x mp_data_port_mask=0x%x\n",
+			   info->last_recv_rd_bitmap, info->mp_data_port_mask);
+		for (i = 0; i < SDIO_MP_DBG_NUM; i++) {
+			seq_printf(
+				sfp,
+				"mp_wr_bitmap: 0x%x mp_wr_ports=0x%x len=%d curr_wr_port=0x%x\n",
+				info->last_mp_wr_bitmap[i],
+				info->last_mp_wr_ports[i],
+				info->last_mp_wr_len[i],
+				info->last_curr_wr_port[i]);
+			for (j = 0; j < mp_aggr_pkt_limit; j++) {
+				seq_printf(sfp, "0x%02x ",
+					   info->last_mp_wr_info
+						   [i * mp_aggr_pkt_limit + j]);
+			}
+			seq_printf(sfp, "\n");
+		}
+		seq_printf(sfp, "SDIO MPA Tx: ");
+		for (i = 0; i < mp_aggr_pkt_limit; i++)
+			seq_printf(sfp, "%d ", info->mpa_tx_count[i]);
+		seq_printf(sfp, "\n");
+		seq_printf(sfp, "SDIO MPA Rx: ");
+		for (i = 0; i < mp_aggr_pkt_limit; i++)
+			seq_printf(sfp, "%d ", info->mpa_rx_count[i]);
+		seq_printf(sfp, "\n");
+		seq_printf(sfp, "SDIO MP Update: ");
+		for (i = 0; i < (mp_aggr_pkt_limit * 2); i++)
+			seq_printf(sfp, "%d ", info->mp_update[i]);
+		seq_printf(sfp, "\n");
+	}
+#endif
 #ifdef PCIE
 	if (IS_PCIE(priv->phandle->card_type)) {
 		seq_printf(sfp, "txbd_rdptr=0x%x txbd_wrptr=0x%x\n",
@@ -1078,6 +1208,7 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 	t_u32 last_drvdbg = drvdbg;
 #endif
 	gfp_t flag;
+	t_u32 temp_count = 0;
 
 	ENTER();
 
@@ -1086,7 +1217,11 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 		return MLAN_STATUS_FAILURE;
 	}
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
-	pdata = kzalloc(count + 1, flag);
+
+	if (!woal_secure_add(&count, 1, &temp_count, TYPE_UINT32))
+		PRINTM(MERROR, "%s:count param overflow \n", __func__);
+
+	pdata = kzalloc(temp_count, flag);
 	if (pdata == NULL) {
 		MODULE_PUT;
 		LEAVE();

@@ -4,7 +4,7 @@
  *  @brief This file contains the handling of TX/RX in MLAN
  *
  *
- *  Copyright 2009-2021 NXP
+ *  Copyright 2009-2021, 2024 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -89,7 +89,85 @@ done:
 	LEAVE();
 	return ret;
 }
+Stats_mcast_drv_t gmcast_stats = {0};
+/* This flag is used to protect the mcast drv stat update
+ * when it's value is copied to provide to mlanutl
+ * MTRUE = Update is allowed
+ * MFALSE = Update is not allowed
+ */
+t_u8 mcast_drv_update_allow_flag = MTRUE;
+#define DEST_MAC_OFFSET 10
+#define CYCLE_START 1
+#define FIVE_SEC 5000000 /* 1000000 usec = 1sec*/
+/**
+ *  @brief This function calculates the cycle delta and driver time delta
+ *  for Mcast packets
+ *
+ *  @param pmadapter    A pointer to pmlan_adapter structure
+ *  @param pmbuf   A pointer to the mlan_buffer for process
+ *
+ *  @return         Nothing
+ */
+static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
+						  pmlan_buffer pmbuf)
+{
+	static t_u32 prev_mcast_sec = 0;
+	static t_u32 prev_mcast_usec = 0;
+	t_u32 curr_ts_sec = 0;
+	t_u32 curr_ts_usec = 0;
+	t_u64 cycle_delta = 0;
+	t_u64 profile_delta = 0;
 
+	if (mcast_drv_update_allow_flag == MFALSE)
+		return;
+	/* Take current time */
+	if (pmadapter && pmadapter->pmoal_handle)
+		pmadapter->callbacks.moal_get_system_time(
+			pmadapter->pmoal_handle, &curr_ts_sec, &curr_ts_usec);
+	else
+		PRINTM(MERROR, "ERR: pmadapter or pmoal_handle NULL\n",
+		       __func__);
+
+	if (curr_ts_sec || curr_ts_usec) {
+		/* Calculate profile delta */
+		profile_delta = (curr_ts_sec - pmbuf->in_ts_sec) * 1000000;
+		profile_delta += (t_s32)(curr_ts_usec - pmbuf->in_ts_usec);
+
+		if ((profile_delta >= 0) && (profile_delta <= 1000))
+			gmcast_stats.spent_time_under_1000usec++;
+		else if ((profile_delta > 1000) && (profile_delta <= 2000))
+			gmcast_stats.spent_time_over_1000usec++;
+		else if ((profile_delta > 2000) && (profile_delta <= 3000))
+			gmcast_stats.spent_time_over_2000usec++;
+		else if (profile_delta > 3000)
+			gmcast_stats.spent_time_over_3000usec++;
+	}
+	/* Process the start cycle data */
+	cycle_delta = (pmbuf->in_ts_sec - prev_mcast_sec) * 1000000;
+	cycle_delta += (t_s32)(pmbuf->in_ts_usec - prev_mcast_usec);
+
+	/* If start cycle delta is more than 5 sec ignore*/
+	if ((pmbuf->u.mc_tx_info.mc_pkt_flags & (1 << CYCLE_START)) &&
+	    (cycle_delta < FIVE_SEC)) {
+		if ((cycle_delta >= 0) && (cycle_delta <= 2300))
+			gmcast_stats.cycle_recv_under_2300usec++;
+		if ((cycle_delta > 2300) && (cycle_delta <= 2900))
+			gmcast_stats.cycle_recv_in_time++;
+		if ((cycle_delta > 2900) && (cycle_delta <= 3500))
+			gmcast_stats.cycle_recv_over_2900usec++;
+		if ((cycle_delta > 3500) && (cycle_delta <= 5000))
+			gmcast_stats.cycle_recv_over_3500usec++;
+		if ((cycle_delta > 5000) && (cycle_delta <= 10000))
+			gmcast_stats.cycle_recv_over_5000usec++;
+		if ((cycle_delta > 10000) && (cycle_delta <= 15000))
+			gmcast_stats.cycle_recv_over_10000usec++;
+		if (cycle_delta > 15000)
+			gmcast_stats.cycle_recv_over_15000usec++;
+	}
+	/* Update the last received mcast cycle value */
+	prev_mcast_sec = pmbuf->in_ts_sec;
+	prev_mcast_usec = pmbuf->in_ts_usec;
+}
 /**
  *  @brief This function checks the conditions and sends packet to device
  *
@@ -112,6 +190,7 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 #ifdef STA_SUPPORT
 	PTxPD plocal_tx_pd = MNULL;
 #endif
+	t_u8 dest_mac_first_octet = 0;
 
 	ENTER();
 	head_ptr = (t_u8 *)priv->ops.process_txpd(priv, pmbuf);
@@ -124,11 +203,30 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
 		plocal_tx_pd = (TxPD *)(head_ptr + priv->intf_hr_len);
 #endif
+	dest_mac_first_octet = *(head_ptr + priv->intf_hr_len + sizeof(TxPD) +
+				 DEST_MAC_OFFSET);
 
-	ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
-					  tx_param);
+	if (dest_mac_first_octet & 0x01)
+		wlan_drv_mcast_cycle_delay_calulation(pmadapter, pmbuf);
+	if (pmadapter->tp_state_on)
+		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
+							pmbuf, 4);
+	if (pmadapter->tp_state_drop_point == 4)
+		goto done;
+	else {
+		ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
+						  tx_param);
+	}
 done:
 	switch (ret) {
+#ifdef USB
+	case MLAN_STATUS_PRESOURCE:
+		PRINTM(MINFO, "MLAN_STATUS_PRESOURCE is returned\n");
+		DBG_HEXDUMP(MDAT_D, "Tx", head_ptr + priv->intf_hr_len,
+			    MIN(pmbuf->data_len + sizeof(TxPD),
+				MAX_DATA_DUMP_LEN));
+		break;
+#endif
 	case MLAN_STATUS_RESOURCE:
 #ifdef STA_SUPPORT
 		if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) &&
@@ -198,14 +296,34 @@ mlan_status wlan_write_data_complete(pmlan_adapter pmadapter,
 	if ((pmbuf->buf_type == MLAN_BUF_TYPE_DATA) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)) {
 		PRINTM(MINFO, "wlan_write_data_complete: DATA %p\n", pmbuf);
-		if (pmbuf->flags & MLAN_BUF_FLAG_MOAL_TX_BUF) {
-			/* pmbuf was allocated by MOAL */
-			pcb->moal_send_packet_complete(pmadapter->pmoal_handle,
-						       pmbuf, status);
+#if defined(USB)
+		if ((pmbuf->flags & MLAN_BUF_FLAG_USB_TX_AGGR) &&
+		    pmbuf->use_count) {
+			pmlan_buffer pmbuf_next;
+			t_u32 i, use_count = pmbuf->use_count;
+			for (i = 0; i <= use_count; i++) {
+				pmbuf_next = pmbuf->pnext;
+				if (pmbuf->flags & MLAN_BUF_FLAG_MOAL_TX_BUF)
+					pcb->moal_send_packet_complete(
+						pmadapter->pmoal_handle, pmbuf,
+						status);
+				else
+					wlan_free_mlan_buffer(pmadapter, pmbuf);
+				pmbuf = pmbuf_next;
+			}
 		} else {
-			/* pmbuf was allocated by MLAN */
-			wlan_free_mlan_buffer(pmadapter, pmbuf);
+#endif
+			if (pmbuf->flags & MLAN_BUF_FLAG_MOAL_TX_BUF) {
+				/* pmbuf was allocated by MOAL */
+				pcb->moal_send_packet_complete(
+					pmadapter->pmoal_handle, pmbuf, status);
+			} else {
+				/* pmbuf was allocated by MLAN */
+				wlan_free_mlan_buffer(pmadapter, pmbuf);
+			}
+#if defined(USB)
 		}
+#endif
 	}
 
 	LEAVE();
@@ -262,13 +380,14 @@ t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
 
 	if (pmbuf->buf_type != MLAN_BUF_TYPE_RAW_DATA)
 		pmbuf->buf_type = MLAN_BUF_TYPE_DATA;
-	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
-					    priv->bypass_txq.plock);
-	pmadapter->bypass_pkt_count++;
+	util_scalar_increment(pmadapter->pmoal_handle,
+			      &pmadapter->bypass_pkt_count,
+			      pmadapter->callbacks.moal_spin_lock,
+			      pmadapter->callbacks.moal_spin_unlock);
 	util_enqueue_list_tail(pmadapter->pmoal_handle, &priv->bypass_txq,
-			       (pmlan_linked_list)pmbuf, MNULL, MNULL);
-	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
-					      priv->bypass_txq.plock);
+			       (pmlan_linked_list)pmbuf,
+			       pmadapter->callbacks.moal_spin_lock,
+			       pmadapter->callbacks.moal_spin_unlock);
 	LEAVE();
 }
 
@@ -281,7 +400,34 @@ t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
  */
 INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 {
-	return (pmadapter->bypass_pkt_count) ? MFALSE : MTRUE;
+	t_u32 bypass_pkt_count;
+#if defined(USB)
+	if (IS_USB(pmadapter->card_type)) {
+		pmlan_callbacks pcb = &pmadapter->callbacks;
+		pmlan_private priv;
+		int j = 0;
+		for (j = 0; j < pmadapter->priv_num; ++j) {
+			priv = pmadapter->priv[j];
+			if (priv) {
+				if (!wlan_is_port_ready(pmadapter,
+							priv->port_index))
+					continue;
+				if (util_peek_list(pmadapter->pmoal_handle,
+						   &priv->bypass_txq,
+						   pcb->moal_spin_lock,
+						   pcb->moal_spin_unlock))
+					return MFALSE;
+			}
+		}
+		return MTRUE;
+	}
+#endif
+	bypass_pkt_count =
+		util_scalar_read(pmadapter->pmoal_handle,
+				 &pmadapter->bypass_pkt_count,
+				 pmadapter->callbacks.moal_spin_lock,
+				 pmadapter->callbacks.moal_spin_unlock);
+	return (bypass_pkt_count) ? MFALSE : MTRUE;
 }
 
 /**
@@ -304,7 +450,10 @@ t_void wlan_cleanup_bypass_txq(mlan_private *priv)
 		util_unlink_list(pmadapter->pmoal_handle, &priv->bypass_txq,
 				 (pmlan_linked_list)pmbuf, MNULL, MNULL);
 		wlan_write_data_complete(pmadapter, pmbuf, MLAN_STATUS_FAILURE);
-		pmadapter->bypass_pkt_count--;
+		util_scalar_decrement(pmadapter->pmoal_handle,
+				      &pmadapter->bypass_pkt_count,
+				      pmadapter->callbacks.moal_spin_lock,
+				      pmadapter->callbacks.moal_spin_unlock);
 	}
 	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
 					      priv->bypass_txq.plock);
@@ -330,19 +479,24 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 		for (j = 0; j < pmadapter->priv_num; ++j) {
 			priv = pmadapter->priv[j];
 			if (priv) {
+#if defined(USB)
+				if (!wlan_is_port_ready(pmadapter,
+							priv->port_index))
+					continue;
+#endif
 				pmbuf = (pmlan_buffer)util_dequeue_list(
 					pmadapter->pmoal_handle,
 					&priv->bypass_txq,
 					pmadapter->callbacks.moal_spin_lock,
 					pmadapter->callbacks.moal_spin_unlock);
 				if (pmbuf) {
-					pmadapter->callbacks.moal_spin_lock(
+					util_scalar_decrement(
 						pmadapter->pmoal_handle,
-						priv->bypass_txq.plock);
-					pmadapter->bypass_pkt_count--;
-					pmadapter->callbacks.moal_spin_unlock(
-						pmadapter->pmoal_handle,
-						priv->bypass_txq.plock);
+						&pmadapter->bypass_pkt_count,
+						pmadapter->callbacks
+							.moal_spin_lock,
+						pmadapter->callbacks
+							.moal_spin_unlock);
 					PRINTM(MINFO,
 					       "Dequeuing bypassed packet %p\n",
 					       pmbuf);
@@ -360,10 +514,14 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 						/* Queue the packet again so
 						 * that it will be TX'ed later
 						 */
-						pmadapter->callbacks.moal_spin_lock(
+						util_scalar_increment(
 							pmadapter->pmoal_handle,
-							priv->bypass_txq.plock);
-						pmadapter->bypass_pkt_count++;
+							&pmadapter->bypass_pkt_count,
+							pmadapter->callbacks
+								.moal_spin_lock,
+							pmadapter->callbacks
+								.moal_spin_unlock);
+
 						util_enqueue_list_head(
 							pmadapter->pmoal_handle,
 							&priv->bypass_txq,
@@ -372,9 +530,6 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 								.moal_spin_lock,
 							pmadapter->callbacks
 								.moal_spin_unlock);
-						pmadapter->callbacks.moal_spin_unlock(
-							pmadapter->pmoal_handle,
-							priv->bypass_txq.plock);
 					}
 					break;
 				} else {

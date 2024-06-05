@@ -42,8 +42,14 @@ mlan_status moal_alloc_mlan_buffer(t_void *pmoal, t_u32 size,
 mlan_status moal_free_mlan_buffer(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				      mlan_status status);
+#ifdef USB
+mlan_status moal_recv_complete(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
+			       mlan_status status);
+mlan_status moal_write_data_async(t_void *pmoal, pmlan_buffer pmbuf,
+				  t_u32 port);
+#endif
 
-#if defined(PCIE)
+#if defined(SDIO) || defined(PCIE)
 /** moal_write_reg */
 mlan_status moal_write_reg(t_void *pmoal, t_u32 reg, t_u32 data);
 /** moal_read_reg */
@@ -89,10 +95,6 @@ mlan_status moal_init_lock(t_void *pmoal, t_void **pplock);
 mlan_status moal_free_lock(t_void *pmoal, t_void *plock);
 mlan_status moal_spin_lock(t_void *pmoal, t_void *plock);
 mlan_status moal_spin_unlock(t_void *pmoal, t_void *plock);
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-mlan_status moal_wait_hostcmd_complete(t_void *pmoal, t_u32 bss_index);
-mlan_status moal_notify_hostcmd_complete(t_void *pmoal, t_u32 bss_index);
-#endif
 t_void moal_print(t_void *pmoal, t_u32 level, char *pformat, IN...);
 t_void moal_print_netintf(t_void *pmoal, t_u32 bss_index, t_u32 level);
 t_void moal_assert(t_void *pmoal, t_u32 cond);
@@ -101,7 +103,6 @@ t_void moal_hist_data_add(t_void *pmoal, t_u32 bss_index, t_u16 rx_rate,
 
 t_void moal_updata_peer_signal(t_void *pmoal, t_u32 bss_index, t_u8 *peer_addr,
 			       t_s8 snr, t_s8 nflr);
-mlan_status moal_get_host_time_ns(t_u64 *time);
 t_u64 moal_do_div(t_u64 num, t_u32 base);
 
 mlan_status moal_init_timer(t_void *pmoal, t_void **pptimer,
@@ -111,9 +112,14 @@ mlan_status moal_free_timer(t_void *pmoal, t_void *ptimer);
 mlan_status moal_start_timer(t_void *pmoal, t_void *ptimer, t_u8 periodic,
 			     t_u32 msec);
 mlan_status moal_stop_timer(t_void *pmoal, t_void *ptimer);
+void moal_tp_accounting(t_void *pmoal, void *buf, t_u32 drop_point);
+void moal_tp_accounting_rx_param(t_void *pmoal, unsigned int type,
+				 unsigned int rsvd1);
+void moal_amsdu_tp_accounting(t_void *pmoal, t_s32 amsdu_process_delay,
+			      t_s32 amsdu_copy_delay);
 
 void moal_connection_status_check_pmqos(t_void *pmoal);
-#if defined(PCIE)
+#if defined(PCIE) || defined(SDIO)
 /* pmqos busfreq add request handler*/
 void woal_request_busfreq_pmqos_add(t_void *pmhandle);
 /* pmqos busfreq remove handler*/

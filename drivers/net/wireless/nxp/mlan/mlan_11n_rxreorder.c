@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- *  Copyright 2008-2023 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -168,7 +168,7 @@ static void mlan_11n_rxreorder_timer_restart(pmlan_adapter pmadapter,
 static mlan_status wlan_11n_dispatch_pkt_until_start_win(
 	t_void *priv, RxReorderTbl *rx_reor_tbl_ptr, int start_win)
 {
-	int no_pkt_to_send, i, xchg;
+	t_u32 no_pkt_to_send, i, xchg;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	void *rx_tmp_ptr = MNULL;
 	mlan_private *pmpriv = (mlan_private *)priv;
@@ -209,7 +209,11 @@ static mlan_status wlan_11n_dispatch_pkt_until_start_win(
 	}
 
 	/* clear the bits of reorder bitmap that has been dispatched */
-	rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> no_pkt_to_send;
+	if (no_pkt_to_send < (8 * (sizeof(rx_reor_tbl_ptr->bitmap))))
+		rx_reor_tbl_ptr->bitmap =
+			rx_reor_tbl_ptr->bitmap >> no_pkt_to_send;
+	else
+		rx_reor_tbl_ptr->bitmap = 0;
 
 	rx_reor_tbl_ptr->start_win = start_win;
 	pmpriv->adapter->callbacks.moal_spin_unlock(
@@ -290,7 +294,10 @@ static mlan_status wlan_11n_scan_and_dispatch(t_void *priv,
 	}
 
 	/* clear the bits of reorder bitmap that has been dispatched */
-	rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> i;
+	if (i < (8 * sizeof(rx_reor_tbl_ptr->bitmap)))
+		rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> i;
+	else
+		rx_reor_tbl_ptr->bitmap = 0;
 
 	rx_reor_tbl_ptr->start_win =
 		(rx_reor_tbl_ptr->start_win + i) & (MAX_TID_VALUE - 1);
@@ -741,6 +748,7 @@ mlan_status wlan_cmd_11n_addba_rspgen(mlan_private *priv,
 	else
 		padd_ba_rsp->status_code =
 			wlan_cpu_to_le16(ADDBA_RSP_STATUS_ACCEPT);
+
 	win_size = (padd_ba_rsp->block_ack_param_set &
 		    BLOCKACKPARAM_WINSIZE_MASK) >>
 		   BLOCKACKPARAM_WINSIZE_POS;
@@ -1234,6 +1242,7 @@ void wlan_11n_ba_stream_timeout(mlan_private *priv,
 				HostCmd_DS_11N_BATIMEOUT *event)
 {
 	HostCmd_DS_11N_DELBA delba;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 
@@ -1254,7 +1263,10 @@ void wlan_11n_ba_stream_timeout(mlan_private *priv,
 	delba.del_ba_param_set |= (t_u16)event->origninator
 				  << DELBA_INITIATOR_POS;
 	delba.reason_code = REASON_CODE_STA_TIMEOUT;
-	wlan_prepare_cmd(priv, HostCmd_CMD_11N_DELBA, 0, 0, MNULL, &delba);
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_11N_DELBA, 0, 0, MNULL,
+			       &delba);
+	if (ret)
+		PRINTM(MERROR, "Failed to send cmd to FW\n");
 
 	LEAVE();
 	return;

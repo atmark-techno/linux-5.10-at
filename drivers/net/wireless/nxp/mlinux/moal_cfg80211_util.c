@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211 vendor.
  *
  *
- * Copyright 2015-2022 NXP
+ * Copyright 2015-2022, 2024 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -78,6 +78,10 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 	}, /*event_id 0x10002*/
 	{
 		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_cloud_keep_alive,
+	}, /*event_id 0x10003*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_dfs_radar_detected,
 	}, /*event_id 0x10004*/
 	{
@@ -142,10 +146,26 @@ static const struct nla_policy woal_attr_policy[ATTR_WIFI_MAX + 1] = {
 	[ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX] = {.type = NLA_U32},
 	[ATTR_SCAN_BAND_SET] = {.type = NLA_U8},
 };
-
+static const struct nla_policy woal_secure_ranging_ctx_policy
+	[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX + 1] = {
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION] =
+			{.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR] =
+			{.type = NLA_STRING, .len = ETH_ALEN},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR] =
+			{.type = NLA_STRING, .len = ETH_ALEN},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE] =
+			{.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK] =
+			{.type = NLA_STRING, .len = 32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER] =
+			{.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED] =
+			{.type = NLA_STRING, .len = 48},
+};
 // clang-format off
 static const struct nla_policy
-	woal_nd_offload_policy[ATTR_ND_OFFLOAD_MAX + 1] = {
+        woal_nd_offload_policy[ATTR_ND_OFFLOAD_MAX + 1] = {
 		[ATTR_ND_OFFLOAD_CONTROL] = {.type = NLA_U8},
 };
 // clang-format on
@@ -185,6 +205,20 @@ static const struct nla_policy
 };
 // clang-format on
 
+static const struct nla_policy
+	woal_keep_alive_policy[MKEEP_ALIVE_ATTRIBUTE_MAX + 1] = {
+		[MKEEP_ALIVE_ATTRIBUTE_ID] = {.type = NLA_U8},
+		[MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE] = {.type = NLA_U16},
+		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT] = {.type = NLA_BINARY},
+		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN] = {.type = NLA_U16},
+		[MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR] = {.type = NLA_STRING,
+							.len = ETH_ALEN},
+		[MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR] = {.type = NLA_STRING,
+							.len = ETH_ALEN},
+		[MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC] = {.type = NLA_U32},
+		[MKEEP_ALIVE_ATTRIBUTE_RETRY_INTERVAL] = {.type = NLA_U32},
+		[MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT] = {.type = NLA_U8},
+};
 #endif
 
 /**
@@ -662,6 +696,7 @@ static int woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 	char end_c = '\0';
 	int ret = 0;
 	char fw_ver[32] = {0};
+	t_u8 hotfix_ver = 0;
 	union {
 		t_u32 l;
 		t_u8 c[4];
@@ -669,9 +704,15 @@ static int woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 
 	ENTER();
 
+	hotfix_ver = priv->phandle->fw_hotfix_version;
 	ver.l = priv->phandle->fw_release_number;
-	snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u%c", ver.c[2], ver.c[1],
-		 ver.c[0], ver.c[3], end_c);
+	if (hotfix_ver) {
+		snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u.%u%c", ver.c[2],
+			 ver.c[1], ver.c[0], ver.c[3], hotfix_ver, end_c);
+	} else {
+		snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u%c", ver.c[2],
+			 ver.c[1], ver.c[0], ver.c[3], end_c);
+	}
 	reply_len = strlen(fw_ver) + 1;
 
 	/** Allocate skb for cmd reply*/
@@ -761,7 +802,9 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	int ret = MLAN_STATUS_SUCCESS;
 	int length = 0;
 	char driver_dump_file[128];
+#ifndef DUMP_TO_PROC
 	char path_name[64];
+#endif
 	struct sk_buff *skb = NULL;
 
 	ENTER();
@@ -773,12 +816,24 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	dev = wdev->netdev;
 	priv = (moal_private *)woal_get_netdev_priv(dev);
 	handle = priv->phandle;
+#ifdef DUMP_TO_PROC
+	memset(driver_dump_file, 0, sizeof(driver_dump_file));
+	snprintf(driver_dump_file, sizeof(driver_dump_file), "/proc/mwlan/");
+	if (handle->handle_idx)
+		snprintf(driver_dump_file, sizeof(driver_dump_file),
+			 "drv_dump%d", handle->handle_idx);
+	else
+		snprintf(driver_dump_file, sizeof(driver_dump_file),
+			 "drv_dump");
+#else
 	memset(path_name, 0, sizeof(path_name));
 	woal_create_dump_dir(handle, path_name, sizeof(path_name));
 	PRINTM(MMSG, "driver dump path name is %s\n", path_name);
 	woal_dump_drv_info(handle, path_name);
 	memset(driver_dump_file, 0, sizeof(driver_dump_file));
-	sprintf(driver_dump_file, "%s/%s", path_name, "file_drv_info");
+	snprintf(driver_dump_file, sizeof(driver_dump_file), "%s/%s", path_name,
+		 "file_drv_info");
+#endif
 	PRINTM(MMSG, "driver dump file is %s\n", driver_dump_file);
 	length = sizeof(driver_dump_file);
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, length);
@@ -834,6 +889,7 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 			   | WLAN_FEATURE_LINK_LAYER_STATS |
 			   WLAN_FEATURE_LOGGER | WLAN_FEATURE_RSSI_MONITOR |
 			   WLAN_FEATURE_CONFIG_NDO | WLAN_FEATURE_SCAN_RAND |
+			   WLAN_FEATURE_MKEEP_ALIVE | WLAN_FEATURE_PNO |
 			   WLAN_FEATURE_TDLS;
 
 	memset(&fw_info, 0, sizeof(mlan_fw_info));
@@ -1086,7 +1142,7 @@ done:
  *
  * @return      An invalid ring id for failure or valid ring id on success.
  */
-int woal_get_ring_id_by_name(moal_private *priv, char *ring_name)
+static int woal_get_ring_id_by_name(moal_private *priv, char *ring_name)
 {
 	int id;
 	wifi_ring_buffer *ring;
@@ -1116,8 +1172,9 @@ int woal_get_ring_id_by_name(moal_private *priv, char *ring_name)
  *
  * @return      0: success  1: fail
  */
-int woal_start_logging(moal_private *priv, char *ring_name, int log_level,
-		       int flags, int time_intval, int threshold)
+static int woal_start_logging(moal_private *priv, char *ring_name,
+			      int log_level, int flags, int time_intval,
+			      int threshold)
 {
 	int ret = 0;
 	int ring_id;
@@ -1396,8 +1453,8 @@ static t_u32 woal_get_ring_next_entry(wifi_ring_buffer *ring, t_u32 offset)
  *
  * @return      data length
  */
-int woal_ring_pull_data(moal_private *priv, int ring_id, void *data,
-			t_s32 buf_len)
+static int woal_ring_pull_data(moal_private *priv, int ring_id, void *data,
+			       t_s32 buf_len)
 {
 	t_s32 r_len = 0;
 	wifi_ring_buffer *ring;
@@ -1443,9 +1500,10 @@ int woal_ring_pull_data(moal_private *priv, int ring_id, void *data,
  *
  * @return      0: success  1: fail
  */
-int woal_ring_buffer_data_vendor_event(moal_private *priv, int ring_id,
-				       t_u8 *data, int len,
-				       wifi_ring_buffer_status *ring_status)
+static int
+woal_ring_buffer_data_vendor_event(moal_private *priv, int ring_id, t_u8 *data,
+				   int len,
+				   wifi_ring_buffer_status *ring_status)
 {
 	struct wiphy *wiphy = NULL;
 	struct sk_buff *skb = NULL;
@@ -1532,7 +1590,7 @@ done:
  *
  * @return void
  */
-void woal_ring_poll_worker(struct work_struct *work)
+static void woal_ring_poll_worker(struct work_struct *work)
 {
 	struct delayed_work *d_work = to_delayed_work(work);
 	wifi_ring_buffer *ring_info =
@@ -1603,8 +1661,8 @@ exit:
  *
  * @return      0: success  -1: fail
  */
-int woal_ring_push_data(moal_private *priv, int ring_id,
-			wifi_ring_buffer_entry *hdr, void *data)
+static int woal_ring_push_data(moal_private *priv, int ring_id,
+			       wifi_ring_buffer_entry *hdr, void *data)
 {
 	unsigned long flags;
 	t_u32 w_len;
@@ -2017,8 +2075,8 @@ done:
  *
  * @return      0: success  1: fail
  */
-int woal_wake_reason_vendor_event(moal_private *priv,
-				  mlan_ds_hs_wakeup_reason wake_reason)
+static int woal_wake_reason_vendor_event(moal_private *priv,
+					 mlan_ds_hs_wakeup_reason wake_reason)
 {
 	struct wiphy *wiphy = NULL;
 	struct sk_buff *skb = NULL;
@@ -2110,9 +2168,8 @@ woal_cfg80211_subcmd_start_packet_fate_monitor(struct wiphy *wiphy,
 	t_u32 reply_len = 0;
 	int ret = 0;
 
-	/* TODO: Tune pkt fate monitor for TP, Disabling it for now */
-	// struct net_device *dev = wdev->netdev;
-	// moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 
 	ENTER();
 
@@ -2124,8 +2181,9 @@ woal_cfg80211_subcmd_start_packet_fate_monitor(struct wiphy *wiphy,
 		goto done;
 	}
 
-	/* TODO: Tune pkt fate monitor for TP, Disabling it for now */
-	// priv->pkt_fate_monitor_enable = MTRUE;
+	/* Enable pkt fate monitor and use drvdbg MDAT_D to control forwarding
+	 * data packet to kernel */
+	priv->pkt_fate_monitor_enable = MTRUE;
 
 	ret = cfg80211_vendor_cmd_reply(skb);
 
@@ -2150,10 +2208,11 @@ done:
  *
  * @return      0: success  1: fail
  */
-int woal_packet_fate_vendor_event(moal_private *priv,
-				  packet_fate_packet_type pkt_type, t_u8 fate,
-				  frame_type payload_type, t_u32 drv_ts_usec,
-				  t_u32 fw_ts_usec, t_u8 *data, t_u32 len)
+static int woal_packet_fate_vendor_event(moal_private *priv,
+					 packet_fate_packet_type pkt_type,
+					 t_u8 fate, frame_type payload_type,
+					 t_u32 drv_ts_usec, t_u32 fw_ts_usec,
+					 t_u8 *data, t_u32 len)
 {
 	struct wiphy *wiphy = NULL;
 	struct sk_buff *skb = NULL;
@@ -2381,7 +2440,7 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 				nla_data(iter),
 				MIN(packet_filter_len, nla_len(iter)));
 			pkt_filter->packet_filter_len =
-				MIN(packet_filter_len, nla_len(iter));
+				(t_u8)MIN(packet_filter_len, nla_len(iter));
 			pkt_filter->state = PACKET_FILTER_STATE_START;
 			spin_unlock_irqrestore(&pkt_filter->lock, flags);
 			DBG_HEXDUMP(MDAT_D, "packet_filter_program",
@@ -2473,8 +2532,9 @@ done:
  * @return non-zero if packet should be passed to AP, zero if
  *         packet should be dropped.
  */
-int process_packet(const t_u8 *program, t_u32 program_len, const t_u8 *packet,
-		   t_u32 packet_len, t_u32 filter_age)
+static int process_packet(const t_u8 *program, t_u32 program_len,
+			  const t_u8 *packet, t_u32 packet_len,
+			  t_u32 filter_age)
 {
 	/* Program counter */
 	t_u32 pc = 0;
@@ -2769,7 +2829,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	unsigned long flags;
 
 	ENTER();
-	pkt_filter = priv->packet_filter;
+	pkt_filter = (packet_filter *)priv->packet_filter;
 	if (!unlikely(pkt_filter)) {
 		PRINTM(MINFO, "packet_filter not init\n");
 		goto done;
@@ -2831,75 +2891,6 @@ int woal_deinit_wifi_hal(moal_private *priv)
 }
 
 /**
- * @brief vendor command to get correlated HW and System time
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  -1: fail
- */
-static int woal_cfg80211_subcmd_get_correlated_time(struct wiphy *wiphy,
-						    struct wireless_dev *wdev,
-						    const void *data, int len)
-{
-	struct net_device *dev = wdev->netdev;
-	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
-	struct sk_buff *skb = NULL;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_ds_get_correlated_time *info = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	int err = -1;
-	int length = 0;
-
-	/* Allocate an IOCTL request buffer */
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		PRINTM(MERROR, "Could not allocate mlan ioctl request!\n");
-		return -ENOMEM;
-	}
-
-	/* Fill request buffer */
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	req->action = MLAN_ACT_GET;
-	misc->sub_command = MLAN_OID_MISC_GET_CORRELATED_TIME;
-
-	/* Send IOCTL request to MLAN */
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		PRINTM(MERROR, "get correleted time fail\n");
-		goto done;
-	}
-
-	length = sizeof(mlan_ds_get_correlated_time);
-	info = (mlan_ds_get_correlated_time *)(&misc->param.host_clock);
-
-	DBG_HEXDUMP(MCMD_D, "get_correlated_time", (t_u8 *)info, length);
-
-	/* Alloc the SKB for vendor_event */
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, length);
-	if (unlikely(!skb)) {
-		PRINTM(MERROR, "skb alloc failed\n");
-		goto done;
-	}
-
-	/* Push the data to the skb */
-	nla_put_nohdr(skb, length, info);
-
-	err = cfg80211_vendor_cmd_reply(skb);
-	if (unlikely(err))
-		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	return err;
-}
-
-/**
  * @brief vendor command to get link layer statistic
  *
  * @param wiphy    A pointer to wiphy struct
@@ -2953,8 +2944,8 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	ioctl_link_stats_buf = info->param.link_statistic;
 	num_radio = *((t_u32 *)info->param.link_statistic);
 
-	radio_stat = (wifi_radio_stat *)(info->param.link_statistic +
-					 sizeof(num_radio));
+	radio_stat =
+		(wifi_radio_stat *)(ioctl_link_stats_buf + sizeof(num_radio));
 	radio_stat_len = num_radio * sizeof(wifi_radio_stat);
 
 	/* Re-write on_time/tx_time/rx_time/on_time_scan from moal handle */
@@ -2969,7 +2960,7 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 		 * 24days.
 		 */
 		if (inter_msec > max_msec) {
-			PRINTM(MMSG,
+			PRINTM(MINFO,
 			       "Out of range, set inter_msec=%llu to max_msec=%llu\n",
 			       inter_msec, max_msec);
 			inter_msec = max_msec;
@@ -2990,8 +2981,9 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 		radio_stat_tmp++;
 	}
 
-	iface_stat = (wifi_iface_stat *)(info->param.link_statistic +
+	iface_stat = (wifi_iface_stat *)(ioctl_link_stats_buf +
 					 sizeof(num_radio) + radio_stat_len);
+
 	iface_stat_len = sizeof(wifi_iface_stat);
 
 	/* could get peer info with separate cmd */
@@ -3872,7 +3864,6 @@ static int woal_cfg80211_subcmd_11k_cfg(struct wiphy *wiphy,
 	struct net_device *dev = NULL;
 	moal_private *priv = NULL;
 	mlan_ioctl_req *req = NULL;
-	mlan_ds_11k_cfg *pcfg_11k = NULL;
 	struct nlattr *tb_vendor[ATTR_ND_OFFLOAD_MAX + 1];
 	int ret = 0;
 	int status = MLAN_STATUS_SUCCESS;
@@ -3895,28 +3886,6 @@ static int woal_cfg80211_subcmd_11k_cfg(struct wiphy *wiphy,
 	);
 	if (!tb_vendor[ATTR_ND_OFFLOAD_CONTROL]) {
 		PRINTM(MINFO, "%s: ATTR_ND_OFFLOAD not found\n", __func__);
-		ret = -EFAULT;
-		goto done;
-	}
-	/* Allocate an IOCTL request buffer */
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11k_cfg));
-	if (req == NULL) {
-		PRINTM(MERROR, "Could not allocate mlan ioctl request!\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	/* Fill request buffer */
-	pcfg_11k = (mlan_ds_11k_cfg *)req->pbuf;
-	pcfg_11k->sub_command = MLAN_OID_11K_CFG_ENABLE;
-	req->req_id = MLAN_IOCTL_11K_CFG;
-	req->action = MLAN_ACT_SET;
-	if (nla_get_u32(tb_vendor[ATTR_ND_OFFLOAD_CONTROL]))
-		pcfg_11k->param.enable_11k = MTRUE;
-	else
-		pcfg_11k->param.enable_11k = MFALSE;
-	PRINTM(MCMND, "11k enable = %d\n", pcfg_11k->param.enable_11k);
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -3945,7 +3914,7 @@ static int woal_cfg80211_subcmd_set_scan_mac_oui(struct wiphy *wiphy,
 	struct net_device *dev = NULL;
 	moal_private *priv = NULL;
 	struct nlattr *tb_vendor[ATTR_WIFI_MAX + 1];
-	t_u8 mac_oui[3];
+	t_u8 mac_oui[3] = {0};
 	int ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -3982,9 +3951,183 @@ done:
 	LEAVE();
 	return ret;
 }
-
 /**
- * @brief vendor command to set scan band
+ * @brief vendor command to start
+ *     woal_cfg80211_subcmd_secure_ranging_ctx
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  fail otherwise
+ */
+static int woal_cfg80211_subcmd_secure_ranging_ctx(struct wiphy *wiphy,
+						   struct wireless_dev *wdev,
+						   const void *data, int len)
+{
+	moal_private *priv;
+	struct net_device *dev;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_sec_cfg *sec = NULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int type, rem;
+	t_u32 action = 0;
+	int key_len = 0;
+	int peer_addr_set = 0;
+	t_u8 peer_addr[ETH_ALEN];
+	t_u8 own_addr[ETH_ALEN];
+	t_u32 cipher = 0;
+	t_u32 sha_type = 0;
+	t_u8 key[MLAN_MAX_KEY_LENGTH] = {0};
+	t_u8 *ltf_keyseed = NULL;
+	t_u8 bcast_addr[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	const struct nlattr *iter;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (!priv) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	nla_for_each_attr (iter, data, len, rem) {
+		type = nla_type(iter);
+		switch (type) {
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION:
+			action = nla_get_u32(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR:
+			moal_memcpy_ext(priv->phandle, own_addr, nla_data(iter),
+					nla_len(iter), ETH_ALEN);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR:
+			moal_memcpy_ext(priv->phandle, peer_addr,
+					nla_data(iter), nla_len(iter),
+					ETH_ALEN);
+			peer_addr_set = 1;
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE:
+			sha_type = nla_get_u32(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK:
+			moal_memcpy_ext(priv->phandle, key, nla_data(iter),
+					nla_len(iter), MLAN_MAX_KEY_LENGTH);
+			key_len = nla_len(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER:
+			cipher = nla_get_u32(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED:
+			moal_memcpy_ext(priv->phandle, ltf_keyseed,
+					nla_data(iter), nla_len(iter), 48);
+			break;
+		default:
+			PRINTM(MERROR, "Unknown type: %d\n", type);
+			ret = -EINVAL;
+		}
+	}
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	sec = (mlan_ds_sec_cfg *)req->pbuf;
+	sec->sub_command = MLAN_OID_SEC_CFG_ENCRYPT_KEY;
+	req->req_id = MLAN_IOCTL_SEC_CFG;
+	if (action == MLAN_ACT_PASN_SET_KEY) {
+		req->action = MLAN_ACT_PASN_KEY_DNLD;
+		if (key_len) {
+			moal_memcpy_ext(priv->phandle,
+					sec->param.encrypt_key.key_material,
+					key, key_len, MLAN_MAX_KEY_LENGTH);
+			sec->param.encrypt_key.key_len = key_len;
+		}
+		if (peer_addr_set) {
+			moal_memcpy_ext(priv->phandle,
+					sec->param.encrypt_key.mac_addr,
+					peer_addr, ETH_ALEN,
+					MLAN_MAC_ADDR_LENGTH);
+			if (memcmp(sec->param.encrypt_key.mac_addr, bcast_addr,
+				   ETH_ALEN) == 0)
+				sec->param.encrypt_key.key_flags =
+					KEY_FLAG_GROUP_KEY;
+			else
+				sec->param.encrypt_key.key_flags =
+					KEY_FLAG_SET_TX_KEY;
+		} else {
+			moal_memcpy_ext(priv->phandle,
+					sec->param.encrypt_key.mac_addr,
+					bcast_addr, ETH_ALEN,
+					MLAN_MAC_ADDR_LENGTH);
+			sec->param.encrypt_key.key_flags =
+				KEY_FLAG_GROUP_KEY | KEY_FLAG_SET_TX_KEY;
+		}
+
+#if KERNEL_VERSION(3, 6, 0) <= CFG80211_VERSION_CODE
+		if (cipher == WLAN_CIPHER_SUITE_GCMP)
+			sec->param.encrypt_key.key_flags |= KEY_FLAG_GCMP;
+#endif
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		else if (cipher == WLAN_CIPHER_SUITE_GCMP_256)
+			sec->param.encrypt_key.key_flags |= KEY_FLAG_GCMP_256;
+#endif
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		if (cipher == WLAN_CIPHER_SUITE_CCMP_256)
+			sec->param.encrypt_key.key_flags |= KEY_FLAG_CCMP_256;
+#endif
+
+		if (cipher == WLAN_CIPHER_SUITE_AES_CMAC
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		    || cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128 ||
+		    cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256
+#endif
+		) {
+			sec->param.encrypt_key.key_flags |=
+				KEY_FLAG_AES_MCAST_IGTK;
+
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+			if (cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128)
+				sec->param.encrypt_key.key_flags |=
+					KEY_FLAG_GMAC_128;
+			else if (cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256)
+				sec->param.encrypt_key.key_flags |=
+					KEY_FLAG_GMAC_256;
+#endif
+		}
+	} else {
+		req->action = MLAN_ACT_CLEAR;
+		sec->param.encrypt_key.key_len = MLAN_MAX_KEY_LENGTH;
+		sec->param.encrypt_key.key_index = MLAN_KEY_INDEX_UNICAST;
+		sec->param.encrypt_key.key_flags = KEY_FLAG_REMOVE_KEY;
+		moal_memcpy_ext(priv->phandle, sec->param.encrypt_key.mac_addr,
+				(u8 *)peer_addr, ETH_ALEN,
+				MLAN_MAC_ADDR_LENGTH);
+		memset(sec->param.encrypt_key.key_material, 0,
+		       sizeof(sec->param.encrypt_key.key_material));
+	}
+	/* Send IOCTL request to MLAN */
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+/**
+ * @brief vendor command to
  *
  * @param wiphy         A pointer to wiphy struct
  * @param wdev          A pointer to wireless_dev struct
@@ -4028,6 +4171,235 @@ static int woal_cfg80211_subcmd_set_scan_band(struct wiphy *wiphy,
 	PRINTM(MMSG,
 	       "woal_cfg80211_subcmd_set_scan_band: scan_setband_mask :%d",
 	       priv->scan_setband_mask);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to start keep alive
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  fail otherwise
+ */
+static int woal_cfg80211_subcmd_start_keep_alive(struct wiphy *wiphy,
+						 struct wireless_dev *wdev,
+						 const void *data, int len)
+{
+	moal_private *priv;
+	struct net_device *dev;
+	int ret = MLAN_STATUS_SUCCESS;
+	int type, rem;
+	t_u8 mkeep_alive_id = 0;
+	t_u16 ether_type = 0;
+	t_u8 *ip_pkt = NULL;
+	t_u16 ip_pkt_len = 0;
+	t_u8 src_mac[ETH_ALEN];
+	t_u8 dst_mac[ETH_ALEN];
+	t_u32 period_msec = 0;
+	t_u32 retry_interval = 0;
+	t_u8 retry_cnt = 0;
+	const struct nlattr *iter;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (!priv) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	nla_for_each_attr (iter, data, len, rem) {
+		type = nla_type(iter);
+		switch (type) {
+		case MKEEP_ALIVE_ATTRIBUTE_ID:
+			mkeep_alive_id = nla_get_u8(iter);
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE:
+			ether_type = nla_get_u16(iter);
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN:
+			ip_pkt_len = nla_get_u16(iter);
+			if (ip_pkt_len > MKEEP_ALIVE_IP_PKT_MAX) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_IP_PKT:
+			if (ip_pkt_len) {
+				if (ip_pkt) {
+					kfree(ip_pkt);
+					ip_pkt = NULL;
+				}
+				ip_pkt = (u8 *)kzalloc(ip_pkt_len, GFP_ATOMIC);
+				if (ip_pkt == NULL) {
+					ret = -ENOMEM;
+					PRINTM(MERROR,
+					       "Failed to allocate mem for ip packet\n");
+					goto exit;
+				}
+				moal_memcpy_ext(priv->phandle, ip_pkt,
+						(u8 *)nla_data(iter),
+						nla_len(iter), ip_pkt_len);
+			}
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR:
+			moal_memcpy_ext(priv->phandle, src_mac, nla_data(iter),
+					nla_len(iter), ETH_ALEN);
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR:
+			moal_memcpy_ext(priv->phandle, dst_mac, nla_data(iter),
+					nla_len(iter), ETH_ALEN);
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC:
+			period_msec = nla_get_u32(iter);
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_RETRY_INTERVAL:
+			retry_interval = nla_get_u32(iter);
+			break;
+		case MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT:
+			retry_cnt = nla_get_u8(iter);
+			break;
+		default:
+			PRINTM(MERROR, "Unknown type: %d\n", type);
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+
+	ret = woal_priv_save_cloud_keep_alive_params(
+		priv, mkeep_alive_id, true, ether_type, ip_pkt, ip_pkt_len,
+		src_mac, dst_mac, period_msec, retry_interval, retry_cnt);
+	if (ret < 0)
+		PRINTM(MERROR, "start_mkeep_alive is failed ret: %d\n", ret);
+
+exit:
+	if (ip_pkt)
+		kfree(ip_pkt);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to stop keep alive
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  fail otherwise
+ */
+static int woal_cfg80211_subcmd_stop_keep_alive(struct wiphy *wiphy,
+						struct wireless_dev *wdev,
+						const void *data, int len)
+{
+	moal_private *priv;
+	struct net_device *dev;
+	int ret = MLAN_STATUS_SUCCESS;
+	int type, rem;
+	t_u8 mkeep_alive_id = 0;
+	const struct nlattr *iter;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (!priv) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	nla_for_each_attr (iter, data, len, rem) {
+		type = nla_type(iter);
+		switch (type) {
+		case MKEEP_ALIVE_ATTRIBUTE_ID:
+			mkeep_alive_id = nla_get_u8(iter);
+			break;
+		default:
+			PRINTM(MERROR, "Unknown type: %d\n", type);
+			ret = -EINVAL;
+			break;
+		}
+	}
+
+	ret = woal_stop_mkeep_alive(priv, mkeep_alive_id, 0, NULL, NULL);
+	if (ret < 0)
+		PRINTM(MERROR, "stop_mkeep_alive is failed ret: %d\n", ret);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Upload last keep alive packet to Host through vendor
+ event
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param mkeep_alive   Pointer to mlan_ds_misc_keep_alive structure
+
+ * @return      0: success  fail otherwise
+ */
+int woal_mkeep_alive_vendor_event(moal_private *priv,
+				  mlan_ds_misc_keep_alive *mkeep_alive)
+{
+	struct wiphy *wiphy = priv->wdev->wiphy;
+	struct sk_buff *skb = NULL;
+	int ret = MLAN_STATUS_SUCCESS;
+	int event_id = 0;
+	t_u16 len = 0;
+
+	ENTER();
+
+	event_id = woal_get_event_id(event_cloud_keep_alive);
+	if (event_max == event_id) {
+		PRINTM(MERROR, "Not find this event %d\n", event_id);
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	if (!mkeep_alive) {
+		PRINTM(MERROR, "Parameter is NULL\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	len = mkeep_alive->pkt_len;
+
+	/**allocate skb*/
+#if KERNEL_VERSION(4, 1, 0) <= CFG80211_VERSION_CODE
+	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, len + 50,
+#else
+	skb = cfg80211_vendor_event_alloc(wiphy, len + 50,
+#endif
+					  event_id, GFP_ATOMIC);
+
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor event\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	nla_put(skb, MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN, sizeof(t_u16), &len);
+	nla_put(skb, MKEEP_ALIVE_ATTRIBUTE_IP_PKT, len, mkeep_alive->packet);
+
+	/**send event*/
+	cfg80211_vendor_event(skb, GFP_ATOMIC);
 
 done:
 	LEAVE();
@@ -4236,9 +4608,9 @@ static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 	}
 	if (nla_len(tb[ATTR_RTT_TARGET_CONFIG]) !=
 	    sizeof(rtt_params.rtt_config[0]) * rtt_config_num) {
-		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %lu(each)\n",
+		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %u(each)\n",
 		       __func__, nla_len(tb[ATTR_RTT_TARGET_CONFIG]),
-		       rtt_config_num, sizeof(rtt_params.rtt_config[0]));
+		       rtt_config_num, (t_u32)sizeof(rtt_params.rtt_config[0]));
 		err = -EINVAL;
 		goto done;
 	}
@@ -4318,7 +4690,7 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	t_u8 rtt_config_num = handle->rtt_params.rtt_config_num;
 	struct nlattr *tb[ATTR_RTT_MAX + 1];
 	t_u32 target_num = 0;
-	t_u8 addr[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH];
+	t_u8 addr[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH] = {0x00};
 	int i = 0, j = 0;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int err = 0;
@@ -4351,9 +4723,9 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	if ((target_num <= 0 || target_num > MAX_RTT_CONFIG_NUM) ||
 	    (nla_len(tb[ATTR_RTT_TARGET_ADDR]) !=
 	     sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH * target_num)) {
-		PRINTM(MERROR, "%s: Check if %din[1-%d] or %d*%lu=%d\n",
+		PRINTM(MERROR, "%s: Check if %din[1-%d] or %d*%u=%d\n",
 		       __func__, target_num, MAX_RTT_CONFIG_NUM, target_num,
-		       sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH,
+		       (t_u32)(sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH),
 		       nla_len(tb[ATTR_RTT_TARGET_ADDR]));
 		err = -EINVAL;
 		goto done;
@@ -4457,7 +4829,7 @@ mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
 
 	complete = *pos;
 	nla_put(skb, ATTR_RTT_RESULT_COMPLETE, sizeof(complete), &complete);
-	pos++;
+	pos = (t_u8 *)(pos + 1);
 	event_left_len--;
 
 	while (event_left_len > sizeof(wifi_rtt_result_element)) {
@@ -5144,11 +5516,13 @@ static mlan_status woal_save_csi_dump_to_file(char *dir_name, char *file_name,
 					      t_u8 format, char *name)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+#ifndef DUMP_TO_PROC
 	struct file *pfile = NULL;
 	loff_t pos;
 	char dw_string[10];
 	int i = 0;
 	t_u32 *tmp = NULL;
+#endif
 	ENTER();
 
 	if (!dir_name || !file_name || !buf) {
@@ -5156,14 +5530,15 @@ static mlan_status woal_save_csi_dump_to_file(char *dir_name, char *file_name,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	sprintf(name, "%s/%s", dir_name, file_name);
+#ifndef DUMP_TO_PROC
+	snprintf(name, MAX_BUF_LEN, "%s/%s", dir_name, file_name);
 	pfile = filp_open(name, O_CREAT | O_RDWR | O_APPEND, 0644);
 
 	if (IS_ERR(pfile)) {
 		PRINTM(MMSG,
 		       "Create file %s error, try to save dump file in /var\n",
 		       name);
-		sprintf(name, "%s/%s", "/var", file_name);
+		snprintf(name, MAX_BUF_LEN, "%s/%s", "/var", file_name);
 		pfile = filp_open(name, O_CREAT | O_RDWR | O_APPEND, 0644);
 	}
 	if (IS_ERR(pfile)) {
@@ -5203,6 +5578,7 @@ static mlan_status woal_save_csi_dump_to_file(char *dir_name, char *file_name,
 	filp_close(pfile, NULL);
 
 	PRINTM(MMSG, "Dump data saved in %s successfully\n", name);
+#endif
 done:
 	LEAVE();
 	return ret;
@@ -5227,11 +5603,11 @@ mlan_status woal_cfg80211_event_csi_dump(moal_private *priv, t_u8 *data,
 	ENTER();
 
 	DBG_HEXDUMP(MCMD_D, "CSI dump data", data, len);
-	sprintf(path_name, "/data");
+	snprintf(path_name, sizeof(path_name), "/data");
 	if (priv->csi_dump_format == 1)
-		sprintf(file_name, "csi_dump.bin");
+		snprintf(file_name, sizeof(file_name), "csi_dump.bin");
 	else
-		sprintf(file_name, "csi_dump.txt");
+		snprintf(file_name, sizeof(file_name), "csi_dump.txt");
 	priv->csi_dump_len += len;
 	if (priv->csi_dump_len > CSI_DUMP_FILE_MAX) {
 		PRINTM(MERROR,
@@ -5303,6 +5679,19 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = woal_attr_policy,
 		.maxattr = ATTR_WIFI_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_secure_ranging_ctx,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_secure_ranging_ctx,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_secure_ranging_ctx_policy,
+		.maxattr = MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX,
 #endif
 	},
 	{
@@ -5411,6 +5800,31 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 	{
 		.info = {
 				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_start_keep_alive,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_start_keep_alive,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_keep_alive_policy,
+		.maxattr = MKEEP_ALIVE_ATTRIBUTE_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_stop_keep_alive,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_stop_keep_alive,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
 				.subcmd = sub_cmd_dfs_capability,
 			},
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
@@ -5421,18 +5835,6 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 #endif
 	},
 
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_get_correlated_time,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_get_correlated_time,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
-#endif
-	},
 
 	{
 		.info = {
