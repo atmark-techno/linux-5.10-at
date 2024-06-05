@@ -704,8 +704,6 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 		}
 		seq_printf(sfp, "\n");
 	}
-	seq_printf(sfp, "ps_mode=%d\n", (int)handle->params.ps_mode);
-	seq_printf(sfp, "auto_ds=%d\n", (int)handle->params.auto_ds);
 	MODULE_PUT;
 	LEAVE();
 	return 0;
