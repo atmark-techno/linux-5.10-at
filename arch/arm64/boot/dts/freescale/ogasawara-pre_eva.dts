@@ -147,7 +147,7 @@
 &lpuart4 {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_lpuart4>;
-	pinctrl-1 = <&pinctrl_lpuart4>;
+	pinctrl-1 = <&pinctrl_lpuart4sleep>;
 	status = "okay";
 };
 
@@ -209,6 +209,15 @@
 			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x3
 			MX8ULP_PAD_PTF10__LPUART4_TX	0x3
 			MX8ULP_PAD_PTF11__LPUART4_RX	0x3
+		>;
+	};
+
+	pinctrl_lpuart4sleep: lpuart4sleepgrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF8__LPUART4_CTS_B	0x0
+			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x0
+			MX8ULP_PAD_PTF10__LPUART4_TX	0x0
+			MX8ULP_PAD_PTF11__LPUART4_RX	0x0
 		>;
 	};
 };
