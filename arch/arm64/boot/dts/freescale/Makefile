@@ -118,6 +118,7 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-imx219.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-ox01f10.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-thcv24xa-ox01f10.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-lte-ext-board.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-high-g0-es-ext-board.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-aw-xm458.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-customize.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-rpmsg.dtbo

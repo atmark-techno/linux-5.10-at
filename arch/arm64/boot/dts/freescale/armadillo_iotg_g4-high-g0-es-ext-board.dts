@@ -1,0 +1,250 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#include "imx8mp-pinfunc.h"
+
+&{/} {
+	reg_can1_stby: regulator-can1-stby {
+		compatible = "regulator-fixed";
+		regulator-name = "can1-stby";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pca9534 5 GPIO_ACTIVE_LOW>;
+	};
+
+	reg_can2_stby: regulator-can2-stby {
+		compatible = "regulator-fixed";
+		regulator-name = "can2-stby";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pca9534 6 GPIO_ACTIVE_LOW>;
+	};
+
+	reg_ec25_vbat: regulator-ec25-vbat {
+		compatible = "regulator-fixed";
+		regulator-name = "ec25_vbat";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ec25_vbat>;
+		regulator-min-microvolt = <3800000>;
+		regulator-max-microvolt = <3800000>;
+		gpio = <&gpio5 1 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		off-on-delay = <100000>;
+		startup-delay-us = <500>;
+	};
+
+	ec25_reset: ec25-reset {
+		compatible = "ec25-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ec25_reset>;
+		pwrkey-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio3 20 GPIO_ACTIVE_HIGH>;
+		status-gpios = <&gpio5 2 GPIO_ACTIVE_HIGH>;
+		/*
+		 * The vbus logic is different of
+		 * armadillo_iotg_g4-lte-ext-board. Do not add the
+		 * 'vbus-active-low' property.
+		 */
+		vbus-gpios = <&gpio3 19 GPIO_ACTIVE_HIGH>;
+		vbat-supply = <&reg_ec25_vbat>;
+	};
+
+	gpio_keys_ec25: gpio-keys-ec25 {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_keys_ec25>;
+
+		ec25-ri {
+			label = "EC25-RI";
+			gpios = <&gpio5 0 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_PROG2>;
+			gpio-key,wakeup;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_leds>;
+
+		led1 {
+			label = "led1";
+			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led2 {
+			label = "led2";
+			gpios = <&gpio5 9 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+};
+
+&flexcan1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan1>;
+	xceiver-supply = <&reg_can1_stby>;
+	status = "okay";
+};
+
+&flexcan2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan2>;
+	xceiver-supply = <&reg_can2_stby>;
+	status = "okay";
+};
+
+&i2c4 {
+	clock-frequency = <384000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c4>;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	pca9534: gpio@20 {
+		compatible = "nxp,pca9534";
+		reg = <0x20>;
+		gpio-controller;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_pca9534>;
+		interrupt-parent = <&gpio4>;
+		interrupts = <31 IRQ_TYPE_EDGE_FALLING>;
+		#gpio-cells = <2>;
+		wakeup-source;
+
+		adc-5v-en-hog {
+			gpio-hog;
+			gpios = <4 GPIO_ACTIVE_HIGH>;
+			output-high;
+			line-name = "ADC_5V_EN";
+		};
+	};
+
+	ads1015_0: adc@48 {
+		compatible = "ti,ads1015";
+		reg = <0x48>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ads1015_0>;
+		interrupts-extended = <&gpio3 21 IRQ_TYPE_LEVEL_LOW>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		channel@4 {
+			reg = <4>;
+			ti,gain = <0>; /* +/- 6.144 V */
+			ti,datarate = <6>; /* 3300 SPS */
+		};
+	};
+
+	ads1015_1: adc@49 {
+		compatible = "ti,ads1015";
+		reg = <0x49>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ads1015_1>;
+		interrupts-extended = <&gpio4 30 IRQ_TYPE_LEVEL_LOW>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		channel@4 {
+			reg = <4>;
+			ti,gain = <0>;
+			ti,datarate = <6>;
+		};
+	};
+};
+
+&uart4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart4>;
+	status = "okay";
+};
+
+&iomuxc {
+	pinctrl_flexcan1: flexcan1grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI5_RXD1__CAN1_TX		0x154 /* CON11_21 */
+			MX8MP_IOMUXC_SAI5_RXD2__CAN1_RX		0x154 /* CON11_23 */
+		>;
+	};
+
+	pinctrl_flexcan2: flexcan2grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI5_RXD3__CAN2_TX		0x154 /* CON11_25 */
+			MX8MP_IOMUXC_SAI5_MCLK__CAN2_RX		0x154 /* CON11_27 */
+		>;
+	};
+
+	pinctrl_i2c4: i2c4grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_I2C4_SCL__I2C4_SCL		0x400000e2 /* CON11_5 */
+			MX8MP_IOMUXC_I2C4_SDA__I2C4_SDA		0x400000e2 /* CON11_7 */
+		>;
+	};
+
+	pinctrl_pca9534: pca9534grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_TXFS__GPIO4_IO31	0x140 /* CON11_14 */
+		>;
+	};
+
+	pinctrl_ads1015_0: ads1015_0grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI5_RXD0__GPIO3_IO21	0x140 /* CON11_19 */
+		>;
+	};
+
+	pinctrl_ads1015_1: ads1015_1grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_RXD__GPIO4_IO30	0x140 /* CON11_20 */
+		>;
+	};
+
+	pinctrl_uart4: uart4grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_ECSPI2_MISO__UART4_DCE_CTS	0x140 /* CON11_9 */
+			MX8MP_IOMUXC_ECSPI2_MOSI__UART4_DCE_TX	0x140 /* CON11_11 */
+			MX8MP_IOMUXC_ECSPI2_SCLK__UART4_DCE_RX	0x140 /* CON11_13 */
+			MX8MP_IOMUXC_ECSPI2_SS0__UART4_DCE_RTS	0x140 /* CON11_15 */
+		>;
+	};
+
+	pinctrl_ec25_vbat: ec25_vbat_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_TXD__GPIO5_IO01	0x40000000 /* CON11_18 */
+		>;
+	};
+
+	pinctrl_ec25_reset: ec25_reset_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_GPIO1_IO15__GPIO1_IO15	0x40000000 /* CON11_24 pwerkey */
+			MX8MP_IOMUXC_SAI5_RXC__GPIO3_IO20	0x40000000 /* CON11_17 reset */
+			MX8MP_IOMUXC_SAI3_MCLK__GPIO5_IO02	0x140	   /* CON11_22 status */
+			MX8MP_IOMUXC_SAI5_RXFS__GPIO3_IO19	0x40000000 /* CON11_29 vbus */
+		>;
+	};
+
+	pinctrl_gpio_keys_ec25: gpio_keys_ec25 {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_TXC__GPIO5_IO00	0x400001c0 /* CON11_16 */
+		>;
+	};
+
+	pinctrl_gpio_leds: gpio_ledsgrp {
+		fsl,pins = <
+			MX8MP_IOMUXC_ECSPI1_SCLK__GPIO5_IO06	0x152 /* CON11_10 NET_LED1 */
+			MX8MP_IOMUXC_ECSPI1_SS0__GPIO5_IO09	0x152 /* CON11_12 NET_LED2 */
+		>;
+	};
+};
