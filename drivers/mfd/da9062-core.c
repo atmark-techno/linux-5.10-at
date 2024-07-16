@@ -588,13 +588,6 @@ static struct regmap_config da9062_regmap_config = {
 	.volatile_table = &da9062_aa_volatile_table,
 };
 
-static const struct of_device_id da9062_dt_ids[] = {
-	{ .compatible = "dlg,da9061", .data = (void *)COMPAT_TYPE_DA9061, },
-	{ .compatible = "dlg,da9062", .data = (void *)COMPAT_TYPE_DA9062, },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, da9062_dt_ids);
-
 static int da9062_i2c_probe(struct i2c_client *i2c,
 	const struct i2c_device_id *id)
 {
@@ -611,10 +604,7 @@ static int da9062_i2c_probe(struct i2c_client *i2c,
 	if (!chip)
 		return -ENOMEM;
 
-	if (i2c->dev.of_node)
-		chip->chip_type = (uintptr_t)of_device_get_match_data(&i2c->dev);
-	else
-		chip->chip_type = id->driver_data;
+	chip->chip_type = (uintptr_t)i2c_get_match_data(i2c);
 
 	i2c_set_clientdata(i2c, chip);
 	chip->dev = &i2c->dev;
@@ -716,10 +706,17 @@ static int da9062_i2c_remove(struct i2c_client *i2c)
 	return 0;
 }
 
+static const struct of_device_id da9062_dt_ids[] = {
+	{ .compatible = "dlg,da9061", .data = (void *)COMPAT_TYPE_DA9061 },
+	{ .compatible = "dlg,da9062", .data = (void *)COMPAT_TYPE_DA9062 },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, da9062_dt_ids);
+
 static const struct i2c_device_id da9062_i2c_id[] = {
 	{ "da9061", COMPAT_TYPE_DA9061 },
 	{ "da9062", COMPAT_TYPE_DA9062 },
-	{ },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, da9062_i2c_id);
 
