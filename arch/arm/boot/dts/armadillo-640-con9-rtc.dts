@@ -13,6 +13,9 @@
 &{/} {
 	aliases {
 		rtc0 = &rtc_nr3225sa;
+		// we can't link to external nodes in dtbo,
+		// hardcode path to &snvs_rtc
+		rtc1 = "/soc/bus@2000000/snvs@20cc000/snvs-rtc-lp";
 	};
 
 	i2c-gpio1 {
