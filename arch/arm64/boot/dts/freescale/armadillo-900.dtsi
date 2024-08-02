@@ -62,7 +62,6 @@
 
 	leds {
 		compatible = "gpio-leds";
-		pinctrl-names = "default";
 
 		enet_led {
 			label = "enet_led";

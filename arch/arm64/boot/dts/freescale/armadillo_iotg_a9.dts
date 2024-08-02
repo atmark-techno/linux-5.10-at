@@ -34,7 +34,6 @@
 //led
 	leds {
 		compatible = "gpio-leds";
-		pinctrl-names = "default";
 
 		c5_led {
 			label = "c5_led";
