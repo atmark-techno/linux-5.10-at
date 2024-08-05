@@ -112,7 +112,6 @@
 	pinctrl-2 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
 	pinctrl-3 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
 	cd-gpios = <&gpiof 28 GPIO_ACTIVE_LOW>;
-	max-frequency = <25000000>;
 	vmmc-supply = <&reg_usdhc2_vmmc>;
 	bus-width = <4>;
 	status = "okay";
