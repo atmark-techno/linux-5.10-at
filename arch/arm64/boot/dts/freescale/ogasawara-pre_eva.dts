@@ -84,6 +84,22 @@
 		regulator-always-on;
 	};
 
+	spi_gpio: spi_gpio {
+		compatible = "spi-gpio";
+		num-chipselects = <1>;
+		miso-gpios = <&rpmsg_gpioc 0 0>;
+		mosi-gpios = <&rpmsg_gpioc 1 0>;
+		sck-gpios = <&rpmsg_gpioc 2 0>;
+		cs-gpios = <&rpmsg_gpioc 3 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spidev1_0: spi@0 {
+			reg = <0>;
+			compatible = "rohm,dh2228fv";
+			spi-max-frequency = <1000000>;
+		};
+	};
+
 };
 
 &gpioc_iomuxc {
