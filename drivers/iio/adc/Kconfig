@@ -1236,4 +1236,9 @@ config XILINX_XADC
 	  The driver can also be build as a module. If so, the module will be called
 	  xilinx-xadc.
 
+config IMX_RPMSG_ADC
+	tristate "ADC for i.MX boards over rpmsg"
+	depends on RPMSG
+	help
+	  There should be rpmsg devices defined in other core (M core)
 endmenu
