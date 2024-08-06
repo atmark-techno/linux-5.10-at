@@ -279,6 +279,7 @@ static void usb251xb_reset(struct usb251xb *hub)
 
 	/* wait for hub recovery/stabilization */
 	usleep_range(500, 750);	/* >=500us after RESET_N deasserted */
+	msleep(50);
 
 	i2c_unlock_bus(hub->i2c->adapter, I2C_LOCK_SEGMENT);
 }
