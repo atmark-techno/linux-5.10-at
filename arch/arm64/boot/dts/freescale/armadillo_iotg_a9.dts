@@ -131,6 +131,19 @@
 	status = "okay";
 };
 
+&usbotg2 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usbphy2 {
+	status = "okay";
+};
+
+&usbmisc2 {
+	status = "okay";
+};
+
 // USB hub
 &i2c_rpbus_1 {
 	#address-cells = <1>;
