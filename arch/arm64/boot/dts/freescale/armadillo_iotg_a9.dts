@@ -150,10 +150,11 @@
 	#size-cells = <0>;
 	status = "okay";
 
-	usb2422@2c {
+	usb2422_usbhub: usb2422@2c {
 		compatible = "microchip,usb2422";
 		reg = <0x2c>;
 		reset-gpios = <&rpmsg_gpioa 19 GPIO_ACTIVE_LOW>;
+		skip-config;
 	};
 };
 
@@ -212,20 +213,6 @@
 		btnxpuart,required-netdev = "mlan0";
 	};
 };
-
-//USB Hub
-&i2c_rpbus_1 {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	status = "okay";
-
-	usb2422@2c {
-		compatible = "microchip,usb2422";
-		reg = <0x2c>;
-		reset-gpios = <&rpmsg_gpioa 19 GPIO_ACTIVE_LOW>;
-	};
-};
-
 
 &iomuxc1 {
 //gpio
