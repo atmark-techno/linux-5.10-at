@@ -510,6 +510,13 @@ static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
 	return platform_driver_register(&imx_rpmsg_gpio_driver);
 }
 
+static void gpio_rpmsg_remove(struct rpmsg_device *rpdev)
+{
+	dev_info(&rpdev->dev, "gpio channel removed\n");
+	platform_driver_unregister(&imx_rpmsg_gpio_driver);
+	gpio_rpmsg.rpdev = NULL;
+}
+
 static struct rpmsg_device_id gpio_rpmsg_id_table[] = {
 	{ .name = "rpmsg-io-channel" },
 	{},
@@ -521,6 +528,7 @@ static struct rpmsg_driver gpio_rpmsg_driver = {
 	.id_table	= gpio_rpmsg_id_table,
 	.probe		= gpio_rpmsg_probe,
 	.callback	= gpio_rpmsg_cb,
+	.remove		= gpio_rpmsg_remove,
 };
 
 
