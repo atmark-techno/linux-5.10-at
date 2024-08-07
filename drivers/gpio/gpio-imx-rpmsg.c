@@ -25,7 +25,6 @@
 #include <linux/pm_qos.h>
 #include <linux/rpmsg.h>
 #include <linux/virtio.h>
-#include <linux/workqueue.h>
 
 #define RPMSG_TIMEOUT	1000
 #define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	10
@@ -64,7 +63,7 @@ struct gpio_rpmsg_data {
 		u8 wakeup;
 		u8 value;
 	} in;
-} __packed __aligned(8);
+} __packed __aligned(1);
 
 struct imx_rpmsg_gpio_pin {
 	u8 irq_shutdown;
@@ -72,7 +71,6 @@ struct imx_rpmsg_gpio_pin {
 	u8 irq_mask;
 	u32 irq_wake_enable;
 	u32 irq_type;
-	struct gpio_rpmsg_data msg;
 };
 
 struct imx_rpmsg_gpio_port {
@@ -98,7 +96,7 @@ static struct imx_gpio_rpmsg_info gpio_rpmsg;
 static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 			     struct gpio_rpmsg_data *msg,
 			     struct imx_gpio_rpmsg_info *info,
-			     bool sync)
+			     u8 *value)
 {
 	int err;
 
@@ -121,7 +119,7 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 		goto err_out;
 	}
 
-	if (sync) {
+	if (value) {
 		err = wait_for_completion_timeout(&info->cmd_complete,
 					msecs_to_jiffies(RPMSG_TIMEOUT));
 		if (!err) {
@@ -144,9 +142,8 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 			goto err_out;
 		}
 
-		/* copy the reply message */
-		memcpy(&port->gpio_pins[info->reply_msg->pin_idx].msg,
-		       info->reply_msg, sizeof(*info->reply_msg));
+		/* copy the reply value */
+		*value = info->reply_msg->in.value;
 
 		err = 0;
 	}
@@ -182,20 +179,12 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 	return 0;
 }
 
-static struct gpio_rpmsg_data *gpio_get_pin_msg(struct imx_rpmsg_gpio_port *port, unsigned int offset)
-{
-	struct gpio_rpmsg_data *msg = &port->gpio_pins[offset].msg;
-
-	memset(msg, 0, sizeof(struct gpio_rpmsg_data));
-
-	return msg;
-};
-
 static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 {
 	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-	struct gpio_rpmsg_data *msg = NULL;
+	struct gpio_rpmsg_data msg = { 0 };
 	int ret;
+	u8 value;
 
 	if (gpio >= port->gc.ngpio) {
 		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
@@ -205,18 +194,17 @@ static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	msg = gpio_get_pin_msg(port, gpio);
-	msg->header.cate = IMX_RPMSG_GPIO;
-	msg->header.major = IMX_RMPSG_MAJOR;
-	msg->header.minor = IMX_RMPSG_MINOR;
-	msg->header.type = GPIO_RPMSG_SETUP;
-	msg->header.cmd = GPIO_RPMSG_INPUT_GET;
-	msg->pin_idx = gpio;
-	msg->port_idx = port->idx;
+	msg.header.cate = IMX_RPMSG_GPIO;
+	msg.header.major = IMX_RMPSG_MAJOR;
+	msg.header.minor = IMX_RMPSG_MINOR;
+	msg.header.type = GPIO_RPMSG_SETUP;
+	msg.header.cmd = GPIO_RPMSG_INPUT_GET;
+	msg.pin_idx = gpio;
+	msg.port_idx = port->idx;
 
-	ret = gpio_send_message(port, msg, &gpio_rpmsg, true);
+	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &value);
 	if (!ret)
-		ret = !!port->gpio_pins[gpio].msg.in.value;
+		ret = !!value;
 
 	mutex_unlock(&gpio_rpmsg.lock);
 
@@ -227,8 +215,9 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 					  unsigned int gpio)
 {
 	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-	struct gpio_rpmsg_data *msg = NULL;
+	struct gpio_rpmsg_data msg = { 0 };
 	int ret;
+	u8 wait;
 
 	if (gpio >= port->gc.ngpio) {
 		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
@@ -238,19 +227,18 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	msg = gpio_get_pin_msg(port, gpio);
-	msg->header.cate = IMX_RPMSG_GPIO;
-	msg->header.major = IMX_RMPSG_MAJOR;
-	msg->header.minor = IMX_RMPSG_MINOR;
-	msg->header.type = GPIO_RPMSG_SETUP;
-	msg->header.cmd = GPIO_RPMSG_INPUT_INIT;
-	msg->pin_idx = gpio;
-	msg->port_idx = port->idx;
+	msg.header.cate = IMX_RPMSG_GPIO;
+	msg.header.major = IMX_RMPSG_MAJOR;
+	msg.header.minor = IMX_RMPSG_MINOR;
+	msg.header.type = GPIO_RPMSG_SETUP;
+	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
+	msg.pin_idx = gpio;
+	msg.port_idx = port->idx;
 
-	msg->out.event = GPIO_RPMSG_TRI_IGNORE;
-	msg->in.wakeup = 0;
+	msg.out.event = GPIO_RPMSG_TRI_IGNORE;
+	msg.in.wakeup = 0;
 
-	ret = gpio_send_message(port, msg, &gpio_rpmsg, true);
+	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
 	mutex_unlock(&gpio_rpmsg.lock);
 
@@ -275,7 +263,8 @@ static inline void imx_rpmsg_gpio_direction_output_init(struct gpio_chip *gc,
 static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 {
 	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-	struct gpio_rpmsg_data *msg = NULL;
+	struct gpio_rpmsg_data msg = { 0 };
+	u8 wait;
 
 	if (gpio >= port->gc.ngpio) {
 		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
@@ -285,9 +274,8 @@ static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	msg = gpio_get_pin_msg(port, gpio);
-	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, msg);
-	gpio_send_message(port, msg, &gpio_rpmsg, true);
+	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, &msg);
+	gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
 	mutex_unlock(&gpio_rpmsg.lock);
 }
@@ -296,8 +284,9 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 					unsigned int gpio, int val)
 {
 	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-	struct gpio_rpmsg_data *msg = NULL;
+	struct gpio_rpmsg_data msg = { 0 };
 	int ret;
+	u8 wait;
 
 	if (gpio >= port->gc.ngpio) {
 		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
@@ -307,9 +296,8 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	msg = gpio_get_pin_msg(port, gpio);
-	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, msg);
-	ret = gpio_send_message(port, msg, &gpio_rpmsg, true);
+	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, &msg);
+	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
 	mutex_unlock(&gpio_rpmsg.lock);
 
@@ -429,7 +417,7 @@ static void imx_rpmsg_irq_bus_lock(struct irq_data *d)
 static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 {
 	struct imx_rpmsg_gpio_port *port = irq_data_get_irq_chip_data(d);
-	struct gpio_rpmsg_data *msg = NULL;
+	struct gpio_rpmsg_data msg = { 0 };
 	u32 gpio_idx = d->hwirq;
 
 	if (port == NULL) {
@@ -458,32 +446,31 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 		return;
 	}
 
-	msg = gpio_get_pin_msg(port, gpio_idx);
-	msg->header.cate = IMX_RPMSG_GPIO;
-	msg->header.major = IMX_RMPSG_MAJOR;
-	msg->header.minor = IMX_RMPSG_MINOR;
-	msg->header.type = GPIO_RPMSG_SETUP;
-	msg->header.cmd = GPIO_RPMSG_INPUT_INIT;
-	msg->pin_idx = gpio_idx;
-	msg->port_idx = port->idx;
+	msg.header.cate = IMX_RPMSG_GPIO;
+	msg.header.major = IMX_RMPSG_MAJOR;
+	msg.header.minor = IMX_RMPSG_MINOR;
+	msg.header.type = GPIO_RPMSG_SETUP;
+	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
+	msg.pin_idx = gpio_idx;
+	msg.port_idx = port->idx;
 
 	if (port->gpio_pins[gpio_idx].irq_shutdown) {
-		msg->out.event = GPIO_RPMSG_TRI_IGNORE;
-		msg->in.wakeup = 0;
+		msg.out.event = GPIO_RPMSG_TRI_IGNORE;
+		msg.in.wakeup = 0;
 		port->gpio_pins[gpio_idx].irq_shutdown = 0;
 	} else {
 		 /* if not set irq type, then use low level as trigger type */
-		msg->out.event = port->gpio_pins[gpio_idx].irq_type;
-		if (!msg->out.event)
-			msg->out.event = GPIO_RPMSG_TRI_LOW_LEVEL;
+		msg.out.event = port->gpio_pins[gpio_idx].irq_type;
+		if (!msg.out.event)
+			msg.out.event = GPIO_RPMSG_TRI_LOW_LEVEL;
 		if (port->gpio_pins[gpio_idx].irq_unmask) {
-			msg->in.wakeup = 0;
+			msg.in.wakeup = 0;
 			port->gpio_pins[gpio_idx].irq_unmask = 0;
 		} else /* irq set wake */
-			msg->in.wakeup = port->gpio_pins[gpio_idx].irq_wake_enable;
+			msg.in.wakeup = port->gpio_pins[gpio_idx].irq_wake_enable;
 	}
 
-	gpio_send_message(port, msg, &gpio_rpmsg, false);
+	gpio_send_message(port, &msg, &gpio_rpmsg, NULL);
 	mutex_unlock(&gpio_rpmsg.lock);
 }
 
