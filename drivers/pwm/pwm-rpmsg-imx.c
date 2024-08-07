@@ -77,7 +77,6 @@
 
 #define PWM_RPMSG_TIMEOUT_MS			500
 
-#define PWM_RPMSG_CATEGORY			0x0a
 #define PWM_RPMSG_VERSION			0x0001
 #define PWM_RPMSG_TYPE_REQUEST			0x00
 #define PWM_RPMSG_TYPE_RESPONSE			0x01
@@ -204,7 +203,7 @@ static int pwm_rpsmg_get(struct pwm_rpmsg_info *info, struct pwm_state *state)
 		return -EINVAL;
 
 	memset(&rmsg, 0, sizeof(struct pwm_rpmsg_msg));
-	rmsg.header.cate = PWM_RPMSG_CATEGORY;
+	rmsg.header.cate = IMX_RPMSG_PWM;
 	rmsg.header.major = PWM_RPMSG_VERSION;
 	rmsg.header.minor = PWM_RPMSG_VERSION >> 8;
 	rmsg.header.type = PWM_RPMSG_TYPE_REQUEST;
@@ -240,7 +239,7 @@ static int pwm_rpsmg_set(struct pwm_rpmsg_info *info, const struct pwm_state *st
 		return -EINVAL;
 
 	memset(&rmsg, 0, sizeof(struct pwm_rpmsg_msg));
-	rmsg.header.cate = PWM_RPMSG_CATEGORY;
+	rmsg.header.cate = IMX_RPMSG_PWM;
 	rmsg.header.major = PWM_RPMSG_VERSION;
 	rmsg.header.minor = PWM_RPMSG_VERSION >> 8;
 	rmsg.header.type = PWM_RPMSG_TYPE_REQUEST;

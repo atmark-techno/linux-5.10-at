@@ -66,7 +66,6 @@
 
 #define ADC_RPMSG_TIMEOUT_MS                    500
 
-#define ADC_RPMSG_CATEGORY                      0x0b
 #define ADC_RPMSG_VERSION                       0x0001
 #define ADC_RPMSG_TYPE_REQUEST                  0x00
 #define ADC_RPMSG_TYPE_RESPONSE                 0x01 // SRTM_MessageTypeResponse
@@ -124,7 +123,7 @@ static int rpmsg_send_and_wait(struct imx_rpmsg *adc, struct adc_rpmsg_msg *msg)
 
 	adc->request_id++;
 	msg->request_id = adc->request_id;
-	msg->header.cate = ADC_RPMSG_CATEGORY;
+	msg->header.cate = IMX_RPMSG_ADC;
 	msg->header.major = ADC_RPMSG_VERSION;
 	msg->header.minor = ADC_RPMSG_VERSION >> 8;
 	msg->header.type = ADC_RPMSG_TYPE_REQUEST;
