@@ -25,6 +25,9 @@
 #define IMX_RPMSG_GPIO		5
 #define IMX_RPMSG_RTC		6
 #define IMX_RPMSG_SENSOR	7
+#define IMX_RPMSG_I2C		9
+#define IMX_RPMSG_PWM		0xa
+#define IMX_RPMSG_ADC		0xb
 /* rpmsg version */
 #define IMX_RMPSG_MAJOR		1
 #define IMX_RMPSG_MINOR		0

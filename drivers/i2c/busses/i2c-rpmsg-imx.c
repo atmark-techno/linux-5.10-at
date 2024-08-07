@@ -81,7 +81,6 @@
 #define I2C_RPMSG_MAX_BUF_SIZE			16
 #define I2C_RPMSG_TIMEOUT			500 /* unit: ms */
 
-#define I2C_RPMSG_CATEGORY			0x09
 #define I2C_RPMSG_VERSION			0x0001
 #define I2C_RPMSG_TYPE_REQUEST			0x00
 #define I2C_RPMSG_TYPE_RESPONSE			0x01
@@ -194,7 +193,7 @@ static int i2c_rpmsg_read(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	}
 
 	memset(&rmsg, 0, sizeof(struct i2c_rpmsg_msg));
-	rmsg.header.cate = I2C_RPMSG_CATEGORY;
+	rmsg.header.cate = IMX_RPMSG_I2C;
 	rmsg.header.major = I2C_RPMSG_VERSION;
 	rmsg.header.minor = I2C_RPMSG_VERSION >> 8;
 	rmsg.header.type = I2C_RPMSG_TYPE_REQUEST;
@@ -244,7 +243,7 @@ int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	}
 
 	memset(&rmsg, 0, sizeof(struct i2c_rpmsg_msg));
-	rmsg.header.cate = I2C_RPMSG_CATEGORY;
+	rmsg.header.cate = IMX_RPMSG_I2C;
 	rmsg.header.major = I2C_RPMSG_VERSION;
 	rmsg.header.minor = I2C_RPMSG_VERSION >> 8;
 	rmsg.header.type = I2C_RPMSG_TYPE_REQUEST;
