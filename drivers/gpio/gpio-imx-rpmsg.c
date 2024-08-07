@@ -55,14 +55,19 @@ struct gpio_rpmsg_data {
 	u8 pin_idx;
 	u8 port_idx;
 	union {
-		u8 event;
-		u8 retcode;
-		u8 value;
-	} out;
-	union {
-		u8 wakeup;
-		u8 value;
-	} in;
+		struct {
+			u8 event;
+			u8 wakeup;
+		} input_init;
+		struct {
+			u8 value;
+		} output_init;
+		/* no arg for input_get */
+		struct {
+			u8 retcode;
+			u8 value; /* only valid for input_get */
+		} reply;
+	};
 } __packed __aligned(1);
 
 struct imx_rpmsg_gpio_pin {
@@ -128,9 +133,9 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 			goto err_out;
 		}
 
-		if (info->reply_msg->out.retcode != 0) {
+		if (info->reply_msg->reply.retcode != 0) {
 			dev_err(&info->rpdev->dev, "rpmsg not ack %d!\n",
-				info->reply_msg->out.retcode);
+				info->reply_msg->reply.retcode);
 			err = -EINVAL;
 			goto err_out;
 		}
@@ -143,7 +148,7 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 		}
 
 		/* copy the reply value */
-		*value = info->reply_msg->in.value;
+		*value = info->reply_msg->reply.value;
 
 		err = 0;
 	}
@@ -235,8 +240,8 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 	msg.pin_idx = gpio;
 	msg.port_idx = port->idx;
 
-	msg.out.event = GPIO_RPMSG_TRI_IGNORE;
-	msg.in.wakeup = 0;
+	msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
+	msg.input_init.wakeup = 0;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
@@ -257,7 +262,7 @@ static inline void imx_rpmsg_gpio_direction_output_init(struct gpio_chip *gc,
 	msg->header.cmd = GPIO_RPMSG_OUTPUT_INIT;
 	msg->pin_idx = gpio;
 	msg->port_idx = port->idx;
-	msg->out.value = val;
+	msg->output_init.value = val;
 }
 
 static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
@@ -455,19 +460,19 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	msg.port_idx = port->idx;
 
 	if (port->gpio_pins[gpio_idx].irq_shutdown) {
-		msg.out.event = GPIO_RPMSG_TRI_IGNORE;
-		msg.in.wakeup = 0;
+		msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
+		msg.input_init.wakeup = 0;
 		port->gpio_pins[gpio_idx].irq_shutdown = 0;
 	} else {
 		 /* if not set irq type, then use low level as trigger type */
-		msg.out.event = port->gpio_pins[gpio_idx].irq_type;
-		if (!msg.out.event)
-			msg.out.event = GPIO_RPMSG_TRI_LOW_LEVEL;
+		msg.input_init.event = port->gpio_pins[gpio_idx].irq_type;
+		if (!msg.input_init.event)
+			msg.input_init.event = GPIO_RPMSG_TRI_LOW_LEVEL;
 		if (port->gpio_pins[gpio_idx].irq_unmask) {
-			msg.in.wakeup = 0;
+			msg.input_init.wakeup = 0;
 			port->gpio_pins[gpio_idx].irq_unmask = 0;
 		} else /* irq set wake */
-			msg.in.wakeup = port->gpio_pins[gpio_idx].irq_wake_enable;
+			msg.input_init.wakeup = port->gpio_pins[gpio_idx].irq_wake_enable;
 	}
 
 	gpio_send_message(port, &msg, &gpio_rpmsg, NULL);
