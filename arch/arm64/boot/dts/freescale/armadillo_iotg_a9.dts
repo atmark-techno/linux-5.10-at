@@ -92,16 +92,6 @@
 		enable-active-high;
 		regulator-always-on;
 	};
-
-	reg_vdd_3p8v: regulator-vdd-3p8v {
-		compatible = "regulator-fixed";
-		gpio = <&rpmsg_gpioc 9 GPIO_ACTIVE_HIGH>;
-		regulator-name = "VDD_3P8V";
-		regulator-min-microvolt = <3800000>;
-		regulator-max-microvolt = <3800000>;
-		enable-active-high;
-		regulator-always-on;
-	};
 };
 
 // SD card
