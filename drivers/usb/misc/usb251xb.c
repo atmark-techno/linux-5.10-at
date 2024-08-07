@@ -104,7 +104,7 @@
 #define USB251XB_STATUS_COMMAND_ATTACH		0x01
 
 #define USB251XB_I2C_REG_SZ	0x100
-#define USB251XB_I2C_WRITE_SZ	0x10
+#define USB251XB_I2C_WRITE_SZ	0x08
 
 #define DRIVER_NAME	"usb251xb"
 #define DRIVER_DESC	"Microchip USB 2.0 Hi-Speed Hub Controller"
