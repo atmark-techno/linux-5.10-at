@@ -154,7 +154,6 @@
 		compatible = "microchip,usb2422";
 		reg = <0x2c>;
 		reset-gpios = <&rpmsg_gpioa 19 GPIO_ACTIVE_LOW>;
-		skip-config;
 	};
 };
 
