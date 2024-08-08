@@ -86,6 +86,7 @@ struct imx_rpmsg_gpio_pin {
 	u8 irq_mask;
 	u32 irq_wake_enable;
 	u32 irq_type;
+	u32 pinctrl;
 };
 
 struct imx_rpmsg_gpio_port {
@@ -253,7 +254,7 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
 	msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
 	msg.input_init.wakeup = 0;
-	msg.input_init.pinctrl = GPIO_RPMSG_PINCTRL_UNSET;
+	msg.input_init.pinctrl = port->gpio_pins[gpio].pinctrl;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
@@ -304,7 +305,7 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_OUTPUT_INIT;
 	msg.output_init.value = val;
-	msg.output_init.pinctrl = GPIO_RPMSG_PINCTRL_UNSET;
+	msg.output_init.pinctrl = port->gpio_pins[gpio].pinctrl;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
@@ -488,6 +489,82 @@ static struct irq_chip imx_rpmsg_irq_chip = {
 	.irq_bus_sync_unlock = imx_rpmsg_irq_bus_sync_unlock,
 };
 
+static int imx_rpmsg_gpio_get_one_pinctrl(struct imx_rpmsg_gpio_port *port, struct device_node *np)
+{
+	int count = of_property_count_elems_of_size(np, "imx-rpmsg,pins", sizeof(u32));
+	int i, err = 0;
+
+	if (count < 0) {
+		dev_info(port->gc.parent, "No imx-rpmsg,pins node in gpio %d's pinctrl '%s'\n",
+			 port->idx, np->name);
+		/* just skip, not a hard error */
+		return 0;
+	}
+
+	if (count % 2 != 0) {
+		dev_err(port->gc.parent, "Expected an even number of elements in gpio %d's pinctrl '%s', got %d\n",
+			 port->idx, np->name, count);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < count; i += 2) {
+		uint32_t pin, pinctrl;
+
+		err = of_property_read_u32_index(np, "imx-rpmsg,pins", i, &pin);
+		if (err)
+			break;
+		err = of_property_read_u32_index(np, "imx-rpmsg,pins", i + 1, &pinctrl);
+		if (err)
+			break;
+
+		/* pin should be within range.. */
+		if ((pin >> 8) != port->idx) {
+			dev_err(port->gc.parent, "gpio %d's pinctrl '%s', pin %#x not for this gpio\n",
+				port->idx, np->name, pin);
+		}
+		pin = pin & 0xff;
+		if (pin >= port->gc.ngpio) {
+			dev_err(port->gc.parent, "gpio %d's pinctrl '%s', pin %#x > ngpio %#x\n",
+				port->idx, np->name, pin, port->gc.ngpio);
+		}
+		if (port->gpio_pins[pin].pinctrl != GPIO_RPMSG_PINCTRL_UNSET) {
+			dev_warn(port->gc.parent, "gpio %d's pin %#x was already set, overwriting it in '%s'\n",
+				 port->idx, pin, np->name);
+		}
+		dev_dbg(port->gc.parent, "Set gpio %d pin %#x pinctrl to %#x\n", port->idx, pin, pinctrl);
+		port->gpio_pins[pin].pinctrl = pinctrl;
+	}
+	if (err)
+		dev_err(port->gc.parent, "Error in gpio %d's pinctrl '%s': %d\n",
+			 port->idx, np->name, err);
+
+	return err;
+}
+
+static int imx_rpmsg_gpio_get_pinctrl(struct imx_rpmsg_gpio_port *port)
+{
+	struct device_node *pinctrls, *child;
+	int ret;
+
+	pinctrls = of_get_child_by_name(port->gc.of_node, "pinctrl");
+	if (!pinctrls) {
+		dev_info(port->gc.parent, "No 'pinctrl' node for gpio %d\n", port->idx);
+		return 0;
+	}
+
+	for_each_child_of_node(pinctrls, child) {
+		ret = imx_rpmsg_gpio_get_one_pinctrl(port, child);
+		if (ret) {
+			of_node_put(child);
+			break;
+		}
+	}
+
+	of_node_put(pinctrls);
+
+	return 0;
+}
+
 static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -525,6 +602,13 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	gc->label = kasprintf(GFP_KERNEL, "imx-rpmsg-gpio-%d", port->idx);
 	gc->ngpio = ngpio;
 	gc->base = -1;
+
+	for (i = 0; i < ngpio; i++) {
+		port->gpio_pins[i].pinctrl = GPIO_RPMSG_PINCTRL_UNSET;
+	}
+	ret = imx_rpmsg_gpio_get_pinctrl(port);
+	if (ret < 0)
+		return ret;
 
 	gc->direction_input = imx_rpmsg_gpio_direction_input;
 	gc->direction_output = imx_rpmsg_gpio_direction_output;
