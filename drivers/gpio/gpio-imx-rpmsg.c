@@ -144,7 +144,8 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 		}
 
 		if (info->reply_msg->reply.retcode != 0) {
-			dev_err(&info->rpdev->dev, "rpmsg not ack %d!\n",
+			dev_err(&info->rpdev->dev, "rpmsg error for %d / %d,%d: %d!\n",
+				msg->header.cmd, msg->port_idx, msg->pin_idx,
 				info->reply_msg->reply.retcode);
 			err = -EINVAL;
 			goto err_out;
