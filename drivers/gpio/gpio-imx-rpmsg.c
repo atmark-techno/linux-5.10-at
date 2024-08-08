@@ -28,6 +28,10 @@
 
 #define RPMSG_TIMEOUT	1000
 #define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	10
+#define IMX_RPMSG_GPIO_VERSION_MAJOR 2
+#define IMX_RPMSG_GPIO_VERSION_MINOR 0
+#define GPIO_RPMSG_PINCTRL_UNSET 0xffffffff
+
 
 enum gpio_input_trigger_type {
 	GPIO_RPMSG_TRI_IGNORE,
@@ -48,6 +52,7 @@ enum gpio_rpmsg_header_cmd {
 	GPIO_RPMSG_INPUT_INIT,
 	GPIO_RPMSG_OUTPUT_INIT,
 	GPIO_RPMSG_INPUT_GET,
+	GPIO_RPMSG_OUTPUT_SET,
 };
 
 struct gpio_rpmsg_data {
@@ -58,11 +63,16 @@ struct gpio_rpmsg_data {
 		struct {
 			u8 event;
 			u8 wakeup;
-		} input_init;
+			u32 pinctrl;
+		} __packed input_init;
 		struct {
 			u8 value;
-		} output_init;
+			u32 pinctrl;
+		} __packed output_init;
 		/* no arg for input_get */
+		struct {
+			u8 value;
+		} output_set;
 		struct {
 			u8 retcode;
 			u8 value; /* only valid for input_get */
@@ -184,6 +194,17 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 	return 0;
 }
 
+static inline void imx_rpmsg_gpio_msg_init(struct imx_rpmsg_gpio_port *port,
+		unsigned int gpio, struct gpio_rpmsg_data *msg)
+{
+	msg->header.cate = IMX_RPMSG_GPIO;
+	msg->header.major = IMX_RPMSG_GPIO_VERSION_MAJOR;
+	msg->header.minor = IMX_RPMSG_GPIO_VERSION_MINOR;
+	msg->header.type = GPIO_RPMSG_SETUP;
+	msg->pin_idx = gpio;
+	msg->port_idx = port->idx;
+}
+
 static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 {
 	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
@@ -199,13 +220,8 @@ static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	msg.header.cate = IMX_RPMSG_GPIO;
-	msg.header.major = IMX_RMPSG_MAJOR;
-	msg.header.minor = IMX_RMPSG_MINOR;
-	msg.header.type = GPIO_RPMSG_SETUP;
+	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_GET;
-	msg.pin_idx = gpio;
-	msg.port_idx = port->idx;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &value);
 	if (!ret)
@@ -232,37 +248,17 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	msg.header.cate = IMX_RPMSG_GPIO;
-	msg.header.major = IMX_RMPSG_MAJOR;
-	msg.header.minor = IMX_RMPSG_MINOR;
-	msg.header.type = GPIO_RPMSG_SETUP;
+	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
-	msg.pin_idx = gpio;
-	msg.port_idx = port->idx;
-
 	msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
 	msg.input_init.wakeup = 0;
+	msg.input_init.pinctrl = GPIO_RPMSG_PINCTRL_UNSET;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
 	mutex_unlock(&gpio_rpmsg.lock);
 
 	return ret;
-}
-
-static inline void imx_rpmsg_gpio_direction_output_init(struct gpio_chip *gc,
-		unsigned int gpio, int val, struct gpio_rpmsg_data *msg)
-{
-	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-
-	msg->header.cate = IMX_RPMSG_GPIO;
-	msg->header.major = IMX_RMPSG_MAJOR;
-	msg->header.minor = IMX_RMPSG_MINOR;
-	msg->header.type = GPIO_RPMSG_SETUP;
-	msg->header.cmd = GPIO_RPMSG_OUTPUT_INIT;
-	msg->pin_idx = gpio;
-	msg->port_idx = port->idx;
-	msg->output_init.value = val;
 }
 
 static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
@@ -279,7 +275,10 @@ static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, &msg);
+	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
+	msg.header.cmd = GPIO_RPMSG_OUTPUT_SET;
+	msg.output_set.value = val;
+
 	gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
 	mutex_unlock(&gpio_rpmsg.lock);
@@ -301,7 +300,11 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 
 	mutex_lock(&gpio_rpmsg.lock);
 
-	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, &msg);
+	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
+	msg.header.cmd = GPIO_RPMSG_OUTPUT_INIT;
+	msg.output_init.value = val;
+	msg.output_init.pinctrl = GPIO_RPMSG_PINCTRL_UNSET;
+
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
 	mutex_unlock(&gpio_rpmsg.lock);
@@ -451,13 +454,8 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 		return;
 	}
 
-	msg.header.cate = IMX_RPMSG_GPIO;
-	msg.header.major = IMX_RMPSG_MAJOR;
-	msg.header.minor = IMX_RMPSG_MINOR;
-	msg.header.type = GPIO_RPMSG_SETUP;
+	imx_rpmsg_gpio_msg_init(port, gpio_idx, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
-	msg.pin_idx = gpio_idx;
-	msg.port_idx = port->idx;
 
 	if (port->gpio_pins[gpio_idx].irq_shutdown) {
 		msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
