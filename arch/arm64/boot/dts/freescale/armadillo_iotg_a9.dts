@@ -22,18 +22,21 @@
 		pinctrl-0 = <&pinctrl_leds>;
 
 		c5_led {
-			label = "c5_led";
+			label = "sys";
 			gpios = <&rpmsg_gpioc 5 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
 		};
 
 		f30_led {
-			label = "f30_led";
+			label = "app";
 			gpios = <&gpiof 30 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
 		};
 
 		f31_led {
-			label = "f31_led";
+			label = "wwan";
 			gpios = <&gpiof 31 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
 		};
 	};
 
