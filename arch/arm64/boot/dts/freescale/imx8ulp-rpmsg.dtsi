@@ -3,6 +3,8 @@
  * Copyright 2021 NXP
  */
 
+#include "imx8ulp-pinfunc-m33.h"
+
 / {
 	aliases {
 		gpio0 = &rpmsg_gpioa;
@@ -45,6 +47,8 @@
 		interrupt-controller;
 		interrupt-parent = <&rpmsg_gpioa>;
 		status = "okay";
+		gpioa_iomuxc: pinctrl {
+		};
 	};
 
 	rpmsg_gpiob: gpio@1 {
@@ -57,6 +61,8 @@
 		interrupt-controller;
 		interrupt-parent = <&rpmsg_gpiob>;
 		status = "okay";
+		gpiob_iomuxc: pinctrl {
+		};
 	};
 
 	rpmsg_gpioc: gpio@2 {
@@ -69,6 +75,8 @@
 		interrupt-controller;
 		interrupt-parent = <&rpmsg_gpioc>;
 		status = "okay";
+		gpioc_iomuxc: pinctrl {
+		};
 	};
 
 	tpm_rpchip_0: pwm {
