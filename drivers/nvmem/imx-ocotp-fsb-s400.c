@@ -116,27 +116,28 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 		case 0:
 			break;
 		case LOCK_CFG:
-			err = read_words_via_s400_api(&buf[8], 8, 8);
+			err = read_words_via_s400_api(&buf[LOCK_CFG*8], 8, 8);
 			if (err)
 				goto ret;
 			break;
 		case ECID:
-			err = read_words_via_s400_api(&buf[16], 16, 8);
+			err = read_words_via_s400_api(&buf[ECID*8], 16, 8);
 			if (err)
 				goto ret;
 			break;
 		case UNIQ_ID:
-			err = read_common_fuse(OTP_UNIQ_ID, &buf[56]);
+			err = read_common_fuse(OTP_UNIQ_ID, &buf[UNIQ_ID*8]);
 			if (err)
 				goto ret;
 			break;
 		case OTFAD_CFG:
-			err = read_common_fuse(OTFAD_CONFIG, &buf[184]);
+			err = read_common_fuse(OTFAD_CONFIG, &buf[OTFAD_CFG*8]);
 			if (err)
 				goto ret;
 			break;
 		case 25:
 		case 26:
+			break; // read @27
 		case 27:
 			err = read_words_via_s400_api(&buf[200], 200, 24);
 			if (err)
@@ -146,6 +147,7 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 		case 33:
 		case 34:
 		case 35:
+			break; // read @36
 		case 36:
 			err = read_words_via_s400_api(&buf[256], 256, 40);
 			if (err)
@@ -153,6 +155,7 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 			break;
 		case 49:
 		case 50:
+			break; // read @51
 		case 51:
 			err = read_words_via_s400_api(&buf[392], 392, 24);
 			if (err)
