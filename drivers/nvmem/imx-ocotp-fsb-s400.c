@@ -20,6 +20,7 @@
 #define LOCK_CFG	0x01
 #define ECID		0x02
 #define UNIQ_ID		0x07
+#define SRK_HASH	0x0F
 #define OTFAD_CFG	0x17
 
 struct bank_2_reg {
@@ -127,6 +128,11 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 			break;
 		case UNIQ_ID:
 			err = read_common_fuse(OTP_UNIQ_ID, &buf[UNIQ_ID*8]);
+			if (err)
+				goto ret;
+			break;
+		case SRK_HASH:
+			err = read_common_fuse(OTP_SRK_HASH, &buf[SRK_HASH*8]);
 			if (err)
 				goto ret;
 			break;

@@ -19,6 +19,7 @@
 #define SENTNL_READ_FUSE_REQ		0x97
 #define OTP_UNIQ_ID			0x01
 #define OTFAD_CONFIG			0x2
+#define OTP_SRK_HASH			0x8
 
 #define SENTNL_VERSION			0x6
 #define SENTNL_SUCCESS_IND		0xD6
