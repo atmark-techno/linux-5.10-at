@@ -13,7 +13,7 @@
 
 	usdhc1_pwrseq: usdhc1_pwrseq {
 		compatible = "mmc-pwrseq-simple";
-		reset-gpios = <&gpiod 13 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&rpmsg_gpioc 6 GPIO_ACTIVE_LOW>;
 	};
 
 	leds {
@@ -185,7 +185,7 @@
 	status = "okay";
 };
 
-//wlan
+// wlan LBES5PL2EL-923
 &usdhc1 {
 	pinctrl-names = "default", "state_100mhz", "state_200mhz";
 	pinctrl-0 = <&pinctrl_usdhc1>;
@@ -194,15 +194,20 @@
 	keep-power-in-suspend;
 	non-removable;
 	wakeup-source;
-	mmc-powerseq = <&usdhc1_pwrseq>;
+	mmc-pwrseq = <&usdhc1_pwrseq>;
 	fsl,sdio-interrupt-enable;
 	status = "okay";
+	// reset gpios
+	// wlan gpiod 13
+	// th gpioc 4
+	// bt gpiof 16
 
 	wifi_wake_host {
 		compatible = "nxp,wifi-wake-host";
 		interrupt-parent = <&gpiod>;
-		interrupts = <13 IRQ_TYPE_LEVEL_LOW>;
+		interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "host-wake";
+		// also, bt wake on gpioe 6
 	};
 };
 
@@ -221,6 +226,14 @@
 	leds {
 		imx-rpmsg,pins = <
 			IOMUXC_PTC5_PTC5 0x20000 /* OBE(1) */
+		>;
+	};
+	spi {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC0_PTC0 0x2 /* PE(1) */
+			IOMUXC_PTC1_PTC1 0x20000 /* OBE(1) */
+			IOMUXC_PTC2_PTC2 0x20000 /* OBE(1) */
+			IOMUXC_PTC3_PTC3 0x20000 /* OBE(1) */
 		>;
 	};
 };
@@ -303,38 +316,38 @@
 
 	pinctrl_usdhc1: usdhc1grp {
 		fsl,pins = <
-			MX8ULP_PAD_PTD18__SDHC1_D3	0x3
-			MX8ULP_PAD_PTD19__SDHC1_D2	0x3
-			MX8ULP_PAD_PTD20__SDHC1_D1	0x3
-			MX8ULP_PAD_PTD21__SDHC1_D0	0x3
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x0
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x0
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x0
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x0
 			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
-			MX8ULP_PAD_PTD23__SDHC1_CMD	0x3
-			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x3
-			MX8ULP_PAD_PTD17__PTD17		0x3
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x0
+			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0
+			MX8ULP_PAD_PTD17__PTD17		0x0
 		>;
 	};
 	pinctrl_usdhc1_100mhz: usdhc1grp-100mhz {
 		fsl,pins = <
-			MX8ULP_PAD_PTD18__SDHC1_D3	0x3
-			MX8ULP_PAD_PTD19__SDHC1_D2	0x3
-			MX8ULP_PAD_PTD20__SDHC1_D1	0x3
-			MX8ULP_PAD_PTD21__SDHC1_D0	0x3
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x0
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x0
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x0
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x0
 			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
-			MX8ULP_PAD_PTD23__SDHC1_CMD	0x3
-			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x3
-			MX8ULP_PAD_PTD17__PTD17		0x3
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x0
+			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0
+			MX8ULP_PAD_PTD17__PTD17		0x0
 		>;
 	};
 	pinctrl_usdhc1_200mhz: usdhc1grp-200mhz {
 		fsl,pins = <
-			MX8ULP_PAD_PTD18__SDHC1_D3	0x3
-			MX8ULP_PAD_PTD19__SDHC1_D2	0x3
-			MX8ULP_PAD_PTD20__SDHC1_D1	0x3
-			MX8ULP_PAD_PTD21__SDHC1_D0	0x3
+			MX8ULP_PAD_PTD18__SDHC1_D3	0x0
+			MX8ULP_PAD_PTD19__SDHC1_D2	0x0
+			MX8ULP_PAD_PTD20__SDHC1_D1	0x0
+			MX8ULP_PAD_PTD21__SDHC1_D0	0x0
 			MX8ULP_PAD_PTD22__SDHC1_CLK	0x10002
-			MX8ULP_PAD_PTD23__SDHC1_CMD	0x3
-			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x3
-			MX8ULP_PAD_PTD17__PTD17		0x3
+			MX8ULP_PAD_PTD23__SDHC1_CMD	0x0
+			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0
+			MX8ULP_PAD_PTD17__PTD17		0x0
 		>;
 	};
 
