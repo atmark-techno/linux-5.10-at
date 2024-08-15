@@ -574,6 +574,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	unsigned	i;
 	int		base = gc->base;
 	struct gpio_device *gdev;
+	int gdev_id;
 
 	/*
 	 * First: allocate and populate the internal stat container, and
@@ -604,10 +605,18 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	 */
 	gdev->dev.fwnode = dev_fwnode(&gdev->dev) ?: fwnode;
 
-	gdev->id = ida_alloc(&gpio_ida, GFP_KERNEL);
+	gdev_id = of_alias_get_id(gc->of_node, "gpio");
+	gdev->id = ida_alloc_range(&gpio_ida, gdev_id < 0 ? 0 : gdev_id, ~0,
+				   GFP_KERNEL);
 	if (gdev->id < 0) {
 		ret = gdev->id;
 		goto err_free_gdev;
+	}
+	if (gdev_id < 0) {
+		dev_dbg(&gdev->dev, "No alias found for gpio: %d\n", gdev_id);
+	} else if (gdev_id != gdev->id) {
+		dev_warn(&gdev->dev, "Device requested %d in fw node but got %d instead\n",
+			 gdev_id, gdev->id);
 	}
 
 	ret = dev_set_name(&gdev->dev, GPIOCHIP_NAME "%d", gdev->id);
