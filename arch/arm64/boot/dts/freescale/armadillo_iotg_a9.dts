@@ -16,9 +16,10 @@
 		reset-gpios = <&gpiod 13 GPIO_ACTIVE_LOW>;
 	};
 
-//led
 	leds {
 		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_leds>;
 
 		c5_led {
 			label = "c5_led";
@@ -33,6 +34,18 @@
 		f31_led {
 			label = "f31_led";
 			gpios = <&gpiof 31 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_keys>;
+
+		gpio_keys_sw1: sw1 {
+			label = "SW1";
+			gpios = <&gpiof 24 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_PROG1>;
 		};
 	};
 
@@ -204,17 +217,32 @@
 	};
 };
 
+&gpioc_iomuxc {
+	leds {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC5_PTC5 0x20000 /* OBE(1) */
+		>;
+	};
+};
+
 &iomuxc1 {
-//gpio
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_customize>;
 
+	/* pinctrl memo
+	 * 0x7c00000 deglitch window
+	 * 0x200000 digital filter clock select (0=PCTL*, 1=RTC 1kHz)
+	 * 0x100000 digital filter
+	 * 0x20000 output buffer enable
+	 * 0x10000 input buffer enable
+	 * 0x40 high drive strength
+	 * 0x20 open drain
+	 * 0x4 slew rate
+	 * 0x2 pull-up enable
+	 * 0x1 pull-up selection (0=pull down)
+	 */
+
 	pinctrl_customize: customizegrp {
-		fsl,pins = <
-			MX8ULP_PAD_PTF30__PTF30	0x3
-			MX8ULP_PAD_PTF31__PTF31	0x3
-			MX8ULP_PAD_PTF24__PTF24	0x3
-		>;
 	};
 
 	pinctrl_usdhc2: usdhc2grp {
@@ -226,6 +254,19 @@
 			MX8ULP_PAD_PTE5__SDHC2_D2	0x0
 			MX8ULP_PAD_PTE4__SDHC2_D3	0x0
 			MX8ULP_PAD_PTF29__SDHC2_VS	0x0
+		>;
+	};
+
+	pinctrl_leds: ledgrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF30__PTF30	0x0
+			MX8ULP_PAD_PTF31__PTF31	0x0
+		>;
+	};
+
+	pinctrl_gpio_keys: gpiokeygrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF24__PTF24		0x1100003
 		>;
 	};
 
