@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
+#include <linux/pm_runtime.h>
 #include <linux/spinlock.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
@@ -39,7 +40,6 @@ struct irqsteer_data {
 	int			channel;
 	struct irq_domain	*domain;
 	u32			*saved_reg;
-	bool			inited;
 
 	struct device		*dev;
 	struct device		*pd_csi;
@@ -112,10 +112,26 @@ static void imx_irqsteer_irq_mask(struct irq_data *d)
 	raw_spin_unlock_irqrestore(&data->lock, flags);
 }
 
-static struct irq_chip imx_irqsteer_irq_chip = {
-	.name		= "irqsteer",
-	.irq_mask	= imx_irqsteer_irq_mask,
-	.irq_unmask	= imx_irqsteer_irq_unmask,
+static void imx_irqsteer_irq_bus_lock(struct irq_data *d)
+{
+	struct irqsteer_data *data = d->chip_data;
+
+	pm_runtime_get_sync(data->dev);
+}
+
+static void imx_irqsteer_irq_bus_sync_unlock(struct irq_data *d)
+{
+	struct irqsteer_data *data = d->chip_data;
+
+	pm_runtime_put_autosuspend(data->dev);
+}
+
+static const struct irq_chip imx_irqsteer_irq_chip = {
+	.name			= "irqsteer",
+	.irq_mask		= imx_irqsteer_irq_mask,
+	.irq_unmask		= imx_irqsteer_irq_unmask,
+	.irq_bus_lock		= imx_irqsteer_irq_bus_lock,
+	.irq_bus_sync_unlock	= imx_irqsteer_irq_bus_sync_unlock,
 };
 
 static int imx_irqsteer_irq_map(struct irq_domain *h, unsigned int irq,
@@ -184,33 +200,6 @@ static void imx_irqsteer_irq_handler(struct irq_desc *desc)
 	chained_irq_exit(irq_desc_get_chip(desc), desc);
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int imx_irqsteer_chans_enable(struct irqsteer_data *data)
-{
-	return 0;
-}
-#else
-static int imx_irqsteer_chans_enable(struct irqsteer_data *data)
-{
-	int ret;
-
-	ret = clk_prepare_enable(irqsteer_data->ipg_clk);
-	if (ret) {
-		dev_err(data->dev, "failed to enable ipg clk: %d\n", ret);
-		return ret;
-	}
-
-	/* steer all IRQs into configured channel */
-	writel_relaxed(BIT(data->channel), data->regs + CHANCTRL);
-
-	/* read back CHANCTRL register cannot reflact on HW register
-	 * real value due to the HW action, so add one flag here.
-	 */
-	data->inited = true;
-	return 0;
-}
-#endif
-
 static int imx_irqsteer_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -225,7 +214,6 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	data->chip = imx_irqsteer_irq_chip;
 	data->chip.parent_device = &pdev->dev;
 	data->dev = &pdev->dev;
-	data->inited = false;
 	data->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(data->regs)) {
 		dev_err(&pdev->dev, "failed to initialize reg\n");
@@ -261,7 +249,7 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	data->irq_count = DIV_ROUND_UP(irqs_num, 64);
 	data->reg_num = irqs_num / 32;
 
-	if (IS_ENABLED(CONFIG_PM_SLEEP)) {
+	if (IS_ENABLED(CONFIG_PM)) {
 		data->saved_reg = devm_kzalloc(&pdev->dev,
 					sizeof(u32) * data->reg_num,
 					GFP_KERNEL);
@@ -269,9 +257,17 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 			return -ENOMEM;
 	}
 
-	ret = imx_irqsteer_chans_enable(data);
-	if (ret)
+
+	ret = clk_prepare_enable(data->ipg_clk);
+	if (ret) {
+		dev_err(data->dev, "failed to enable ipg clk: %d\n", ret);
 		return ret;
+	}
+
+	pm_runtime_set_active(&pdev->dev);
+
+	/* steer all IRQs into configured channel */
+	writel_relaxed(BIT(data->channel), data->regs + CHANCTRL);
 
 	data->domain = irq_domain_add_linear(np, data->reg_num * 32,
 					     &imx_irqsteer_domain_ops, data);
@@ -280,6 +276,7 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto out;
 	}
+	irq_domain_set_pm_device(data->domain, &pdev->dev);
 
 	if (!data->irq_count || data->irq_count > CHAN_MAX_OUTPUT_INT) {
 		ret = -EINVAL;
@@ -301,6 +298,7 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, data);
 
 	pm_runtime_enable(&pdev->dev);
+
 	return 0;
 out:
 	clk_disable_unprepare(data->ipg_clk);
@@ -321,18 +319,7 @@ static int imx_irqsteer_remove(struct platform_device *pdev)
 	return pm_runtime_force_suspend(&pdev->dev);
 }
 
-#ifdef CONFIG_PM_SLEEP
-static void imx_irqsteer_init(struct irqsteer_data *data)
-{
-	/* steer all IRQs into configured channel */
-	writel_relaxed(BIT(data->channel), data->regs + CHANCTRL);
-
-	/* read back CHANCTRL register cannot reflact on HW register
-	 * real value due to the HW action, so add one flag here.
-	 */
-	data->inited = true;
-}
-
+#ifdef CONFIG_PM
 static void imx_irqsteer_save_regs(struct irqsteer_data *data)
 {
 	int i;
@@ -372,12 +359,7 @@ static int imx_irqsteer_runtime_resume(struct device *dev)
 		dev_err(dev, "failed to enable ipg clk: %d\n", ret);
 		return ret;
 	}
-
-	/* don't need restore registers when first sub_irq requested */
-	if (!irqsteer_data->inited)
-		imx_irqsteer_init(irqsteer_data);
-	else
-		imx_irqsteer_restore_regs(irqsteer_data);
+	imx_irqsteer_restore_regs(irqsteer_data);
 
 	return 0;
 }
