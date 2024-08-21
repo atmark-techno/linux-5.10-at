@@ -528,6 +528,13 @@ config SERIAL_IMX_EARLYCON
 	  If you have enabled the earlycon on the Freescale IMX
 	  CPU you can make it the earlycon by answering Y to this option.
 
+config SERIAL_IMX_RPMSG
+	tristate "IMX RPMSG serial port support"
+	depends on ARCH_MXC || RPMSG
+	select SERIAL_CORE
+	help
+	  This driver support i.MX RPMSG serial port.
+
 config SERIAL_UARTLITE
 	tristate "Xilinx uartlite serial port support"
 	depends on HAS_IOMEM
