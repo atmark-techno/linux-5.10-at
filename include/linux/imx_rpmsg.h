@@ -28,6 +28,7 @@
 #define IMX_RPMSG_I2C		9
 #define IMX_RPMSG_PWM		0xa
 #define IMX_RPMSG_ADC		0xb
+#define IMX_RPMSG_TTY		0xf1
 /* rpmsg version */
 #define IMX_RMPSG_MAJOR		1
 #define IMX_RMPSG_MINOR		0
