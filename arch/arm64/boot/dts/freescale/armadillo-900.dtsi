@@ -132,6 +132,8 @@
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <0>;
 
+			ti,dac-cfg-0 = <0x0c40>;
+			ti,dac-cfg-1 = <0x000f>;
 		};
 	};
 };
