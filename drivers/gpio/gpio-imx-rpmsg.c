@@ -92,7 +92,6 @@ struct imx_rpmsg_gpio_pin {
 struct imx_rpmsg_gpio_port {
 	struct gpio_chip gc;
 	struct irq_chip chip;
-	struct irq_domain *domain;
 	int idx;
 	struct imx_rpmsg_gpio_pin gpio_pins[];
 };
@@ -188,7 +187,7 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 			return 0;
 		}
 		local_irq_save(flags);
-		generic_handle_irq(irq_find_mapping(gpio_rpmsg.port_store[msg->port_idx]->domain, msg->pin_idx));
+		generic_handle_irq(irq_find_mapping(gpio_rpmsg.port_store[msg->port_idx]->gc.irq.domain, msg->pin_idx));
 		local_irq_restore(flags);
 	} else
 		dev_err(&gpio_rpmsg.rpdev->dev, "wrong command type!\n");
@@ -317,6 +316,7 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 static int imx_rpmsg_irq_set_type(struct irq_data *d, u32 type)
 {
 	struct imx_rpmsg_gpio_port *port = irq_data_get_irq_chip_data(d);
+	irq_flow_handler_t handler = handle_bad_irq;
 	u32 gpio_idx = d->hwirq;
 	int edge = 0;
 	int ret = 0;
@@ -324,18 +324,23 @@ static int imx_rpmsg_irq_set_type(struct irq_data *d, u32 type)
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
 		edge = GPIO_RPMSG_TRI_RISING;
+		handler = handle_edge_irq;
 		break;
 	case IRQ_TYPE_EDGE_FALLING:
 		edge = GPIO_RPMSG_TRI_FALLING;
+		handler = handle_edge_irq;
 		break;
 	case IRQ_TYPE_EDGE_BOTH:
 		edge = GPIO_RPMSG_TRI_BOTH_EDGE;
+		handler = handle_edge_irq;
 		break;
 	case IRQ_TYPE_LEVEL_LOW:
 		edge = GPIO_RPMSG_TRI_LOW_LEVEL;
+		handler = handle_level_irq;
 		break;
 	case IRQ_TYPE_LEVEL_HIGH:
 		edge = GPIO_RPMSG_TRI_HIGH_LEVEL;
+		handler = handle_level_irq;
 		break;
 	default:
 		ret = -EINVAL;
@@ -343,6 +348,7 @@ static int imx_rpmsg_irq_set_type(struct irq_data *d, u32 type)
 	}
 
 	port->gpio_pins[gpio_idx].irq_type = edge;
+	irq_set_handler_locked(d, handler);
 	return ret;
 }
 
@@ -403,6 +409,10 @@ static void imx_rpmsg_mask_irq(struct irq_data *d)
 	 * M core to unmask this interrupt again.
 	 */
 	port->gpio_pins[gpio_idx].irq_mask = 1;
+}
+
+static void imx_rpmsg_irq_ack(struct irq_data *d)
+{
 }
 
 static void imx_rpmsg_irq_shutdown(struct irq_data *d)
@@ -482,6 +492,7 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 static struct irq_chip imx_rpmsg_irq_chip = {
 	.irq_mask = imx_rpmsg_mask_irq,
 	.irq_unmask = imx_rpmsg_unmask_irq,
+	.irq_ack = imx_rpmsg_irq_ack,
 	.irq_set_wake = imx_rpmsg_irq_set_wake,
 	.irq_set_type = imx_rpmsg_irq_set_type,
 	.irq_shutdown = imx_rpmsg_irq_shutdown,
@@ -571,8 +582,9 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	struct imx_rpmsg_gpio_port *port;
 	struct gpio_chip *gc;
+	struct gpio_irq_chip *girq;
 	int ngpio;
-	int i, irq_base;
+	int i;
 	int ret;
 
 	ret = of_property_read_u32(np, "gpio-count", &ngpio);
@@ -617,32 +629,18 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, port);
 
-	ret = devm_gpiochip_add_data(dev, gc, port);
-	if (ret < 0)
-		return ret;
-
 	/* generate one new irq domain */
 	port->chip = imx_rpmsg_irq_chip;
 	port->chip.name = kasprintf(GFP_KERNEL, "rpmsg-irq-port-%d", port->idx);
-	port->chip.parent_device = NULL;
 
-	irq_base = irq_alloc_descs(-1, 0, ngpio, numa_node_id());
-	if (WARN_ON(irq_base < 0))
-		return irq_base;
+	girq = &gc->irq;
+	girq->chip = &port->chip;
+	girq->default_type = IRQ_TYPE_NONE;
+	girq->handler = handle_bad_irq;
 
-	port->domain = irq_domain_add_legacy(np, ngpio, irq_base, 0,
-					     &irq_domain_simple_ops, port);
-	if (WARN_ON(!port->domain))
-		return -EINVAL;
-	for (i = irq_base; i < irq_base + ngpio; i++) {
-		irq_set_chip_and_handler(i, &port->chip, handle_level_irq);
-		irq_set_chip_data(i, port);
-		irq_clear_status_flags(i, IRQ_NOREQUEST);
-		irq_set_probe(i);
-	}
-
-	return 0;
+	return devm_gpiochip_add_data(dev, gc, port);
 }
+
 static const struct of_device_id imx_rpmsg_gpio_dt_ids[] = {
 	{ .compatible = "fsl,imx-rpmsg-gpio" },
 	{ /* sentinel */ }
