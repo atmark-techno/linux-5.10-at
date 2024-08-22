@@ -34,6 +34,9 @@
 #define MII_DP83822_GENCFG	0x465
 #define MII_DP83822_SOR1	0x467
 
+#define MII_DP83825S_DAC_CFG_0	0x30b
+#define MII_DP83825S_DAC_CFG_1	0x30c
+
 /* GENCFG */
 #define DP83822_SIG_DET_LOW	BIT(0)
 
@@ -114,10 +117,29 @@
 					ADVERTISED_FIBRE | \
 					ADVERTISED_Pause | ADVERTISED_Asym_Pause)
 
+/* DAC_CFG_0 Register */
+#define MII_DP83825S_MINUS_ONE_VAL_MASK		GENMASK(11, 6)
+#define MII_DP83825S_MINUS_ONE_VAL_SHIFT	6
+#define MII_DP83825S_ZERO_VAL_MASK		GENMASK(5, 0)
+#define MII_DP83825S_ZERO_VAL_SHIFT		0
+#define MII_DP83825S_DAC_CFG_0_MASK	(MII_DP83825S_MINUS_ONE_VAL_MASK | \
+					 MII_DP83825S_ZERO_VAL_MASK)
+/* DAC_CFG_1 Register */
+#define MII_DP83825S_PLUS_ONE_VAL_MASK	GENMASK(4, 0)
+#define MII_DP83825S_PLUS_ONE_VAL_SHIFT	0
+#define MII_DP83825S_DAC_CFG_1_MASK	(MII_DP83825S_PLUS_ONE_VAL_MASK)
+
 struct dp83822_private {
 	bool fx_signal_det_low;
 	int fx_enabled;
 	u16 fx_sd_enable;
+};
+
+struct dp83825s_private {
+	bool dac_cfg_0_update;
+	u16 dac_cfg_0;
+	bool dac_cfg_1_update;
+	u16 dac_cfg_1;
 };
 
 static int dp83822_ack_interrupt(struct phy_device *phydev)
@@ -456,6 +478,27 @@ static int dp83822_config_init(struct phy_device *phydev)
 	return dp8382x_disable_wol(phydev);
 }
 
+static int dp83825s_config_init(struct phy_device *phydev)
+{
+	struct dp83825s_private *dp83825s = phydev->priv;
+	int err;
+
+	if (dp83825s->dac_cfg_0_update) {
+		err = phy_modify_mmd(phydev, DP83822_DEVADDR, MII_DP83825S_DAC_CFG_0,
+				     MII_DP83825S_DAC_CFG_0_MASK, dp83825s->dac_cfg_0);
+		if (err)
+			return err;
+	}
+	if (dp83825s->dac_cfg_1_update) {
+		err = phy_modify_mmd(phydev, DP83822_DEVADDR, MII_DP83825S_DAC_CFG_1,
+				     MII_DP83825S_DAC_CFG_1_MASK, dp83825s->dac_cfg_1);
+		if (err)
+			return err;
+	}
+
+	return dp8382x_disable_wol(phydev);
+}
+
 static int dp8382x_config_init(struct phy_device *phydev)
 {
 	return dp8382x_disable_wol(phydev);
@@ -491,8 +534,32 @@ static int dp83822_of_init(struct phy_device *phydev)
 
 	return 0;
 }
+
+static int dp83825s_of_init(struct phy_device *phydev)
+{
+	struct dp83825s_private *dp83825s = phydev->priv;
+	struct device *dev = &phydev->mdio.dev;
+	u32 val;
+
+	if (!device_property_read_u32(dev, "ti,dac-cfg-0", &val)) {
+		dp83825s->dac_cfg_0_update = true;
+		dp83825s->dac_cfg_0 = (u16)val & MII_DP83825S_DAC_CFG_0_MASK;
+	}
+
+	if (!device_property_read_u32(dev, "ti,dac-cfg-1", &val)) {
+		dp83825s->dac_cfg_1_update = true;
+		dp83825s->dac_cfg_1 = (u16)val & MII_DP83825S_DAC_CFG_1_MASK;
+	}
+
+	return 0;
+}
 #else
 static int dp83822_of_init(struct phy_device *phydev)
+{
+	return 0;
+}
+
+static int dp83825s_of_init(struct phy_device *phydev)
 {
 	return 0;
 }
@@ -547,6 +614,22 @@ static int dp83822_probe(struct phy_device *phydev)
 	return 0;
 }
 
+static int dp83825s_probe(struct phy_device *phydev)
+{
+	struct dp83825s_private *dp83825s;
+
+	dp83825s = devm_kzalloc(&phydev->mdio.dev, sizeof(*dp83825s),
+				GFP_KERNEL);
+	if (!dp83825s)
+		return -ENOMEM;
+
+	phydev->priv = dp83825s;
+
+	dp83825s_of_init(phydev);
+
+	return 0;
+}
+
 static int dp83822_suspend(struct phy_device *phydev)
 {
 	int value;
@@ -590,6 +673,22 @@ static int dp83822_resume(struct phy_device *phydev)
 		.resume = dp83822_resume,			\
 	}
 
+#define DP83825S_PHY_DRIVER(_id, _name)				\
+	{							\
+		PHY_ID_MATCH_MODEL(_id),			\
+		.name		= (_name),			\
+		/* PHY_BASIC_FEATURES */			\
+		.probe          = dp83825s_probe,		\
+		.soft_reset	= dp83822_phy_reset,		\
+		.config_init	= dp83825s_config_init,		\
+		.get_wol = dp83822_get_wol,			\
+		.set_wol = dp83822_set_wol,			\
+		.ack_interrupt = dp83822_ack_interrupt,		\
+		.config_intr = dp83822_config_intr,		\
+		.suspend = dp83822_suspend,			\
+		.resume = dp83822_resume,			\
+	}
+
 #define DP8382X_PHY_DRIVER(_id, _name)				\
 	{							\
 		PHY_ID_MATCH_MODEL(_id),			\
@@ -607,10 +706,10 @@ static int dp83822_resume(struct phy_device *phydev)
 
 static struct phy_driver dp83822_driver[] = {
 	DP83822_PHY_DRIVER(DP83822_PHY_ID, "TI DP83822"),
-	DP8382X_PHY_DRIVER(DP83825I_PHY_ID, "TI DP83825I"),
+	DP83825S_PHY_DRIVER(DP83825I_PHY_ID, "TI DP83825I"),
 	DP8382X_PHY_DRIVER(DP83826C_PHY_ID, "TI DP83826C"),
 	DP8382X_PHY_DRIVER(DP83826NC_PHY_ID, "TI DP83826NC"),
-	DP8382X_PHY_DRIVER(DP83825S_PHY_ID, "TI DP83825S"),
+	DP83825S_PHY_DRIVER(DP83825S_PHY_ID, "TI DP83825S"),
 	DP8382X_PHY_DRIVER(DP83825CM_PHY_ID, "TI DP83825M"),
 	DP8382X_PHY_DRIVER(DP83825CS_PHY_ID, "TI DP83825CS"),
 };
