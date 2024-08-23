@@ -6,6 +6,7 @@
 /dts-v1/;
 /plugin/;
 
+#include "imx8ulp-pinfunc-m33.h"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
@@ -13,7 +14,7 @@
 #include "imx8ulp-pinfunc.h"
 
 &{/} {
-	reg_sim7672_vbat: regulator-ec25-vbat {
+	reg_sim7672_vbat: regulator-sim7672-vbat {
 		compatible = "regulator-fixed";
 		regulator-name = "sim7672_vbat";
 		regulator-min-microvolt = <3800000>;
@@ -22,6 +23,7 @@
 		enable-active-high;
 		off-on-delay = <100000>;
 		startup-delay-us = <500>;
+		regulator-boot-on;
 	};
 
 	sim7672_reset: sim7672-reset {
@@ -58,6 +60,22 @@
 };
 #endif
 
+&gpiob_iomuxc {
+	pinctrl_gpio_keys_sim7672: gpio_keys_sim7672 {
+		imx-rpmsg,pins = <
+			IOMUXC_PTB6_PTB6	0x10000 /* RI, IBE(1) */
+		>;
+	};
+};
+
+&gpioc_iomuxc {
+	pinctrl_sim7672_vbat: sim7672_vbat_grp {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC9_PTC9	0x20000 /* VBAT, OBE(1) */
+		>;
+	};
+};
+
 &iomuxc1 {
 #if 0 /* TODO: Fix how to use pins on Real Time Domain */
 	pinctrl_uart2: uart4grp {
@@ -70,27 +88,12 @@
 	};
 #endif
 
-#if 0 /* TODO: Fix how to use pins on Real Time Domain */
-	pinctrl_sim7672_vbat: sim7672_vbat_grp {
-		fsl,pins = <
-			MX8ULP_PAD_PTC6__PTC6	0x0 /* CON11_25 */
-		>;
-	};
-#endif
-
 	pinctrl_sim7672_reset: sim7672_reset_grp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF25__PTF25	0x0	/* PWRKEY */
 			MX8ULP_PAD_PTF26__PTF26	0x3	/* USB_BOOT */
-			MX8ULP_PAD_PTD16__PTD16	0x0	/* STATUS */
+			MX8ULP_PAD_PTD16__PTD16	0x2	/* STATUS */
 		/*	MX8ULP_PAD_PTC12__PTC12	0x0 */	/* VBUS */
 		>;
 	};
-#if 0 /* TODO: Fix how to use pins on Real Time Domain */
-	pinctrl_gpio_keys_simm7672: gpio_keys_sim7672 {
-		fsl,pins = <
-			MX8ULP_PAD_PTB6__PTB6	0x0 /* PTB6 */
-		>;
-	};
-#endif
 };
