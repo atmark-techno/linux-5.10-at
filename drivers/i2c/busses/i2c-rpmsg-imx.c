@@ -78,7 +78,7 @@
 #include <linux/delay.h>
 #include <linux/rpmsg.h>
 
-#define I2C_RPMSG_MAX_BUF_SIZE			16
+#define I2C_RPMSG_MAX_BUF_SIZE			32
 #define I2C_RPMSG_TIMEOUT			500 /* unit: ms */
 
 #define I2C_RPMSG_VERSION			0x0001
