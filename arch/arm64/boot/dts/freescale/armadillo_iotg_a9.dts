@@ -166,7 +166,7 @@
 
 //RTC, eeprom
 &lpi2c6 {
-	clock-frequency = <100000>;
+	clock-frequency = <384000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpi2c6>;
 	status = "okay";
