@@ -134,12 +134,12 @@ static void sim7672_reset_power_on(struct sim7672_reset_data *data)
 	unsigned int tries;
 	int ret = 0;
 
-	dev_dbg(data->dev, "Power up start.\n");
+	dev_err(data->dev, "Power up start.\n");
 
 	mutex_lock(&data->power_lock);
 
 	if (sim7672_reset_status(data) == SIM7672_STATUS_RUNNING) {
-		dev_dbg(data->dev, "Power is already up\n");
+		dev_err(data->dev, "Power is already up\n");
 		goto out;
 	}
 
@@ -161,10 +161,10 @@ static void sim7672_reset_power_on(struct sim7672_reset_data *data)
 		msleep(80);
 	/* But max time is not defined. */
 	tries = SIM7672_STATUS_RUNNING_TIMEOUT_MS / SIM7672_STATUS_POLL_MS;
-	dev_dbg(data->dev, "Wait for the module state to turn on.\n");
+	dev_err(data->dev, "Wait for the module state to turn on.\n");
 	while (tries--) {
 		if (sim7672_reset_status(data) == SIM7672_STATUS_RUNNING) {
-			dev_dbg(data->dev, "Power up completed.\n");
+			dev_err(data->dev, "Power up completed.\n");
 			goto out;
 		}
 		msleep(SIM7672_STATUS_POLL_MS);
@@ -182,14 +182,14 @@ static void sim7672_reset_power_off(struct sim7672_reset_data *data)
 	unsigned int tries;
 	int ret;
 
-	dev_dbg(data->dev, "Power down start. This may take a while...\n");
+	dev_err(data->dev, "Power down start. This may take a while...\n");
 
 	mutex_lock(&data->power_lock);
 
 	if (sim7672_reset_status(data) == SIM7672_STATUS_OFF) {
 		if (regulator_is_enabled(data->vbat))
 			regulator_disable(data->vbat);
-		dev_dbg(data->dev, "Power is already down\n");
+		dev_err(data->dev, "Power is already down\n");
 		goto out;
 	}
 
@@ -201,7 +201,7 @@ static void sim7672_reset_power_off(struct sim7672_reset_data *data)
 		     SIM7672_STATUS_OFF_WAIT_TIME_MIN_US * 2);
 	/* But max time is not defined. */
 	tries = SIM7672_STATUS_OFF_TIMEOUT_MS / SIM7672_STATUS_POLL_MS;
-	dev_dbg(data->dev, "Wait for the module state to turn off.\n");
+	dev_err(data->dev, "Wait for the module state to turn off.\n");
 	while (tries--) {
 		if (sim7672_reset_status(data) == SIM7672_STATUS_OFF)
 			break;
@@ -215,7 +215,7 @@ static void sim7672_reset_power_off(struct sim7672_reset_data *data)
 		dev_err(data->dev, "failed to disable vbat regulator\n");
 
 	if (!ret)
-		dev_dbg(data->dev, "Power down completed.\n");
+		dev_err(data->dev, "Power down completed.\n");
 
 out:
 	mutex_unlock(&data->power_lock);
@@ -228,13 +228,16 @@ static void sim7672_reset_work_func(struct work_struct *ws)
 
 	switch (data->action) {
 	case SIM7672_ACTION_RESET:
+		printk("ymd: power reset\n");
 		sim7672_reset_power_off(data);
 		sim7672_reset_power_on(data);
 		break;
 	case SIM7672_ACTION_POWER_ON:
+		printk("ymd: power on\n");
 		sim7672_reset_power_on(data);
 		break;
 	case SIM7672_ACTION_POWER_OFF:
+		printk("ymd: power off\n");
 		sim7672_reset_power_off(data);
 		break;
 	case SIM7672_ACTION_VBUS_ON:
