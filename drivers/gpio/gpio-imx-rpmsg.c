@@ -593,7 +593,8 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 		ngpio = 32;
 	}
 
-	port = devm_kzalloc(&pdev->dev, sizeof(*port) + ngpio, GFP_KERNEL);
+	port = devm_kzalloc(&pdev->dev, sizeof(*port) + ngpio * sizeof(*port->gpio_pins),
+			    GFP_KERNEL);
 	if (!port)
 		return -ENOMEM;
 
