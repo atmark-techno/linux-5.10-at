@@ -183,6 +183,8 @@ static void sim7672_reset_power_off(struct sim7672_reset_data *data)
 	mutex_lock(&data->power_lock);
 
 	if (sim7672_reset_status(data) == SIM7672_STATUS_OFF) {
+		if (regulator_is_enabled(data->vbat))
+			regulator_disable(data->vbat);
 		dev_dbg(data->dev, "Power is already down\n");
 		goto out;
 	}
