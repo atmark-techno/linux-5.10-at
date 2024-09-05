@@ -91,7 +91,7 @@
 	pinctrl_sim7672_reset: sim7672_reset_grp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF25__PTF25	0x0	/* PWRKEY */
-			MX8ULP_PAD_PTF26__PTF26	0x3	/* USB_BOOT */
+			MX8ULP_PAD_PTF26__PTF26	0x0	/* USB_BOOT */
 			MX8ULP_PAD_PTD16__PTD16	0x2	/* STATUS */
 		/*	MX8ULP_PAD_PTC12__PTC12	0x0 */	/* VBUS */
 		>;
