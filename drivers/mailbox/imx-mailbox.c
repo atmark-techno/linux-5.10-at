@@ -929,8 +929,6 @@ static int __maybe_unused imx_mu_suspend_noirq(struct device *dev)
 
 	priv->suspend = true;
 
-	priv->suspend = true;
-
 	return 0;
 }
 
@@ -951,8 +949,6 @@ static int __maybe_unused imx_mu_resume_noirq(struct device *dev)
 		for (i = 0; i < IMX_MU_xCR_MAX; i++)
 			imx_mu_write(priv, priv->xcr[i], priv->dcfg->xCR[i]);
 	}
-
-	priv->suspend = false;
 
 	priv->suspend = false;
 
