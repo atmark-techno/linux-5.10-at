@@ -86,7 +86,7 @@ struct imx_rpmsg_gpio_pin {
 	u8 irq_shutdown;
 	u8 irq_unmask;
 	u8 irq_mask;
-	u32 irq_wake_enable;
+	u8 irq_wake;
 	u32 irq_type;
 	u32 pinctrl;
 	struct work_struct rpmsg_ack_work;
@@ -361,16 +361,55 @@ static int imx_rpmsg_irq_set_wake(struct irq_data *d, u32 enable)
 	struct imx_rpmsg_gpio_port *port = irq_data_get_irq_chip_data(d);
 	u32 gpio_idx = d->hwirq;
 
-	dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: irq %ld\n", __func__, d->hwirq);
+	dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: irq %ld @ %x\n", __func__, d->hwirq, enable);
 	if (gpio_idx >= port->gc.ngpio) {
 		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
 			gpio_idx, port->gc.ngpio);
 		return -EINVAL;
 	}
 
-	port->gpio_pins[gpio_idx].irq_wake_enable = enable;
-
+	port->gpio_pins[gpio_idx].irq_wake = enable;
 	return 0;
+}
+
+static void imx_rpmsg_irq_bus_lock(struct irq_data *d)
+{
+}
+
+static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
+{
+	struct imx_rpmsg_gpio_port *port = irq_data_get_irq_chip_data(d);
+	u32 gpio_idx = d->hwirq;
+	struct gpio_rpmsg_data msg = { 0 };
+	u8 wait;
+
+	if (gpio_idx >= port->gc.ngpio) {
+		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
+			gpio_idx, port->gc.ngpio);
+		return;
+	}
+
+	/* nothing to do if not wake, other irq messages are handled through
+	 * the workqueue */
+	if (port->gpio_pins[gpio_idx].irq_wake != 1)
+		return;
+
+	port->gpio_pins[gpio_idx].irq_wake = 0;
+
+	imx_rpmsg_gpio_msg_init(port, gpio_idx, &msg);
+	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
+
+	msg.input_init.event = port->gpio_pins[gpio_idx].irq_type;
+	if (!msg.input_init.event)
+		msg.input_init.event = GPIO_RPMSG_TRI_LOW_LEVEL;
+	msg.input_init.wakeup = 1;
+
+	/* need to wait for the reply:
+	 * if the reply comes after mailbox the subsystem suspended
+	 * it'll abort suspending */
+	mutex_lock(&gpio_rpmsg.lock);
+	gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
+	mutex_unlock(&gpio_rpmsg.lock);
 }
 
 /*
@@ -453,6 +492,8 @@ static struct irq_chip imx_rpmsg_irq_chip = {
 	.irq_set_wake = imx_rpmsg_irq_set_wake,
 	.irq_set_type = imx_rpmsg_irq_set_type,
 	.irq_shutdown = imx_rpmsg_irq_shutdown,
+	.irq_bus_lock = imx_rpmsg_irq_bus_lock,
+	.irq_bus_sync_unlock = imx_rpmsg_irq_bus_sync_unlock,
 };
 
 static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
@@ -495,8 +536,7 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 		if (READ_ONCE(pin->irq_unmask)) {
 			msg.input_init.wakeup = 0;
 			WRITE_ONCE(pin->irq_unmask, 0);
-		} else /* irq set wake */
-			msg.input_init.wakeup = READ_ONCE(pin->irq_wake_enable);
+		}
 	}
 
 	mutex_lock(&gpio_rpmsg.lock);
