@@ -115,6 +115,12 @@
 			no-map;
 			reg = <0 0xa8500000 0 0x100000>;
 		};
+
+		ele_reserved: ele-reserved@90000000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x90000000 0 0x100000>;
+			no-map;
+		};
 	};
 
 	reg_5v: regulator-5v {
@@ -666,4 +672,8 @@
 
 &epxp {
 	status = "okay";
+};
+
+&ele_fw2 {
+	memory-region = <&ele_reserved>;
 };
