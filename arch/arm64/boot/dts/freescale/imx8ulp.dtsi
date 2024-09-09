@@ -190,7 +190,7 @@
 		clock-output-names = "ext_ts_clk";
 	};
 
-	sram@2201f000 {
+	sram0: sram@2201f000 {
 		compatible = "mmio-sram";
 		reg = <0x0 0x2201f000 0x0 0x1000>;
 
@@ -226,6 +226,17 @@
 
 	rtc-rpmsg {
 		compatible = "fsl,imx-rpmsg-rtc";
+	};
+
+	ele_mu: ele-mu {
+		compatible = "fsl,imx-ele";
+		mboxes = <&s4muap 0 0 &s4muap 1 0>;
+		mbox-names = "tx", "rx";
+		fsl,ele_mu_did = <7>;
+		fsl,ele_mu_id = <2>;
+		fsl,ele_mu_max_users = <4>;
+		status = "okay";
+		sram-pool = <&sram0>;
 	};
 
 	soc@0 {
@@ -271,18 +282,6 @@
 			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
 			#mbox-cells = <2>;
 			status = "okay";
-		};
-
-		sentnl_mu: sentinel-mu {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,imx-sentinel";
-			mboxes = <&s4muap 0 0 &s4muap 1 0>;
-			mbox-names = "tx", "rx";
-			fsl,sentnl_mu_id = <2>;
-			fsl,sentnl_mu_max_users = <4>;
-			status = "okay";
-			dma-ranges = <0x80000000 0x80000000 0x20000000>;
 		};
 
 		per_bridge3: bus@29000000 {
@@ -1325,5 +1324,12 @@
 
 	rpmsg-lifecycle {
 		compatible = "nxp,rpmsg-lifecycle";
+	};
+
+	ele_fw2: se-fw2 {
+		compatible = "fsl,imx8ulp-se-fw";
+		mboxes = <&s4muap 0 0 &s4muap 1 0>;
+		mbox-names = "tx", "rx";
+		sram = <&sram0>;
 	};
 };
