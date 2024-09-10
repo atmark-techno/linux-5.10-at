@@ -129,7 +129,7 @@ struct virtio_rpmsg_channel {
  * processor.
  */
 #define MAX_RPMSG_NUM_BUFS	(512)
-#define MAX_RPMSG_BUF_SIZE	(512)
+#define MAX_RPMSG_BUF_SIZE	(RPMSG_BUF_SIZE)
 
 /*
  * Local addresses are dynamically allocated on-demand.
@@ -899,6 +899,8 @@ static int rpmsg_probe(struct virtio_device *vdev)
 	else
 		vrp->num_bufs = MAX_RPMSG_NUM_BUFS;
 
+	/* sanity check payload length */
+	BUILD_BUG_ON(sizeof(struct rpmsg_hdr) != RPMSG_HDR_LEN);
 	vrp->buf_size = MAX_RPMSG_BUF_SIZE;
 
 	total_buf_space = vrp->num_bufs * vrp->buf_size;
