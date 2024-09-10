@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+
+#include "armadillo_iotg_a9.dts"
+
+/* delete gpio properties to make user control these pins as gpio */
+&reg_usdhc2_vmmc {
+	/delete-property/ gpio;
+	/delete-property/ off-on-delay-us;
+};
+&reg_usb1_host_vbus {
+	/delete-property/ gpio;
+};
