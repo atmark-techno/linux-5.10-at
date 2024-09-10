@@ -93,4 +93,8 @@ static inline int rpmsg_ctrldev_register_device(struct rpmsg_device *rpdev)
 	return rpmsg_register_device_override(rpdev, "rpmsg_ctrl");
 }
 
+/* for sanity checking between virtio_rpmsg_bus.c and imx_rpmsg.c */
+#define RPMSG_HDR_LEN 16
+#define RPMSG_NUM_BUFS 512
+#define RPMSG_BUF_SIZE 512
 #endif
