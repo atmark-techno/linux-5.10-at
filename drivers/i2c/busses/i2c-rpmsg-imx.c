@@ -78,7 +78,6 @@
 #include <linux/delay.h>
 #include <linux/rpmsg.h>
 
-#define I2C_RPMSG_MAX_BUF_SIZE			32
 #define I2C_RPMSG_TIMEOUT			500 /* unit: ms */
 
 #define I2C_RPMSG_VERSION			0x0001
@@ -89,6 +88,11 @@
 #define I2C_RPMSG_PRIORITY			0x01
 
 #define I2C_RPMSG_M_STOP			0x0200
+
+/* i2c_rpmsg_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE
+ * BUILD_BUG_ON below fails if size is wrong */
+#define I2C_RPMSG_HDR_SIZE (IMX_RPMSG_HEAD_SIZE + 8)
+#define I2C_RPMSG_MAX_BUF_SIZE  (RPMSG_MAX_PAYLOAD_SIZE - I2C_RPMSG_HDR_SIZE)
 
 struct i2c_rpmsg_msg {
 	struct imx_rpmsg_head header;
@@ -134,10 +138,12 @@ static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 		return -EINVAL;
 	}
 
-	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
+	/* check I2C_RPMSG_HDR_SIZE is valid */
+	BUILD_BUG_ON(sizeof(struct i2c_rpmsg_msg) != RPMSG_MAX_PAYLOAD_SIZE);
+	if (msg->len > len - I2C_RPMSG_HDR_SIZE) {
 		dev_err(&rpdev->dev,
-		"%s failed: data length greater than %d, len=%d\n",
-		__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
+		"%s failed: data length greater than %ld, len=%d\n",
+		__func__, len - I2C_RPMSG_HDR_SIZE, msg->len);
 		return -EINVAL;
 	}
 
@@ -151,10 +157,21 @@ static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 static int rpmsg_xfer(struct i2c_rpmsg_msg *rmsg, struct i2c_rpmsg_info *info)
 {
-	int ret = 0;
+	int ret, size;
 
-	ret = rpmsg_send(info->rpdev->ept, (void *)rmsg,
-						sizeof(struct i2c_rpmsg_msg));
+	switch (rmsg->header.cmd) {
+	case I2C_RPMSG_COMMAND_WRITE:
+		size = sizeof(struct i2c_rpmsg_msg) - I2C_RPMSG_MAX_BUF_SIZE + rmsg->len;
+		break;
+	case I2C_RPMSG_COMMAND_READ:
+		size = sizeof(struct i2c_rpmsg_msg) - I2C_RPMSG_MAX_BUF_SIZE;
+		break;
+	default:
+		WARN_ON(1);
+		return -EINVAL;
+	}
+
+	ret = rpmsg_send(info->rpdev->ept, (void *)rmsg, size);
 	if (ret < 0) {
 		dev_err(&info->rpdev->dev, "rpmsg_send failed: %d\n", ret);
 		return ret;
@@ -187,7 +204,7 @@ static int i2c_rpmsg_read(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 
 	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
 		dev_err(&info->rpdev->dev,
-		"%s failed: data length greater than %d, len=%d\n",
+		"%s failed: data length greater than %zd, len=%d\n",
 		__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
 		return -EINVAL;
 	}
@@ -237,7 +254,7 @@ int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 
 	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
 		dev_err(&info->rpdev->dev,
-		"%s failed: data length greater than %d, len=%d\n",
+		"%s failed: data length greater than %zd, len=%d\n",
 		__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
 		return -EINVAL;
 	}
