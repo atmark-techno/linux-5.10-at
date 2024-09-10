@@ -16,8 +16,6 @@
 #include <linux/tty_flip.h>
 #include <linux/virtio.h>
 
-/* this needs to be less then (RPMSG_BUF_SIZE - sizeof(struct rpmsg_hdr)) */
-#define RPMSG_MAX_SIZE	484 /* sizeof(struct imx_rpmsg_data) == 496 */
 #define MSG		"hello world!"
 
 enum imx_rpmsg_header_type {
@@ -42,6 +40,8 @@ struct imx_rpmsg_port {
 	struct tty_driver	*driver;
 };
 
+/* imx_rpmsg_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE */
+#define RPMSG_MAX_SIZE	(RPMSG_MAX_PAYLOAD_SIZE - (IMX_RPMSG_HEAD_SIZE + 2))
 struct imx_rpmsg_msg {
 	struct imx_rpmsg_head header;
 	u16 len;
@@ -54,6 +54,7 @@ struct imx_rpmsg_msg {
 static inline void imx_rpmsg_uart_msg_init(struct imx_rpmsg_msg *msg,
 					   const void *buf, u16 len)
 {
+	BUILD_BUG_ON(sizeof(struct imx_rpmsg_msg) > RPMSG_MAX_PAYLOAD_SIZE);
 	BUG_ON(len > RPMSG_MAX_SIZE);
 
 	msg->header.cate = IMX_RPMSG_TTY;
