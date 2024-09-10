@@ -50,6 +50,12 @@
 			no-map;
 		};
 
+		ele_reserved: ele-reserved@aff20000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xaff20000 0 0x10000>;
+			no-map;
+		};
+
 		vdevbuffer: vdevbuffer@a8400000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0xa8400000 0 0x100000>;
@@ -136,6 +142,11 @@
 			ti,dac-cfg-1 = <0x000f>;
 		};
 	};
+};
+
+// comm with ELE, used by fuse
+&ele_fw2 {
+	memory-region = <&ele_reserved>;
 };
 
 &iomuxc1 {
