@@ -44,4 +44,10 @@ struct imx_rpmsg_head {
 	u8 reserved[5];
 } __packed;
 
+/* RPMSG_BUF_SIZE - sizeof(struct rpmsg_hdr), max length we can use
+ * before writing imx_rpmsg_head. head is not excluded as it usually is
+ * part of each message struct. */
+#define RPMSG_MAX_PAYLOAD_SIZE (496)
+#define IMX_RPMSG_HEAD_SIZE (sizeof(struct imx_rpmsg_head))
+
 #endif /* __LINUX_IMX_RPMSG_H__ */

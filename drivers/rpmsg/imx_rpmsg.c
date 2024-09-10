@@ -70,9 +70,6 @@ struct imx_rpmsg_vproc {
  */
 #define REMOTE_READY_WAIT_MAX_RETRIES	500
 
-#define RPMSG_NUM_BUFS		(512)
-#define RPMSG_BUF_SIZE		(512)
-#define RPMSG_BUFS_SPACE	(RPMSG_NUM_BUFS * RPMSG_BUF_SIZE)
 #define RPMSG_VRING_ALIGN	(4096)
 #define RPMSG_RING_SIZE	((DIV_ROUND_UP(vring_size(RPMSG_NUM_BUFS / 2, \
 				RPMSG_VRING_ALIGN), PAGE_SIZE)) * PAGE_SIZE)
@@ -557,6 +554,9 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 	rpdev->rx_buffer.buf = buf;
 	rpdev->rx_buffer.head = 0;
 	rpdev->rx_buffer.tail = 0;
+
+	/* sanity check payload length */
+	BUILD_BUG_ON(RPMSG_MAX_PAYLOAD_SIZE != RPMSG_BUF_SIZE - RPMSG_HDR_LEN);
 
 	/* Initialize the RX/TX channels. */
 	ret = imx_rpmsg_xtr_channel_init(rpdev);
