@@ -73,17 +73,7 @@
 		};
 	};
 
-	//secure element
-	i2c_gpio: i2c-gpio {
-		compatible = "i2c-gpio";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		i2c-gpio,delay-us = <0>;
-		sda-gpios = <&rpmsg_gpiob 5 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
-		scl-gpios = <&rpmsg_gpiob 4 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
-		status = "okay";
-	};
-
+	// secure element
 	se_en: se-enable {
 		compatible = "gpio-reset";
 		pinctrl-names = "default";
@@ -92,6 +82,14 @@
 		reset-assert-in-suspend;
 	};
 };
+
+// secure element
+&i2c_rpbus_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+};
+
 
 &imx8ulp_cm33 {
 	ipc-only;

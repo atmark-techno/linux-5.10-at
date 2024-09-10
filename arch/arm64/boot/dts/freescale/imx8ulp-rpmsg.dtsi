@@ -10,6 +10,7 @@
 		gpio2 = &rpmsg_gpioc;
 		i2c0 = &i2c_rpbus_0;
 		i2c1 = &i2c_rpbus_1;
+		i2c2 = &i2c_rpbus_2;
 		pwm0 = &tpm_rpchip_0;
 	};
 
@@ -31,6 +32,11 @@
 	};
 
 	i2c_rpbus_1: i2c-rpbus-1 {
+		compatible = "fsl,i2c-rpbus";
+		status = "disabled";
+	};
+
+	i2c_rpbus_2: i2c-rpbus-2 {
 		compatible = "fsl,i2c-rpbus";
 		status = "disabled";
 	};
