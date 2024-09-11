@@ -243,7 +243,7 @@
 
 &iomuxc1 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_customize>;
+	pinctrl-0 = <&pinctrl_customize>, <&pinctrl_con10_gpio>;
 
 	/* pinctrl memo
 	 * 0x7c00000 deglitch window
@@ -259,6 +259,9 @@
 	 */
 
 	pinctrl_customize: customizegrp {
+	};
+
+	pinctrl_con10_gpio: con10gpiogrp {
 	};
 
 	pinctrl_usdhc2: usdhc2grp {

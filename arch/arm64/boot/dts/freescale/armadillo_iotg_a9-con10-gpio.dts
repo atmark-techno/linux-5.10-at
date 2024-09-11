@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx8ulp-pinfunc.h"
+
+/* pinctrl memo
+ * 0x7c00000 deglitch window
+ * 0x200000 digital filter clock select (0=PCTL*, 1=RTC 1kHz)
+ * 0x100000 digital filter
+ * 0x20000 output buffer enable
+ * 0x10000 input buffer enable
+ * 0x40 high drive strength
+ * 0x20 open drain
+ * 0x4 slew rate
+ * 0x2 pull-up enable
+ * 0x1 pull-up selection (0=pull down)
+ */
+&pinctrl_con10_gpio {
+	fsl,pins = <
+		MX8ULP_PAD_PTF4__PTF4	0x0 /* on-board pull-up */
+		MX8ULP_PAD_PTF5__PTF5	0x0 /* on-board pull-up */
+		MX8ULP_PAD_PTF6__PTF6	0x0
+		MX8ULP_PAD_PTF7__PTF7	0x0
+	>;
+};

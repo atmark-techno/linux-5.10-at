@@ -228,7 +228,8 @@ dtb-$(CONFIG_ARCH_MXC) += ogasawara-pre_eva.dtb \
 			  armadillo_iotg_a9.dtb \
 			  armadillo_iotg_a9-usercontrol.dtb
 DTC_FLAGS_armadillo_iotg_a9 := -@
-dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_a9-sim7672.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_a9-sim7672.dtbo \
+			  armadillo_iotg_a9-con10-gpio.dtbo
 
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
 			  s32v234-sbc.dtb
