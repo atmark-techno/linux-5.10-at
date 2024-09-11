@@ -53,12 +53,16 @@ enum sim7672_reset_action {
 	SIM7672_ACTION_RESET,
 	SIM7672_ACTION_POWER_ON,
 	SIM7672_ACTION_POWER_OFF,
+	SIM7672_ACTION_VBUS_ON,
+	SIM7672_ACTION_VBUS_OFF,
 };
 
 static const char *const sim7672_reset_action_str[] = {
 	[SIM7672_ACTION_RESET]			= "reset",
 	[SIM7672_ACTION_POWER_ON]		= "power on",
 	[SIM7672_ACTION_POWER_OFF]		= "power off",
+	[SIM7672_ACTION_VBUS_ON]		= "vbus on",
+	[SIM7672_ACTION_VBUS_OFF]		= "vbus off",
 };
 
 struct sim7672_reset_data {
@@ -233,6 +237,12 @@ static void sim7672_reset_work_func(struct work_struct *ws)
 	case SIM7672_ACTION_POWER_OFF:
 		sim7672_reset_power_off(data);
 		break;
+	case SIM7672_ACTION_VBUS_ON:
+		sim7672_reset_vbus(data, SIM7672_VBUS_TURN_ON);
+		break;
+	case SIM7672_ACTION_VBUS_OFF:
+		sim7672_reset_vbus(data, SIM7672_VBUS_TURN_OFF);
+		break;
 	default:
 		WARN_ON(1);
 	}
@@ -360,10 +370,32 @@ static ssize_t status_show(struct device *dev,
 }
 static DEVICE_ATTR_ADMIN_RO(status);
 
+static ssize_t vbus_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct sim7672_reset_data *data = platform_get_drvdata(pdev);
+	int val, ret;
+
+	ret = kstrtoint(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val)
+		ret = sim7672_reset_schedule_work(data, SIM7672_ACTION_VBUS_ON);
+	else
+		ret = sim7672_reset_schedule_work(data, SIM7672_ACTION_VBUS_OFF);
+
+	return ret ? : count;
+}
+static DEVICE_ATTR_WO(vbus);
+
 static struct attribute *sim7672_reset_attrs[] = {
 	&dev_attr_reset.attr,
 	&dev_attr_power.attr,
 	&dev_attr_status.attr,
+	&dev_attr_vbus.attr,
 	NULL
 };
 
