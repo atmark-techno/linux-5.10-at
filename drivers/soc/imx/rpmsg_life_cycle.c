@@ -29,6 +29,7 @@ enum pm_rpmsg_cmd {
 enum pm_rpmsg_power_mode {
 	PM_RPMSG_ACTIVE = 1,
 	PM_RPMSG_SUSPEND = 5,
+	PM_RPMSG_REBOOT = 6,
 	PM_RPMSG_SHUTDOWN = 7,
 };
 
@@ -43,10 +44,6 @@ static int rpmsg_life_cycle_notifier(struct notifier_block *nb,
 	int cpu;
 #endif
 	struct pm_rpmsg_data msg = {};
-
-	/* return early if it is RESTART case */
-	if (action == SYS_RESTART)
-		return NOTIFY_DONE;
 
 	/*
 	 * unplug the non-boot cpu to make sure A35 cluster can be
@@ -68,7 +65,10 @@ static int rpmsg_life_cycle_notifier(struct notifier_block *nb,
 	msg.header.minor = IMX_RMPSG_MINOR;
 	msg.header.type = PM_RPMSG_TYPE;
 	msg.header.cmd = PM_RPMSG_MODE;
-	msg.data = PM_RPMSG_SHUTDOWN;
+	if (action == SYS_RESTART)
+		msg.data = PM_RPMSG_REBOOT;
+	else
+		msg.data = PM_RPMSG_SHUTDOWN;
 
 	/* No ACK from M core */
 	ret = rpmsg_send(life_cycle_rpdev->ept, &msg, sizeof(struct pm_rpmsg_data));
