@@ -239,6 +239,13 @@
 			IOMUXC_PTC3_PTC3 0x20000 /* OBE(1) */
 		>;
 	};
+
+	dido {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC10_PTC10 0x4
+			IOMUXC_PTC11_PTC11 0x4
+		>;
+	};
 };
 
 &iomuxc1 {
