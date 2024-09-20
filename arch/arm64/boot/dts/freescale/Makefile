@@ -237,3 +237,4 @@ dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
 			  s32v234-sbc.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_a9-evaluation.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_a9-disable-mlan.dtbo

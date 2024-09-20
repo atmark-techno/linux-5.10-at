@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+// disable wlan LBES5PL2EL-923
+&usdhc1 {
+	status = "broken";
+};
+&usdhc1_pwrseq {
+	status = "broken";
+};
