@@ -59,7 +59,6 @@
 		regulator-max-microvolt = <3300000>;
 		gpio = <&rpmsg_gpioa 2 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-always-on;
 		off-on-delay-us = <100000>;
 	};
 
