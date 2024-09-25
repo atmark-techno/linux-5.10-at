@@ -105,8 +105,7 @@
 	fsl,uart-has-rtscts;
 	rts-gpios = <&gpio4 9 GPIO_ACTIVE_HIGH>;
 
-	rs485-enabled-at-boot-time;
-	rs485-rts-on-send;
+	linux,rs485-enabled-at-boot-time;
 	rs485-delay-rts-before-send = <0>;
 	rs485-delay-rts-after-send = <0>;
 };

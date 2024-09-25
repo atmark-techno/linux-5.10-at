@@ -10,9 +10,8 @@
 	pinctrl-0 = <&pinctrl_uart1>;
 	status = "okay";
 	fsl,uart-has-rtscts;
-	rs485-rts-on-send;
 	rts-gpios = <&gpio4 6 GPIO_ACTIVE_HIGH>;
-	rs485-enabled-at-boot-time;
+	linux,rs485-enabled-at-boot-time;
 };
 
 &i2c_gpio1 {
