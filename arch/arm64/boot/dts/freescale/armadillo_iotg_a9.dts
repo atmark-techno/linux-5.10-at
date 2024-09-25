@@ -304,8 +304,8 @@
 
 	pinctrl_lpi2c6: i2c6grp {
 		fsl,pins = <
-			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x20
-			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x20
+			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x24
+			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x24
 		>;
 	};
 
