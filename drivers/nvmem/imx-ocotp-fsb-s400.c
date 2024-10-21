@@ -269,10 +269,10 @@ static int fsb_s400_fuse_write(void *priv, unsigned int offset, void *val, size_
 	int ret;
 
 	/* allow only writing one complete OTP word at a time */
-	if (bytes != 4)
+	if (bytes != 4 || offset % 4 != 0)
 		return -EINVAL;
 
-	index = offset;
+	index = offset / 4;
 
 	mutex_lock(&fuse->lock);
 	ret = ele_write_fuse(fuse->se_dev, index, *buf, false);
