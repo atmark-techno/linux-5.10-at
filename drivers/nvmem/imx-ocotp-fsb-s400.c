@@ -304,12 +304,78 @@ static int fsb_s400_fuse_write(void *priv, unsigned int offset, void *val, size_
 	return ret;
 }
 
+#define LIFECYCLE_OFFSET 0x41c
+#define LIFECYCLE_OPEN 0x8
+#define LIFECYCLE_CLOSE 0x20
+
+static ssize_t secureboot_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	struct imx_fsb_s400_fuse *fuse = dev_get_drvdata(dev);
+	u32 lifecycle = readl_relaxed(fuse->regs + LIFECYCLE_OFFSET) & 0x3ff;
+	int rc, len;
+	u32 events[5], count = 5;
+
+	switch (lifecycle) {
+	case LIFECYCLE_OPEN:
+		len = sprintf(buf, "open\n");
+		break;
+	case LIFECYCLE_CLOSE:
+		len = sprintf(buf, "close\n");
+		break;
+	default:
+		len = sprintf(buf, "unknown: %#x\n", lifecycle);
+	}
+
+	rc = ele_get_events(fuse->se_dev, events, &count);
+	if (rc) {
+		len += sprintf(buf+len, "could not get events: %d\n", rc);
+		count = 0;
+	}
+	for (rc = 0; rc < count; rc++) {
+		len += sprintf(buf+len, "%#x\n", events[rc]);
+	}
+
+	return len;
+}
+
+static ssize_t secureboot_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t len)
+{
+	struct imx_fsb_s400_fuse *fuse = dev_get_drvdata(dev);
+	u32 lifecycle = readl_relaxed(fuse->regs + LIFECYCLE_OFFSET) & 0x3ff;
+
+	if (!sysfs_streq(buf, "close")) {
+		dev_err(dev, "Can only write 'close'\n");
+		return -EINVAL;
+	}
+
+	if (lifecycle != LIFECYCLE_OPEN) {
+		dev_err(dev, "Cannot close device not open (%#x)\n", lifecycle);
+		return -EINVAL;
+	}
+
+	return ele_forward_lifecycle(fuse->se_dev, LIFECYCLE_OPEN);
+}
+
+static DEVICE_ATTR_ADMIN_RW(secureboot);
+
+static struct attribute *secureboot_attributes[] = {
+	&dev_attr_secureboot.attr,
+	NULL
+};
+
+static const struct attribute_group secureboot_attr_group = {
+	.attrs = secureboot_attributes,
+};
+
 static int imx_fsb_s400_fuse_probe(struct platform_device *pdev)
 {
 	struct imx_fsb_s400_fuse *fuse;
 	struct nvmem_device *nvmem;
 	struct device_node *np;
 	void __iomem *reg;
+	int rc;
 	u32 v;
 
 	fuse = devm_kzalloc(&pdev->dev, sizeof(*fuse), GFP_KERNEL);
@@ -361,6 +427,14 @@ static int imx_fsb_s400_fuse_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	dev_dbg(&pdev->dev, "fuse nvmem device registered successfully\n");
+
+	// create sysfs file for secureboot status (not a fuse)
+	rc = devm_device_add_group(&pdev->dev, &secureboot_attr_group);
+	if (rc) {
+		dev_err(&pdev->dev, "Could not create secureboot attrs: %d\n", rc);
+		return rc;
+	}
+	platform_set_drvdata(pdev, fuse);
 
 	return 0;
 }
