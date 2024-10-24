@@ -68,6 +68,17 @@
 #define OTP_UNIQ_ID			0x01
 #define OTFAD_CONFIG			0x2
 
+#define ELE_FWD_LIFECYCLE_UP_REQ	0x95
+#define ELE_FWD_LIFECYCLE_UP_REQ_MSG_SZ	0x08
+#define ELE_FWD_LIFECYCLE_UP_RSP_MSG_SZ	0x08
+
+#define ELE_GET_EVENTS_REQ		0xA2
+#define ELE_GET_EVENTS_REQ_MSG_SZ	0x04
+#define ELE_GET_EVENTS_RSP_MSG_SZ	0x30
+/* - 3 for header, status and count itself */
+#define ELE_GET_EVENTS_MAX_COUNT \
+	((ELE_GET_EVENTS_RSP_MSG_SZ >> 2) - 3)
+
 #define ELE_GET_STATE			0xB2
 #define ELE_GET_STATE_REQ_SZ		0x04
 #define ELE_GET_STATE_RSP_SZ		0x10
@@ -88,6 +99,8 @@ int ele_service_swap(struct device *dev,
 		     u32 addr_size, u16 flag);
 int ele_get_v2x_fw_state(struct device *dev, uint32_t *state);
 int ele_write_fuse(struct device *dev, uint16_t fuse_index, u32 value, bool block);
+int ele_get_events(struct device *dev, u32 *events, u32 *events_count);
+int ele_forward_lifecycle(struct device *dev, u16 life_cycle);
 
 int read_common_fuse(struct device *dev,
 		     uint16_t fuse_id, u32 *value);

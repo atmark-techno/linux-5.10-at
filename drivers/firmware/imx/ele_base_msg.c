@@ -154,6 +154,112 @@ exit:
 }
 EXPORT_SYMBOL_GPL(ele_write_fuse);
 
+int ele_get_events(struct device *dev, u32 *events, u32 *events_count)
+{
+	struct ele_mu_priv *priv = dev_get_drvdata(dev);
+	unsigned int status, ind;
+	u16 actual_count, i;
+	int ret;
+
+	ret = imx_se_alloc_tx_rx_buf(priv);
+	if (ret)
+		return ret;
+
+	ret = plat_fill_cmd_msg_hdr(priv,
+				    (struct mu_hdr *)&priv->tx_msg->header,
+				    ELE_GET_EVENTS_REQ,
+				    ELE_GET_EVENTS_REQ_MSG_SZ,
+				    true);
+	if (ret) {
+		pr_err("Error: plat_fill_cmd_msg_hdr failed.\n");
+		goto exit;
+	}
+
+	ret = imx_ele_msg_send_rcv(priv);
+	if (ret < 0)
+		goto exit;
+
+	ret  = validate_rsp_hdr(priv,
+				priv->rx_msg->header,
+				ELE_GET_EVENTS_REQ,
+				ELE_GET_EVENTS_RSP_MSG_SZ,
+				true);
+	if (ret)
+		goto exit;
+
+	status = RES_STATUS(priv->rx_msg->data[0]);
+	ind = RES_IND(priv->rx_msg->data[0]);
+	if (status != priv->success_tag) {
+		dev_err(dev, "Command Id[%d], Status=0x%x, Indicator=0x%x",
+			ELE_GET_EVENTS_REQ, status, ind);
+		ret = -1;
+		goto exit;
+	}
+
+	actual_count = priv->rx_msg->data[1] & 0xffff;
+	if (actual_count > ELE_GET_EVENTS_MAX_COUNT)
+		actual_count = ELE_GET_EVENTS_MAX_COUNT;
+	if (actual_count > *events_count)
+		actual_count = *events_count;
+
+	for (i = 0; i < actual_count; i++)
+		events[i] = priv->rx_msg->data[i + 2];
+	*events_count = actual_count;
+
+exit:
+	imx_se_free_tx_rx_buf(priv);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ele_get_events);
+
+int ele_forward_lifecycle(struct device *dev, u16 life_cycle)
+{
+	struct ele_mu_priv *priv = dev_get_drvdata(dev);
+	unsigned int status, ind;
+	int ret;
+
+	ret = imx_se_alloc_tx_rx_buf(priv);
+	if (ret)
+		return ret;
+
+	ret = plat_fill_cmd_msg_hdr(priv,
+				    (struct mu_hdr *)&priv->tx_msg->header,
+				    ELE_FWD_LIFECYCLE_UP_REQ,
+				    ELE_FWD_LIFECYCLE_UP_REQ_MSG_SZ,
+				    true);
+	if (ret) {
+		pr_err("Error: plat_fill_cmd_msg_hdr failed.\n");
+		goto exit;
+	}
+
+	*((u16*)priv->tx_msg->data) = life_cycle;
+
+	ret = imx_ele_msg_send_rcv(priv);
+	if (ret < 0)
+		goto exit;
+
+	ret  = validate_rsp_hdr(priv,
+				priv->rx_msg->header,
+				ELE_FWD_LIFECYCLE_UP_REQ,
+				ELE_FWD_LIFECYCLE_UP_RSP_MSG_SZ,
+				true);
+	if (ret)
+		goto exit;
+
+	status = RES_STATUS(priv->rx_msg->data[0]);
+	ind = RES_IND(priv->rx_msg->data[0]);
+	if (status != priv->success_tag) {
+		dev_err(dev, "Command Id[%d], Status=0x%x, Indicator=0x%x",
+			ELE_FWD_LIFECYCLE_UP_REQ, status, ind);
+		ret = -1;
+	}
+
+exit:
+	imx_se_free_tx_rx_buf(priv);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ele_forward_lifecycle);
+
 int ele_ping(struct device *dev)
 {
 	struct ele_mu_priv *priv = dev_get_drvdata(dev);
