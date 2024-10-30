@@ -33,6 +33,10 @@
 #define NOC_CPU_PRIORITY		0x13
 #define NOC_MIX_PRIORITY		0x14
 
+#define FSL_SIP_HAB			0xc2000007
+#define FSL_SIP_HAB_REPORT_STATUS	0x04
+#define HAB_SUCCESS			0xf0
+
 #define OCOTP_UID_LOW			0x410
 #define OCOTP_UID_HIGH			0x420
 
@@ -47,6 +51,40 @@ struct imx8_soc_data {
 };
 
 static u64 soc_uid;
+
+#ifdef CONFIG_HAVE_ARM_SMCCC
+static ssize_t hab_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(FSL_SIP_HAB, FSL_SIP_HAB_REPORT_STATUS,
+			0, 0, 0, 0, 0, 0, &res);
+
+	switch (res.a0) {
+	case HAB_SUCCESS:
+		return sprintf(buf, "success\n");
+	default:
+		return sprintf(buf, "failed\n");
+	}
+}
+static DEVICE_ATTR_ADMIN_RO(hab_status);
+static struct attribute *hab_status_attributes[] = {
+	&dev_attr_hab_status.attr,
+	NULL
+};
+
+static const struct attribute_group hab_status_attr_group = {
+	.attrs = hab_status_attributes,
+};
+
+static int imx8mp_register_hab_status(struct platform_device *pdev)
+{
+	return devm_device_add_group(&pdev->dev, &hab_status_attr_group);
+}
+#else
+static inline int imx8mp_register_hab_status(void *unused) { return -0 }
+#endif
 
 #ifdef CONFIG_HAVE_ARM_SMCCC
 static u32 imx8mq_soc_revision_from_atf(void)
@@ -261,6 +299,12 @@ static int imx8_soc_info(struct platform_device *pdev)
 			} else {
 				soc_rev = data->soc_revision(NULL);
 			}
+		}
+
+		if (!strcmp(data->name, "i.MX8MP")) {
+			ret = imx8mp_register_hab_status(pdev);
+			if (ret)
+				goto free_soc;
 		}
 	}
 
