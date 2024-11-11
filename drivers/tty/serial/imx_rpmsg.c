@@ -129,7 +129,7 @@ static int imx_rpmsg_uart_write(struct tty_struct *tty,
 	struct rpmsg_device *rpdev = port->rpdev;
 
 	if (buf == NULL) {
-		pr_err("buf shouldn't be null.\n");
+		dev_err(&rpdev->dev, "buf shouldn't be null.\n");
 		return -ENOMEM;
 	}
 
@@ -236,7 +236,8 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 
 	ret = tty_register_driver(port->driver);
 	if (ret < 0) {
-		pr_err("Couldn't install rpmsg tty driver: ret %d\n", ret);
+		dev_err(&rpdev->dev,
+			"Couldn't install rpmsg tty driver: ret %d\n", ret);
 		goto error1;
 	} else {
 		pr_info("Install rpmsg tty driver!\n");
