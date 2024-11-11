@@ -710,6 +710,14 @@ config MAX77620_WATCHDOG
 	 MAX77620 chips. To compile this driver as a module,
 	 choose M here: the module will be called max77620_wdt.
 
+config IMX_RPMSG_WDT
+	tristate "IMX RPMSG Watchdog"
+	depends on RPMSG
+	select WATCHDOG_CORE
+	help
+	  This is the driver for rpmsg watchdog, to ensure we always
+          reset if rpmsg is no longer functional.
+
 config IMX2_WDT
 	tristate "IMX2+ Watchdog"
 	depends on ARCH_MXC || ARCH_LAYERSCAPE || COMPILE_TEST
