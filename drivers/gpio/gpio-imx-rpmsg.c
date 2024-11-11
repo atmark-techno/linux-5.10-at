@@ -29,7 +29,7 @@
 
 #define RPMSG_TIMEOUT	1000
 #define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	10
-#define IMX_RPMSG_GPIO_VERSION_MAJOR 2
+#define IMX_RPMSG_GPIO_VERSION_MAJOR 3
 #define IMX_RPMSG_GPIO_VERSION_MINOR 0
 #define GPIO_RPMSG_PINCTRL_UNSET 0xffffffff
 
@@ -58,6 +58,7 @@ enum gpio_rpmsg_header_cmd {
 
 struct gpio_rpmsg_data {
 	struct imx_rpmsg_head header;
+	u8 request_id;
 	u8 pin_idx;
 	u8 port_idx;
 	union {
@@ -101,13 +102,17 @@ struct imx_rpmsg_gpio_port {
 
 struct imx_gpio_rpmsg_info {
 	struct rpmsg_device *rpdev;
-	struct gpio_rpmsg_data *notify_msg;
-	struct gpio_rpmsg_data *reply_msg;
 	struct pm_qos_request pm_qos_req;
 	struct completion cmd_complete;
 	struct imx_rpmsg_gpio_port *port_store[IMX_RPMSG_GPIO_PORT_PER_SOC_MAX];
 	struct mutex lock;
 	struct workqueue_struct *rpmsg_ack_wq;
+
+	u8 last_retcode;
+	u8 last_request_id;
+	u16 inflight_request_id;
+	u8 *requested_value;
+	spinlock_t request_id_lock;
 };
 
 static struct imx_gpio_rpmsg_info gpio_rpmsg;
@@ -128,6 +133,17 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 	cpu_latency_qos_add_request(&info->pm_qos_req, 0);
 
 	reinit_completion(&info->cmd_complete);
+	if (value)
+		info->requested_value = value;
+
+	/* send are serialized, and if we wait for a reply the latest value
+	 * will always be correct */
+	/* We need the spin lock to ensure rpmsg cb does not set last_error
+	 * after this timed out & another request started being processed */
+	spin_lock_irq(&info->request_id_lock);
+	info->inflight_request_id = info->last_request_id++;
+	spin_unlock_irq(&info->request_id_lock);
+	msg->request_id = info->inflight_request_id;
 
 	err = rpmsg_send(info->rpdev->ept, (void *)msg,
 			    sizeof(struct gpio_rpmsg_data));
@@ -141,28 +157,24 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 		err = wait_for_completion_timeout(&info->cmd_complete,
 					msecs_to_jiffies(RPMSG_TIMEOUT));
 		if (!err) {
+			/* don't process late replies - lock here ensures
+			 * we're not completing the next call */
+			spin_lock_irq(&info->request_id_lock);
+			info->inflight_request_id = 0xffff;
+			info->requested_value = NULL;
+			spin_unlock_irq(&info->request_id_lock);
 			dev_err(&info->rpdev->dev, "rpmsg_send timeout!\n");
 			err = -ETIMEDOUT;
 			goto err_out;
 		}
 
-		if (info->reply_msg->reply.retcode != 0) {
+		if (info->last_retcode != 0) {
 			dev_err(&info->rpdev->dev, "rpmsg error for %d / %d,%d: %d!\n",
 				msg->header.cmd, msg->port_idx, msg->pin_idx,
-				info->reply_msg->reply.retcode);
+				info->last_retcode);
 			err = -EINVAL;
 			goto err_out;
 		}
-
-		if (info->reply_msg->pin_idx >= port->gc.ngpio) {
-			dev_err(&info->rpdev->dev, "acked index %d above max %d!\n",
-				info->reply_msg->pin_idx, port->gc.ngpio);
-			err = -EINVAL;
-			goto err_out;
-		}
-
-		/* copy the reply value */
-		*value = info->reply_msg->reply.value;
 
 		err = 0;
 	}
@@ -180,11 +192,26 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 	unsigned long flags;
 
 	if (msg->header.type == GPIO_RPMSG_REPLY) {
-		/* TBD: Add irq request_id check for A core msg */
-		gpio_rpmsg.reply_msg = msg;
+		spin_lock_irq(&gpio_rpmsg.request_id_lock);
+		if (msg->request_id != gpio_rpmsg.inflight_request_id) {
+			// obsolete reply that was not waited for -- not necessarily an error
+			dev_dbg(&rpdev->dev, "unexpected id %x (expected %x)\n",
+				  msg->request_id, gpio_rpmsg.inflight_request_id);
+			spin_unlock_irq(&gpio_rpmsg.request_id_lock);
+			return 0;
+		}
+		/* don't process duplicates */
+		gpio_rpmsg.inflight_request_id = 0xffff;
+
+		gpio_rpmsg.last_retcode = msg->reply.retcode;
+		if (gpio_rpmsg.requested_value) {
+			*gpio_rpmsg.requested_value = msg->reply.value;
+			gpio_rpmsg.requested_value = NULL;
+		}
+		spin_unlock_irq(&gpio_rpmsg.request_id_lock);
+
 		complete(&gpio_rpmsg.cmd_complete);
 	} else if (msg->header.type == GPIO_RPMSG_NOTIFY) {
-		gpio_rpmsg.notify_msg = msg;
 		if (msg->port_idx >= IMX_RPMSG_GPIO_PORT_PER_SOC_MAX) {
 			dev_err(&gpio_rpmsg.rpdev->dev, "port_idx %d too large\n", msg->port_idx);
 			return 0;
@@ -710,6 +737,7 @@ static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
 
 	init_completion(&gpio_rpmsg.cmd_complete);
 	mutex_init(&gpio_rpmsg.lock);
+	spin_lock_init(&gpio_rpmsg.request_id_lock);
 
 	gpio_rpmsg.rpmsg_ack_wq = create_workqueue("imx_rpmsg_gpio_workqueue");
 	if (!gpio_rpmsg.rpmsg_ack_wq) {
