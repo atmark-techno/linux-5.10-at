@@ -84,12 +84,14 @@ struct adc_rpmsg_msg {
 
 struct imx_rpmsg_adc {
 	struct rpmsg_device *rpdev;
-	struct adc_rpmsg_msg *msg;
 	struct completion cmd_complete;
 	struct mutex lock;
 
+	u8 last_retcode;
 	u8 last_request_id;
 	u16 inflight_request_id;
+	u16 *requested_value;
+	spinlock_t request_id_lock;
 };
 
 /* rpmsg callback has a void *priv but it is not settable
@@ -118,7 +120,8 @@ static const struct iio_chan_spec imx_rpmsg_channels[] = {
 	IMX_RPMSG_VOLTAGE_CHANNEL(0),
 };
 
-static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpmsg_msg *msg)
+static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpmsg_msg *msg,
+				       u16 *value)
 {
 	int ret;
 
@@ -128,8 +131,18 @@ static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpm
 	msg->header.type = ADC_RPMSG_TYPE_REQUEST;
 
 	mutex_lock(&adc->lock);
+	reinit_completion(&adc->cmd_complete);
+	if (value) {
+		adc->requested_value = value;
+	}
+
+	/* We need the spin lock to ensure rpmsg cb does not set last_error
+	 * after this timed out & another request started being processed */
+	spin_lock_irq(&adc->request_id_lock);
 	adc->inflight_request_id = adc->last_request_id++;
+	spin_unlock_irq(&adc->request_id_lock);
 	msg->request_id = adc->inflight_request_id;
+
 	ret = rpmsg_send(adc->rpdev->ept, msg, sizeof(*msg));
 	if (ret < 0) {
 		dev_err(&adc->rpdev->dev, "rpmsg_send failed %d\n", ret);
@@ -138,10 +151,14 @@ static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpm
 	}
 	ret = wait_for_completion_timeout(&adc->cmd_complete,
 					  msecs_to_jiffies(ADC_RPMSG_TIMEOUT_MS));
-	// don't process late/duplicate - not representable with u8
-	adc->inflight_request_id = 0xffff;
 	mutex_unlock(&adc->lock);
 	if (!ret) {
+		/* don't process late replies - lock here ensures we're not completing
+		 * the next call */
+		spin_lock_irq(&adc->request_id_lock);
+		adc->inflight_request_id = 0xffff;
+		adc->requested_value = NULL;
+		spin_unlock_irq(&adc->request_id_lock);
 		dev_err(&adc->rpdev->dev, "rpmsg reply timeout\n");
 		return -ETIMEDOUT;
 	}
@@ -155,15 +172,16 @@ static int imx_rpmsg_adc_get(struct imx_rpmsg_adc *adc, int idx, int *val)
 		.idx = idx,
 	};
 	int ret;
+	u16 reply_val;
 
 	if (!adc || !adc->rpdev)
 		return -EINVAL;
 
-	ret = imx_rpmsg_adc_send_and_wait(adc, &msg);
+	ret = imx_rpmsg_adc_send_and_wait(adc, &msg, &reply_val);
 	if (ret)
 		return ret;
 
-	*val = adc->msg->value;
+	*val = reply_val;
 
 	return IIO_VAL_INT;
 }
@@ -200,13 +218,23 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 		dev_err(&rpdev->dev, "bad type %x\n", msg->header.type);
 		return -EINVAL;
 	}
+	spin_lock_irq(&adc_rpmsg->request_id_lock);
 	if (msg->request_id != adc_rpmsg->inflight_request_id) {
+		spin_unlock_irq(&adc_rpmsg->request_id_lock);
 		dev_err(&rpdev->dev, "bad id %x (expected %x)\n",
 			msg->request_id, adc_rpmsg->inflight_request_id);
 		return -EINVAL;
 	}
+	/* don't process duplicates */
+	adc_rpmsg->inflight_request_id = 0xffff;
 
-	adc_rpmsg->msg = msg;
+	adc_rpmsg->last_retcode = msg->ret;
+	if (adc_rpmsg->requested_value) {
+		*adc_rpmsg->requested_value = msg->value;
+		adc_rpmsg->requested_value = NULL;
+	}
+	spin_unlock_irq(&adc_rpmsg->request_id_lock);
+
 	complete(&adc_rpmsg->cmd_complete);
 	return 0;
 }
@@ -232,6 +260,7 @@ static int adc_rpmsg_probe(struct rpmsg_device *rpdev)
 	adc->rpdev = rpdev;
 
 	mutex_init(&adc->lock);
+	spin_lock_init(&adc->request_id_lock);
 	init_completion(&adc->cmd_complete);
 
 	/* Initiate the Industrial I/O device */
