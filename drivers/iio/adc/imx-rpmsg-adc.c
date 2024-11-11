@@ -82,7 +82,7 @@ struct adc_rpmsg_msg {
 	u16 value;
 } __packed __aligned(1);
 
-struct imx_rpmsg {
+struct imx_rpmsg_adc {
 	struct rpmsg_device *rpdev;
 	struct adc_rpmsg_msg *msg;
 	struct completion cmd_complete;
@@ -94,7 +94,7 @@ struct imx_rpmsg {
 /* rpmsg callback has a void *priv but it is not settable
  * when invoked with rpmsg_driver probe, so we need a global...
  */
-static struct imx_rpmsg *adc_rpmsg;
+static struct imx_rpmsg_adc *adc_rpmsg;
 
 #define IMX_RPMSG_VOLTAGE_CHANNEL(num)                               \
 	{                                                            \
@@ -117,7 +117,7 @@ static const struct iio_chan_spec imx_rpmsg_channels[] = {
 	IMX_RPMSG_VOLTAGE_CHANNEL(0),
 };
 
-static int rpmsg_send_and_wait(struct imx_rpmsg *adc, struct adc_rpmsg_msg *msg)
+static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpmsg_msg *msg)
 {
 	int ret;
 
@@ -142,7 +142,7 @@ static int rpmsg_send_and_wait(struct imx_rpmsg *adc, struct adc_rpmsg_msg *msg)
 	return 0;
 }
 
-static int imx_rpmsg_adc_get(struct imx_rpmsg *adc, int idx, int *val)
+static int imx_rpmsg_adc_get(struct imx_rpmsg_adc *adc, int idx, int *val)
 {
 	struct adc_rpmsg_msg msg = {
 		.header.cmd = ADC_RPMSG_COMMAND_GET,
@@ -153,7 +153,7 @@ static int imx_rpmsg_adc_get(struct imx_rpmsg *adc, int idx, int *val)
 	if (!adc || !adc->rpdev)
 		return -EINVAL;
 
-	ret = rpmsg_send_and_wait(adc, &msg);
+	ret = imx_rpmsg_adc_send_and_wait(adc, &msg);
 	if (ret)
 		return ret;
 
@@ -166,7 +166,7 @@ static int imx_rpmsg_read_raw(struct iio_dev *indio_dev,
 			      struct iio_chan_spec const *channel, int *val,
 			      int *val2, long mask)
 {
-	struct imx_rpmsg *adc = iio_priv(indio_dev);
+	struct imx_rpmsg_adc *adc = iio_priv(indio_dev);
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -208,7 +208,7 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 static int adc_rpmsg_probe(struct rpmsg_device *rpdev)
 {
 	struct iio_dev *indio_dev;
-	struct imx_rpmsg *adc;
+	struct imx_rpmsg_adc *adc;
 
 	if (adc_rpmsg) {
 		// reinit
