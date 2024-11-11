@@ -240,7 +240,7 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 			"Couldn't install rpmsg tty driver: ret %d\n", ret);
 		goto error1;
 	} else {
-		pr_info("Install rpmsg tty driver!\n");
+		dev_info(&rpdev->dev, "Install rpmsg tty driver!\n");
 	}
 
 	/*
