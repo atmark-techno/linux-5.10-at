@@ -88,7 +88,8 @@ struct imx_rpmsg_adc {
 	struct completion cmd_complete;
 	struct mutex lock;
 
-	u8 request_id;
+	u8 last_request_id;
+	u16 inflight_request_id;
 };
 
 /* rpmsg callback has a void *priv but it is not settable
@@ -121,20 +122,25 @@ static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpm
 {
 	int ret;
 
-	adc->request_id++;
-	msg->request_id = adc->request_id;
 	msg->header.cate = IMX_RPMSG_ADC;
 	msg->header.major = ADC_RPMSG_VERSION;
 	msg->header.minor = ADC_RPMSG_VERSION >> 8;
 	msg->header.type = ADC_RPMSG_TYPE_REQUEST;
 
+	mutex_lock(&adc->lock);
+	adc->inflight_request_id = adc->last_request_id++;
+	msg->request_id = adc->inflight_request_id;
 	ret = rpmsg_send(adc->rpdev->ept, msg, sizeof(*msg));
 	if (ret < 0) {
 		dev_err(&adc->rpdev->dev, "rpmsg_send failed %d\n", ret);
+		mutex_unlock(&adc->lock);
 		return ret;
 	}
 	ret = wait_for_completion_timeout(&adc->cmd_complete,
 					  msecs_to_jiffies(ADC_RPMSG_TIMEOUT_MS));
+	// don't process late/duplicate - not representable with u8
+	adc->inflight_request_id = 0xffff;
+	mutex_unlock(&adc->lock);
 	if (!ret) {
 		dev_err(&adc->rpdev->dev, "rpmsg reply timeout\n");
 		return -ETIMEDOUT;
@@ -194,9 +200,9 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 		dev_err(&rpdev->dev, "bad type %x\n", msg->header.type);
 		return -EINVAL;
 	}
-	if (msg->request_id != adc_rpmsg->request_id) {
+	if (msg->request_id != adc_rpmsg->inflight_request_id) {
 		dev_err(&rpdev->dev, "bad id %x (expected %x)\n",
-			msg->request_id, adc_rpmsg->request_id);
+			msg->request_id, adc_rpmsg->inflight_request_id);
 		return -EINVAL;
 	}
 
