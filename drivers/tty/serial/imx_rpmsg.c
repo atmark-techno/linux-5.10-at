@@ -213,10 +213,8 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 		return -ENOMEM;
 
 	driver = tty_alloc_driver(1, TTY_DRIVER_UNNUMBERED_NODE);
-	if (IS_ERR(driver)) {
-		kfree(port);
+	if (IS_ERR(driver))
 		return PTR_ERR(driver);
-	}
 
 	driver->driver_name = "imx_rpmsg";
 	driver->name = kasprintf(GFP_KERNEL, "ttyrpmsg%d", rpdev->dst);
@@ -262,7 +260,6 @@ error1:
 	put_tty_driver(port->driver);
 	tty_port_destroy(&port->port);
 	port->driver = NULL;
-	kfree(port);
 
 	return ret;
 }
