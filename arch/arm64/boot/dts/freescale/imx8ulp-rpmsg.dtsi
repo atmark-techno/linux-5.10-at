@@ -86,3 +86,9 @@
 		status = "disabled";
 	};
 };
+
+&wdog3 {
+	/* prefer wdog over rpmsg by default. This one does not
+	 * allow restarting m33 core so is useless in practice. */
+	status = "disabled";
+};
