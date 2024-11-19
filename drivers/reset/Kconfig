@@ -224,6 +224,13 @@ config RESET_SIM7672
 	help
 	  This enables the gpio-based reset driver for SimCom SIM7672.
 
+config RESET_EM05G
+	tristate "GPIO-based Reset Driver for QUECTEL EM05-G"
+	default n
+	depends on GPIOLIB && USB_SERIAL_WWAN && OF
+	help
+	  This enables the gpio-based reset driver for QUECTEL EM05-G.
+
 config RESET_SIMPLE
 	bool "Simple Reset Controller Driver" if COMPILE_TEST
 	default ARCH_AGILEX || ARCH_ASPEED || ARCH_BITMAIN || ARCH_REALTEK || ARCH_STM32 || ARCH_STRATIX10 || ARCH_SUNXI || ARCH_ZX || ARC
