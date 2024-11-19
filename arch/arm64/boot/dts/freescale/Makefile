@@ -122,6 +122,10 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-high-g0-es-ext-board.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-aw-xm458.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-customize.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-rpmsg.dtbo
+dtb-$(CONFIG_ARCH_MXC) += high-g1-es1.dtb
+DTC_FLAGS_high-g1-es1 := -@
+dtb-$(CONFIG_ARCH_MXC) += high-g1-es1-lbes5pl2el.dtbo
+dtb-$(CONFIG_ARCH_MXC) += high-g1-es1-em05-g.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb imx8mq-evk-rpmsg.dtb imx8mq-evk-pcie1-m2.dtb imx8mq-evk-usd-wifi.dtb \
 			  imx8mq-evk-usdhc2-m2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk-ak4497.dtb imx8mq-evk-audio-tdm.dtb imx8mq-evk-pdm.dtb

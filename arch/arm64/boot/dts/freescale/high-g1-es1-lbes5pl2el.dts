@@ -1,0 +1,167 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#include "imx8mp-pinfunc.h"
+
+/* The TH function of LBES5PL2EL is not used. */
+
+&{/} {
+	usdhc1_pwrseq: usdhc1_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_usdhc1_pwrseq>;
+		reset-gpios = <&gpio2 11 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&usdhc1 {
+	assigned-clocks = <&clk IMX8MP_CLK_USDHC1>;
+	assigned-clock-rates = <400000000>;
+	pinctrl-names = "default", "state_100mhz", "state_200mhz", "sleep";
+	pinctrl-0 = <&pinctrl_usdhc1>;
+	pinctrl-1 = <&pinctrl_usdhc1_100mhz>;
+	pinctrl-2 = <&pinctrl_usdhc1_200mhz>;
+	pinctrl-3 = <&pinctrl_usdhc1_sleep>;
+	keep-power-in-suspend;
+	bus-width = <4>;
+	non-removable;
+	wakeup-source;
+	mmc-pwrseq = <&usdhc1_pwrseq>;
+	fsl,sdio-interrupt-enable;
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1>;
+	assigned-clocks = <&clk IMX8MP_CLK_UART1>;
+	assigned-clock-parents = <&clk IMX8MP_SYS_PLL1_80M>;
+	status = "okay";
+
+	cts-gpios = <&gpio5 26 GPIO_ACTIVE_LOW>;
+	rts-gpios = <&gpio5 27 GPIO_ACTIVE_LOW>;
+
+	bluetooth {
+		compatible = "nxp,88w8987-bt";
+		btnxpuart,required-netdev = "mlan0";
+	};
+};
+
+&gpio2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lbes5pl2el_gpio2>;
+
+	bt-wake-hog {
+		gpio-hog;
+		gpios = <8 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+
+	wlan-wake-hog {
+		gpio-hog;
+		gpios = <9 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+
+	wlan-reset-hog {
+		gpio-hog;
+		gpios = <10 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+};
+
+&gpio5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lbes5pl2el_gpio5>;
+
+	bt-reset-hog {
+		gpio-hog;
+		gpios = <0 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+};
+
+&iomuxc {
+	pinctrl_lbes5pl2el_gpio2: lbes5pl2el-gpio2grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SD1_DATA6__GPIO2_IO08	0x92 /* BT15.4_WAKE */
+			MX8MP_IOMUXC_SD1_DATA7__GPIO2_IO09	0x92 /* WLAN_WAKE */
+			MX8MP_IOMUXC_SD1_RESET_B__GPIO2_IO10	0x92 /* WLAN_RESET_B */
+		>;
+	};
+
+	pinctrl_usdhc1_pwrseq: usdhc1-pwrseqgrp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SD1_STROBE__GPIO2_IO11	0x92 /* WLAN_BT_TH_PDn */
+		>;
+	};
+
+	pinctrl_lbes5pl2el_gpio5: lbes5pl2el-gpio5grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_TXC__GPIO5_IO00	0x92 /* BT_RESET_B */
+		>;
+	};
+
+	pinctrl_usdhc1: usdhc1grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SD1_CLK__USDHC1_CLK	0x190 /* WLAN_SDHC1_CLK */
+			MX8MP_IOMUXC_SD1_CMD__USDHC1_CMD	0x1d0 /* WLAN_SDHC1_CMD */
+			MX8MP_IOMUXC_SD1_DATA0__USDHC1_DATA0	0x1d0 /* WLAN_SDHC1_DATA0 */
+			MX8MP_IOMUXC_SD1_DATA1__USDHC1_DATA1	0x1d0 /* WLAN_SDHC1_DATA1 */
+			MX8MP_IOMUXC_SD1_DATA2__USDHC1_DATA2	0x1d0 /* WLAN_SDHC1_DATA2 */
+			MX8MP_IOMUXC_SD1_DATA3__USDHC1_DATA3	0x1d0 /* WLAN_SDHC1_DATA3 */
+		>;
+	};
+
+	pinctrl_usdhc1_100mhz: usdhc1grp-100mhz {
+		fsl,pins = <
+			MX8MP_IOMUXC_SD1_CLK__USDHC1_CLK	0x190
+			MX8MP_IOMUXC_SD1_CMD__USDHC1_CMD	0x1d0
+			MX8MP_IOMUXC_SD1_DATA0__USDHC1_DATA0	0x1d0
+			MX8MP_IOMUXC_SD1_DATA1__USDHC1_DATA1	0x1d0
+			MX8MP_IOMUXC_SD1_DATA2__USDHC1_DATA2	0x1d0
+			MX8MP_IOMUXC_SD1_DATA3__USDHC1_DATA3	0x1d0
+		>;
+	};
+
+	pinctrl_usdhc1_200mhz: usdhc1grp-200mhz {
+		fsl,pins = <
+			MX8MP_IOMUXC_SD1_CLK__USDHC1_CLK	0x190
+			MX8MP_IOMUXC_SD1_CMD__USDHC1_CMD	0x1d4
+			MX8MP_IOMUXC_SD1_DATA0__USDHC1_DATA0	0x1d4
+			MX8MP_IOMUXC_SD1_DATA1__USDHC1_DATA1	0x1d4
+			MX8MP_IOMUXC_SD1_DATA2__USDHC1_DATA2	0x1d4
+			MX8MP_IOMUXC_SD1_DATA3__USDHC1_DATA3	0x1d4
+		>;
+	};
+
+	pinctrl_usdhc1_sleep: usdhc1grp-sleep {
+		fsl,pins = <
+			MX8MP_IOMUXC_SD1_CLK__USDHC1_CLK	0x41
+			MX8MP_IOMUXC_SD1_CMD__USDHC1_CMD	0x41
+			MX8MP_IOMUXC_SD1_DATA0__USDHC1_DATA0	0x41
+			MX8MP_IOMUXC_SD1_DATA1__USDHC1_DATA1	0x41
+			MX8MP_IOMUXC_SD1_DATA2__USDHC1_DATA2	0x41
+			MX8MP_IOMUXC_SD1_DATA3__USDHC1_DATA3	0x41
+		>;
+	};
+
+	pinctrl_uart1: uart1grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_UART1_RXD__UART1_DCE_RX	0x140 /* BT_UART1_RX */
+			MX8MP_IOMUXC_UART1_TXD__UART1_DCE_TX	0x140 /* BT_UART1_TX */
+			MX8MP_IOMUXC_UART3_RXD__GPIO5_IO26	0x140 /* BT_UART1_CTS_B */
+			MX8MP_IOMUXC_UART3_TXD__GPIO5_IO27	0x140 /* BT_UART1_RTS_B */
+		>;
+	};
+};

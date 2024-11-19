@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2024 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#include "imx8mp-pinfunc.h"
+
+/* The PCM function of EM05-G is not used. */
+
+&{/} {
+	reg_m2_3p3v: regulator-m2-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "m2_3v3";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_m2_3v3>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio4 1 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+		off-on-delay = <100000>;
+		startup-delay-us = <500>;
+	};
+
+	em05g_reset: em05g-reset {
+		compatible = "em05g-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_em05g_reset>;
+		reset-gpios = <&gpio3 20 GPIO_ACTIVE_HIGH>;
+		fullcardpoweroff-gpios = <&gpio5 1 GPIO_ACTIVE_HIGH>;
+		vbat-supply = <&reg_m2_3p3v>;
+	};
+
+	wowwan {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_wowwan>;
+
+		gpio_keys_wowwan: wowwan {
+			label = "WOWWAN";
+			gpios = <&gpio5 2 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WAKEUP>;
+		};
+	};
+};
+
+&gpio3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_em05g_gpio3>;
+
+	config-0-hog {
+		gpio-hog;
+		gpios = <6 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+
+	config-1-hog {
+		gpio-hog;
+		gpios = <7 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+
+	config-2-hog {
+		gpio-hog;
+		gpios = <8 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+
+	config-3-hog {
+		gpio-hog;
+		gpios = <9 GPIO_ACTIVE_HIGH>;
+		input;
+	};
+};
+
+&iomuxc {
+	pinctrl_em05g_gpio3: em05g-gpio3grp{
+		fsl,pins = <
+			MX8MP_IOMUXC_NAND_DATA00__GPIO3_IO06	0x40000140 /* M2_CONFIG_0 */
+			MX8MP_IOMUXC_NAND_DATA01__GPIO3_IO07	0x40000140 /* M2_CONFIG_1 */
+			MX8MP_IOMUXC_NAND_DATA02__GPIO3_IO08	0x40000140 /* M2_CONFIG_2 */
+			MX8MP_IOMUXC_NAND_DATA03__GPIO3_IO09	0x40000140 /* M2_CONFIG_3 */
+
+			/* It cannot be used as UART. When you pull up
+			 * the device, it will be in QDL mode, so you
+			 * will not be able to use LTE.
+			 */
+			MX8MP_IOMUXC_NAND_CE0_B__GPIO3_IO01	0x100 /* M2_UART_TXD */
+			MX8MP_IOMUXC_NAND_ALE__GPIO3_IO00	0x100 /* M2_UART_RXD */
+		>;
+	};
+
+	pinctrl_wowwan: wowwan_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_MCLK__GPIO5_IO02	0x140 /* M2_WOWWAN# */
+		>;
+	};
+
+	pinctrl_em05g_reset: em05g_reset_grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI5_RXC__GPIO3_IO20	0x20 /* M2_RESET# */
+			MX8MP_IOMUXC_SAI3_TXD__GPIO5_IO01	0x40000000 /* M2_FULL_CARD_POWER_OFF_N*/
+		>;
+	};
+
+	pinctrl_m2_3v3: m2_3v3grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI1_RXC__GPIO4_IO01	0x40000000 /* M2_3V3_EN */
+		>;
+	};
+};
