@@ -430,6 +430,7 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	if (!msg.input_init.event)
 		msg.input_init.event = GPIO_RPMSG_TRI_LOW_LEVEL;
 	msg.input_init.wakeup = 1;
+	msg.input_init.pinctrl = port->gpio_pins[gpio_idx].pinctrl;
 
 	/* need to wait for the reply:
 	 * if the reply comes after mailbox the subsystem suspended
@@ -551,6 +552,7 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 	imx_rpmsg_gpio_msg_init(port, gpio_idx, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
 
+	msg.input_init.pinctrl = port->gpio_pins[gpio_idx].pinctrl;
 	if (READ_ONCE(pin->irq_shutdown)) {
 		msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
 		msg.input_init.wakeup = 0;
