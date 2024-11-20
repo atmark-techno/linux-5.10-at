@@ -126,8 +126,8 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 	int err;
 
 	if (!info->rpdev) {
-		dev_dbg(&info->rpdev->dev,
-			"rpmsg channel not ready, m4 image ready?\n");
+		dev_warn(&info->rpdev->dev,
+			 "rpmsg channel not ready, m4 image ready?\n");
 		return -EINVAL;
 	}
 
@@ -421,6 +421,9 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	 * the workqueue */
 	if (port->gpio_pins[gpio_idx].irq_wake != 1)
 		return;
+	/* can't set wake if no type */
+	if (! port->gpio_pins[gpio_idx].irq_type)
+		return;
 
 	port->gpio_pins[gpio_idx].irq_wake = 0;
 
@@ -428,8 +431,6 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
 
 	msg.input_init.event = port->gpio_pins[gpio_idx].irq_type;
-	if (!msg.input_init.event)
-		msg.input_init.event = GPIO_RPMSG_TRI_LOW_LEVEL;
 	msg.input_init.wakeup = 1;
 	msg.input_init.pinctrl = port->gpio_pins[gpio_idx].pinctrl;
 
@@ -545,7 +546,14 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 	// XXX probably not correct, but good enough for now
 	if (READ_ONCE(pin->irq_mask) && !READ_ONCE(pin->irq_unmask)) {
 		WRITE_ONCE(pin->irq_mask, 0);
-		dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: %d/%d masked\n", __func__, port->idx, gpio_idx);
+		dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: %d/%d masked\n",
+			__func__, port->idx, gpio_idx);
+		return;
+	}
+	if (!pin->irq_type) {
+		// set_type not called yet, wait for it.
+		dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: %d/%d type not set\n",
+			__func__, port->idx, gpio_idx)  ;
 		return;
 	}
 	dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: %d/%d\n", __func__, port->idx, gpio_idx);
@@ -561,8 +569,6 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 	} else {
 		 /* if not set irq type, then use low level as trigger type */
 		msg.input_init.event = pin->irq_type;
-		if (!msg.input_init.event)
-			msg.input_init.event = GPIO_RPMSG_TRI_LOW_LEVEL;
 		if (READ_ONCE(pin->irq_unmask)) {
 			msg.input_init.wakeup = 0;
 			WRITE_ONCE(pin->irq_unmask, 0);
