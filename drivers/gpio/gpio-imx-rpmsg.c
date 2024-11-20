@@ -35,12 +35,13 @@
 
 
 enum gpio_input_trigger_type {
-	GPIO_RPMSG_TRI_IGNORE,
+	GPIO_RPMSG_TRI_IGNORE = 0,
 	GPIO_RPMSG_TRI_RISING,
 	GPIO_RPMSG_TRI_FALLING,
 	GPIO_RPMSG_TRI_BOTH_EDGE,
 	GPIO_RPMSG_TRI_LOW_LEVEL,
 	GPIO_RPMSG_TRI_HIGH_LEVEL,
+	GPIO_RPMSG_TRI_DISABLE = 0xff,
 };
 
 enum gpio_rpmsg_header_type {
@@ -554,7 +555,7 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 
 	msg.input_init.pinctrl = port->gpio_pins[gpio_idx].pinctrl;
 	if (READ_ONCE(pin->irq_shutdown)) {
-		msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
+		msg.input_init.event = GPIO_RPMSG_TRI_DISABLE;
 		msg.input_init.wakeup = 0;
 		WRITE_ONCE(pin->irq_shutdown, 0);
 	} else {
