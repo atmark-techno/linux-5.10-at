@@ -189,6 +189,16 @@
 	};
 };
 
+// fixed expansion interface i2c
+&lpi2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <384000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpi2c7>;
+	status = "okay";
+};
+
 // USB serial
 &lpuart4 {
 	pinctrl-names = "default", "sleep";
@@ -273,8 +283,6 @@
 	/* overriden by at-dtweb */
 	pinctrl_con10_gpio: con10gpiogrp {
 		fsl,pins = <
-			MX8ULP_PAD_PTF4__PTF4    0x0 /* on-board pull-up */
-			MX8ULP_PAD_PTF5__PTF5    0x0 /* on-board pull-up */
 			MX8ULP_PAD_PTF6__PTF6    0x0
 			MX8ULP_PAD_PTF7__PTF7    0x0
 		>;
@@ -315,6 +323,14 @@
 		fsl,pins = <
 			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x24
 			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x24
+		>;
+	};
+
+	/* con 10 i2c */
+	pinctrl_lpi2c7: i2c7grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF4__LPI2C7_SCL	0x24
+			MX8ULP_PAD_PTF5__LPI2C7_SDA	0x24
 		>;
 	};
 
