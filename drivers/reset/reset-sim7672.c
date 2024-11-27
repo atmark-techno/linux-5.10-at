@@ -159,6 +159,13 @@ static void sim7672_reset_power_on(struct sim7672_reset_data *data)
 	/* We need to wait 320msec after VBAT stabilizes. */
 	while (!time_after(jiffies, timeout))
 		msleep(80);
+
+	/* if USB_BOOT is set low, status pin will not be running. */
+	if (gpiod_get_value_cansleep(data->usb_boot) == 0) {
+		dev_info(data->dev, "firmware update mode.\n");
+		goto out;
+	}
+
 	/* But max time is not defined. */
 	tries = SIM7672_STATUS_RUNNING_TIMEOUT_MS / SIM7672_STATUS_POLL_MS;
 	dev_dbg(data->dev, "Wait for the module state to turn on.\n");
