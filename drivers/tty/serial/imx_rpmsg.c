@@ -277,7 +277,8 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 		return PTR_ERR(driver);
 
 	driver->driver_name = "imx_rpmsg";
-	driver->name = kasprintf(GFP_KERNEL, "ttyrpmsg%d", rpdev->dst);
+	// XXX add ida or alias if we support more than 1 in the future
+	driver->name = kasprintf(GFP_KERNEL, "ttyrpmsg0");
 	driver->major = UNNAMED_MAJOR;
 	driver->minor_start = 0;
 	driver->type = TTY_DRIVER_TYPE_CONSOLE;
