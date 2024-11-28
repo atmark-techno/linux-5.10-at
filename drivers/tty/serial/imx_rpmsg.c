@@ -16,17 +16,20 @@
 #include <linux/tty_flip.h>
 #include <linux/virtio.h>
 
-#define MSG		"hello world!"
+#define RPMSG_TIMEOUT   1000
+#define TTY_RPMSG_MINOR 0
+#define TTY_RPMSG_MAJOR 2
 
-enum imx_rpmsg_header_type {
+enum tty_rpmsg_header_type {
 	TTY_RPMSG_REQUEST,
 	TTY_RPMSG_RESPONSE,
 	TTY_RPMSG_NOTIFICATION,
 };
 
-enum imx_rpmsg_header_cmd {
+enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_PAYLOAD,
 	TTY_RPMSG_COMMAND_SET_BAUD,
+	TTY_RPMSG_COMMAND_NOTIFY,
 };
 
 /*
@@ -38,49 +41,65 @@ struct imx_rpmsg_port {
 	spinlock_t		rx_lock;
 	struct rpmsg_device	*rpdev;
 	struct tty_driver	*driver;
+
+	struct mutex		tx_lock;
+	struct completion	cmd_complete;
+	u8			last_retcode;
+	u8			last_request_id;
+	u16			inflight_request_id;
+	spinlock_t		request_id_lock;
 };
 
-/* imx_rpmsg_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE */
-#define RPMSG_MAX_SIZE	(RPMSG_MAX_PAYLOAD_SIZE - (IMX_RPMSG_HEAD_SIZE + 2))
-struct imx_rpmsg_msg {
+/* imx_rpmsg_tty_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE */
+#define RPMSG_MAX_SIZE	(RPMSG_MAX_PAYLOAD_SIZE - (IMX_RPMSG_HEAD_SIZE + 3))
+struct imx_rpmsg_tty_msg {
 	struct imx_rpmsg_head header;
+	u8 request_id;
 	u16 len;
-	u8 buf[RPMSG_MAX_SIZE];
+	union {
+		u8 buf[RPMSG_MAX_SIZE];
+		//uint32_t baudrate; // not actually used to avoid unaligned access.. & fails build_bug_on
+		u8 retcode;
+	};
 } __packed __aligned(1);
 
-#define imx_rpmsg_uart_msg_size(s) (sizeof(struct imx_rpmsg_msg) - \
+#define imx_rpmsg_uart_msg_size(s) (sizeof(struct imx_rpmsg_tty_msg) - \
 				    RPMSG_MAX_SIZE + s)
-
-static inline void imx_rpmsg_uart_msg_init(struct imx_rpmsg_msg *msg,
-					   const void *buf, u16 len)
-{
-	BUILD_BUG_ON(sizeof(struct imx_rpmsg_msg) > RPMSG_MAX_PAYLOAD_SIZE);
-	BUG_ON(len > RPMSG_MAX_SIZE);
-
-	msg->header.cate = IMX_RPMSG_TTY;
-	msg->header.major = IMX_RMPSG_MAJOR;
-	msg->header.minor = IMX_RMPSG_MINOR;
-	msg->header.type = TTY_RPMSG_REQUEST;
-	msg->len = len;
-	memcpy(msg->buf, buf, len);
-}
 
 static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 			     void *priv, u32 src)
 {
-	struct imx_rpmsg_msg *msg = data;
+	struct imx_rpmsg_tty_msg *msg = data;
 	struct imx_rpmsg_port *port = dev_get_drvdata(&rpdev->dev);
 	unsigned char *buf;
 	int space;
 
-	/* flush the recv-ed none-zero data to tty node */
-	if (len == 0)
-		return 0;
-
 	dev_dbg(&rpdev->dev, "msg(<- src 0x%x) len %d\n", src, len);
+	print_hex_dump_debug(__func__, DUMP_PREFIX_NONE, 16, 1,
+			     data, len,  true);
 
-	print_hex_dump(KERN_DEBUG, __func__, DUMP_PREFIX_NONE, 16, 1,
-		       data, len,  true);
+	if (msg->header.type == TTY_RPMSG_RESPONSE) {
+		// ack for baudrate or tx
+		spin_lock_irq(&port->request_id_lock);
+		if (msg->request_id != port->inflight_request_id) {
+			dev_warn(&rpdev->dev, "received unexpected id %x (expected %x)\n",
+				msg->request_id, port->inflight_request_id);
+			spin_unlock_irq(&port->request_id_lock);
+			return 0;
+		}
+		/* don't process duplicates */
+		port->inflight_request_id = 0xffff;
+		port->last_retcode = msg->retcode;
+		spin_unlock_irq(&port->request_id_lock);
+
+		complete(&port->cmd_complete);
+		return 0;
+	}
+	if (msg->header.type != TTY_RPMSG_NOTIFICATION) {
+		/* invalid message */
+		return 0;
+	}
+	/* XXX check length, version... */
 
 	spin_lock_bh(&port->rx_lock);
 	space = tty_prepare_flip_string(&port->port, &buf, msg->len);
@@ -95,6 +114,59 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 	spin_unlock_bh(&port->rx_lock);
 
 	return 0;
+}
+
+static int tty_send_and_wait(struct imx_rpmsg_port *port, struct imx_rpmsg_tty_msg *msg,
+			     const void *data, size_t len)
+{
+	int err;
+
+	BUILD_BUG_ON(sizeof(struct imx_rpmsg_tty_msg) > RPMSG_MAX_PAYLOAD_SIZE);
+	BUG_ON(len > RPMSG_MAX_SIZE);
+
+	msg->header.cate = IMX_RPMSG_TTY;
+	msg->header.major = TTY_RPMSG_MAJOR;
+	msg->header.minor = TTY_RPMSG_MINOR;
+	msg->header.type = TTY_RPMSG_REQUEST;
+	msg->len = len;
+	memcpy(msg->buf, data, len);
+
+	reinit_completion(&port->cmd_complete);
+	mutex_lock(&port->tx_lock);
+	spin_lock_irq(&port->request_id_lock);
+	port->inflight_request_id = port->last_request_id++;
+	spin_unlock_irq(&port->request_id_lock);
+	msg->request_id = port->inflight_request_id;
+
+	err = rpmsg_send(port->rpdev->ept, msg,
+				 imx_rpmsg_uart_msg_size(len));
+	if (err) {
+		dev_err(&port->rpdev->dev, "rpmsg_send failed: %d\n", err);
+		goto err_out;
+	}
+	err = wait_for_completion_timeout(&port->cmd_complete, msecs_to_jiffies(RPMSG_TIMEOUT));
+	if (!err) {
+		/* don't process late replies - lock here ensures
+		 * we're not completing the next call */
+		spin_lock_irq(&port->request_id_lock);
+		port->inflight_request_id = 0xffff;
+		spin_unlock_irq(&port->request_id_lock);
+		dev_err(&port->rpdev->dev, "rpmsg_send timeout\n");
+		err = -ETIMEDOUT;
+		goto err_out;
+	}
+	if (port->last_retcode != 0) {
+		dev_err(&port->rpdev->dev, "rpmsg error for %d: %d\n",
+			msg->header.cmd, port->last_retcode);
+		err = -EINVAL;
+		goto err_out;
+	}
+	err = 0;
+
+err_out:
+	mutex_unlock(&port->tx_lock);
+
+	return err;
 }
 
 static struct tty_port_operations  imx_rpmsg_port_ops = { };
@@ -120,7 +192,9 @@ static void imx_rpmsg_uart_close(struct tty_struct *tty, struct file *filp)
 static int imx_rpmsg_uart_write(struct tty_struct *tty,
 				const unsigned char *buf, int total)
 {
-	struct imx_rpmsg_msg msg = { 0 };
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_PAYLOAD,
+	};
 	int remain, ret = 0;
 	const unsigned char *tbuf;
 	int tlen;
@@ -137,17 +211,11 @@ static int imx_rpmsg_uart_write(struct tty_struct *tty,
 	tbuf = buf;
 	do {
 		tlen = remain > RPMSG_MAX_SIZE ? RPMSG_MAX_SIZE : remain;
-		imx_rpmsg_uart_msg_init(&msg, tbuf, tlen);
-		msg.header.cmd = TTY_RPMSG_COMMAND_PAYLOAD;
 
 		/* send a message to our remote processor */
-		ret = rpmsg_send(rpdev->ept, (void *)&msg,
-				 imx_rpmsg_uart_msg_size(tlen));
-		if (ret) {
-			dev_err(&rpdev->dev, "rpmsg_send: PAYLOAD failed: %d\n",
-				ret);
+		ret = tty_send_and_wait(port, &msg, tbuf, tlen);
+		if (ret)
 			return ret;
-		}
 
 		if (remain > RPMSG_MAX_SIZE) {
 			remain -= RPMSG_MAX_SIZE;
@@ -169,24 +237,16 @@ static int imx_rpmsg_uart_write_room(struct tty_struct *tty)
 static void imx_rpmsg_uart_set_termios(struct tty_struct *tty,
 				       struct ktermios *old)
 {
-	struct imx_rpmsg_msg msg = { 0 };
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_SET_BAUD,
+	};
 	struct imx_rpmsg_port *port = container_of(tty->port,
 						   struct imx_rpmsg_port, port);
-	struct rpmsg_device *rpdev = port->rpdev;
-	int ret;
 
 	if (C_BAUD(tty) != (old->c_cflag & CBAUD)) {
 		u32 baud = tty_get_baud_rate(tty);
 
-		imx_rpmsg_uart_msg_init(&msg, &baud, sizeof(baud));
-		msg.header.cmd = TTY_RPMSG_COMMAND_SET_BAUD;
-
-		ret = rpmsg_send(rpdev->ept, (void *)&msg,
-				 imx_rpmsg_uart_msg_size(sizeof(baud)));
-		if (ret) {
-			dev_err(&rpdev->dev,
-				"rpmsg_send: SET_BAUD failed: %d\n", ret);
-		}
+		tty_send_and_wait(port, (void *)&msg, &baud, sizeof(baud));
 	}
 }
 
@@ -227,37 +287,28 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 
 	tty_port_init(&port->port);
 	port->port.ops = &imx_rpmsg_port_ops;
-	spin_lock_init(&port->rx_lock);
 	port->port.low_latency = port->port.flags | ASYNC_LOW_LATENCY;
 	port->rpdev = rpdev;
 	dev_set_drvdata(&rpdev->dev, port);
 	driver->driver_state = port;
 	port->driver = driver;
+	spin_lock_init(&port->rx_lock);
+	init_completion(&port->cmd_complete);
+	mutex_init(&port->tx_lock);
+	spin_lock_init(&port->request_id_lock);
 
 	ret = tty_register_driver(port->driver);
 	if (ret < 0) {
 		dev_err(&rpdev->dev,
 			"Couldn't install rpmsg tty driver: ret %d\n", ret);
-		goto error1;
+		goto error;
 	} else {
 		dev_info(&rpdev->dev, "Install rpmsg tty driver!\n");
-	}
-
-	/*
-	 * send a message to our remote processor, and tell remote
-	 * processor about this channel
-	 */
-	ret = rpmsg_send(rpdev->ept, MSG, strlen(MSG));
-	if (ret) {
-		dev_err(&rpdev->dev, "rpmsg_send failed: %d\n", ret);
-		goto error;
 	}
 
 	return 0;
 
 error:
-	tty_unregister_driver(port->driver);
-error1:
 	put_tty_driver(port->driver);
 	tty_port_destroy(&port->port);
 	port->driver = NULL;
