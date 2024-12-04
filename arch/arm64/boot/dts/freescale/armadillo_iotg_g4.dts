@@ -515,7 +515,7 @@
 		wakeup-source;
 	};
 
-	usb2422b@2c {
+	usb2422b_hub: hub@2c {
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_usb2422_reset>;
 
