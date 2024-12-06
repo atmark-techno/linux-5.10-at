@@ -62,6 +62,11 @@ enum rpcif_type {
 	RPCIF_RZ_G2L,
 };
 
+struct rpcif_info {
+	enum rpcif_type type;
+	u8 strtim;
+};
+
 struct rpcif {
 	struct device *dev;
 	void __iomem *base;
@@ -69,7 +74,7 @@ struct rpcif {
 	struct regmap *regmap;
 	struct reset_control *rstc;
 	size_t size;
-	enum rpcif_type type;
+	const struct rpcif_info *info;
 	enum rpcif_data_dir dir;
 	u8 bus_size;
 	u8 xfer_size;
