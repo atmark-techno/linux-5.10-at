@@ -37,11 +37,9 @@
 		vbus-gpios = <&rpmsg_gpioc 12 GPIO_ACTIVE_HIGH>;
 		vbat-supply = <&reg_sim7672_vbat>;
 	};
-#if 0 /* TODO: Fix how to use pins on Real Time Domain */
+
 	gpio_keys_sim7672: gpio-keys-sim7672 {
 		compatible = "gpio-keys";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_gpio_keys_sim7672>;
 
 		sim7672-ri {
 			label = "SIM7672-RI";
@@ -50,7 +48,6 @@
 			gpio-key,wakeup;
 		};
 	};
-#endif
 };
 
 #if 0 /* TODO: Fix how to use pins on Real Time Domain */
@@ -60,14 +57,6 @@
 	status = "okay";
 };
 #endif
-
-&gpiob_iomuxc {
-	pinctrl_gpio_keys_sim7672: gpio_keys_sim7672 {
-		imx-rpmsg,pins = <
-			IOMUXC_PTB6_PTB6	0x10000 /* RI, IBE(1) */
-		>;
-	};
-};
 
 &gpioc_iomuxc {
 	pinctrl_sim7672_vbat: sim7672_vbat_grp {
