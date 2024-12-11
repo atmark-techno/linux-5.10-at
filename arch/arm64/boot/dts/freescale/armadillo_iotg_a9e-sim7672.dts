@@ -33,6 +33,7 @@
 		pwrkey-gpios = <&gpiof 25 GPIO_ACTIVE_HIGH>;
 		usbboot-gpios = <&gpiof 26 GPIO_ACTIVE_LOW>;
 		status-gpios = <&gpiod 16 GPIO_ACTIVE_HIGH>;
+		dtr-gpios = <&gpiod 14 GPIO_ACTIVE_HIGH>;
 		vbus-gpios = <&rpmsg_gpioc 12 GPIO_ACTIVE_HIGH>;
 		vbat-supply = <&reg_sim7672_vbat>;
 	};
@@ -93,6 +94,7 @@
 			MX8ULP_PAD_PTF25__PTF25	0x0	/* PWRKEY */
 			MX8ULP_PAD_PTF26__PTF26	0x0	/* USB_BOOT */
 			MX8ULP_PAD_PTD16__PTD16	0x2	/* STATUS */
+			MX8ULP_PAD_PTD14__PTD14 0x0     /* DTR */
 		/*	MX8ULP_PAD_PTC12__PTC12	0x0 */	/* VBUS */
 		>;
 	};
