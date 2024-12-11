@@ -299,9 +299,9 @@ static int sim7672_reset_init_pdata(struct platform_device *pdev,
 				     "invalid status gpio");
 
 	data->usb_boot = devm_gpiod_get(&pdev->dev, "usbboot", GPIOD_OUT_HIGH);
-	if (IS_ERR(data->status))
-		return dev_err_probe(&pdev->dev, PTR_ERR(data->status),
-				     "invalid status usb_boot");
+	if (IS_ERR(data->usb_boot))
+		return dev_err_probe(&pdev->dev, PTR_ERR(data->usb_boot),
+				     "invalid usb_boot gpio");
 
 	if (of_property_read_bool(np, "vbus-active-low"))
 		data->vbus_active_low = true;
