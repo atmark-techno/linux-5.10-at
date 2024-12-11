@@ -44,6 +44,11 @@ enum sim7672_reset_vbus_ops {
 	SIM7672_VBUS_TURN_OFF,
 };
 
+enum sim7672_reset_dtr_ops {
+	SIM7672_DTR_LOW,
+	SIM7672_DTR_HIGH,
+};
+
 enum sim7672_reset_status {
 	SIM7672_STATUS_OFF = 0,
 	SIM7672_STATUS_RUNNING,
@@ -55,6 +60,8 @@ enum sim7672_reset_action {
 	SIM7672_ACTION_POWER_OFF,
 	SIM7672_ACTION_VBUS_ON,
 	SIM7672_ACTION_VBUS_OFF,
+	SIM7672_ACTION_DTR_HIGH,
+	SIM7672_ACTION_DTR_LOW,
 };
 
 static const char *const sim7672_reset_action_str[] = {
@@ -63,6 +70,8 @@ static const char *const sim7672_reset_action_str[] = {
 	[SIM7672_ACTION_POWER_OFF]		= "power off",
 	[SIM7672_ACTION_VBUS_ON]		= "vbus on",
 	[SIM7672_ACTION_VBUS_OFF]		= "vbus off",
+	[SIM7672_ACTION_DTR_HIGH]		= "dtr high",
+	[SIM7672_ACTION_DTR_LOW]		= "dtr low",
 };
 
 struct sim7672_reset_data {
@@ -75,7 +84,9 @@ struct sim7672_reset_data {
 	struct gpio_desc *status;
 	struct gpio_desc *vbus;
 	struct gpio_desc *usb_boot;
+	struct gpio_desc *dtr;
 	bool vbus_active_low;
+	bool dtr_active_low;
 
 	struct mutex power_lock;
 	struct mutex reset_lock;
@@ -126,6 +137,21 @@ static enum sim7672_reset_status sim7672_reset_status(struct sim7672_reset_data 
 		return gpiod_get_value_cansleep(data->status);
 
 	return SIM7672_STATUS_OFF;
+}
+
+static void sim7672_reset_set_dtr(struct sim7672_reset_data *data,
+				  enum sim7672_reset_dtr_ops ops)
+{
+	if (!data->dtr)
+		return;
+
+	dev_dbg(data->dev, "DTR: %s\n",
+		ops == SIM7672_DTR_HIGH ? "high" : "low");
+
+	if (ops == SIM7672_DTR_HIGH)
+		gpiod_set_value_cansleep(data->dtr, !data->dtr_active_low);
+	else
+		gpiod_set_value_cansleep(data->dtr, data->dtr_active_low);
 }
 
 static void sim7672_reset_power_on(struct sim7672_reset_data *data)
@@ -250,6 +276,12 @@ static void sim7672_reset_work_func(struct work_struct *ws)
 	case SIM7672_ACTION_VBUS_OFF:
 		sim7672_reset_vbus(data, SIM7672_VBUS_TURN_OFF);
 		break;
+	case SIM7672_ACTION_DTR_HIGH:
+		sim7672_reset_set_dtr(data, SIM7672_DTR_HIGH);
+		break;
+	case SIM7672_ACTION_DTR_LOW:
+		sim7672_reset_set_dtr(data, SIM7672_DTR_LOW);
+		break;
 	default:
 		WARN_ON(1);
 	}
@@ -302,6 +334,18 @@ static int sim7672_reset_init_pdata(struct platform_device *pdev,
 	if (IS_ERR(data->usb_boot))
 		return dev_err_probe(&pdev->dev, PTR_ERR(data->usb_boot),
 				     "invalid usb_boot gpio");
+
+	if (of_property_read_bool(np, "dtr-active-low"))
+		data->dtr_active_low = true;
+
+	if (data->dtr_active_low)
+		flags = GPIOD_OUT_HIGH;
+	else
+		flags = GPIOD_OUT_LOW;
+	data->dtr = devm_gpiod_get_optional(&pdev->dev, "dtr", flags);
+	if (IS_ERR(data->dtr))
+		return dev_err_probe(&pdev->dev, PTR_ERR(data->dtr),
+				     "invalid dtr gpio");
 
 	if (of_property_read_bool(np, "vbus-active-low"))
 		data->vbus_active_low = true;
@@ -398,11 +442,33 @@ static ssize_t vbus_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(vbus);
 
+static ssize_t dtr_store(struct device *dev,
+			 struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct sim7672_reset_data *data = platform_get_drvdata(pdev);
+	int val, ret;
+
+	ret = kstrtoint(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val)
+		ret = sim7672_reset_schedule_work(data, SIM7672_ACTION_DTR_HIGH);
+	else
+		ret = sim7672_reset_schedule_work(data, SIM7672_ACTION_DTR_LOW);
+
+	return ret ? : count;
+}
+static DEVICE_ATTR_WO(dtr);
+
 static struct attribute *sim7672_reset_attrs[] = {
 	&dev_attr_reset.attr,
 	&dev_attr_power.attr,
 	&dev_attr_status.attr,
 	&dev_attr_vbus.attr,
+	&dev_attr_dtr.attr,
 	NULL
 };
 
