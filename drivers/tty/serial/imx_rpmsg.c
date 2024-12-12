@@ -30,6 +30,7 @@ enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_PAYLOAD,
 	TTY_RPMSG_COMMAND_SET_BAUD,
 	TTY_RPMSG_COMMAND_NOTIFY,
+	TTY_RPMSG_COMMAND_SET_WAKE,
 };
 
 /*
@@ -307,6 +308,8 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 		dev_info(&rpdev->dev, "Install rpmsg tty driver!\n");
 	}
 
+	device_set_wakeup_capable(&rpdev->dev, true);
+
 	return 0;
 
 error:
@@ -330,6 +333,26 @@ static void imx_rpmsg_uart_remove(struct rpmsg_device *rpdev)
 	port->driver = NULL;
 }
 
+static int __maybe_unused imx_rpmsg_uart_suspend(struct device *dev)
+{
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_SET_WAKE,
+	};
+	struct imx_rpmsg_port *port = dev_get_drvdata(dev);
+	bool enable = device_may_wakeup(dev);
+
+	return tty_send_and_wait(port, (void *)&msg, &enable, sizeof(enable));
+}
+
+static int __maybe_unused imx_rpmsg_uart_resume(struct device *dev)
+{
+	/* Do nothing */
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(imx_rpmsg_uart_pm_ops, imx_rpmsg_uart_suspend,
+			 imx_rpmsg_uart_resume);
+
 static struct rpmsg_device_id tty_rpmsg_id_table[] = {
 	{ .name = "rpmsg-tty-channel" },
 	{ },
@@ -337,6 +360,7 @@ static struct rpmsg_device_id tty_rpmsg_id_table[] = {
 
 static struct rpmsg_driver imx_rpmsg_uart_driver = {
 	.drv.name	= KBUILD_MODNAME,
+	.drv.pm		= &imx_rpmsg_uart_pm_ops,
 	.drv.owner	= THIS_MODULE,
 	.id_table	= tty_rpmsg_id_table,
 	.probe		= imx_rpmsg_uart_probe,
