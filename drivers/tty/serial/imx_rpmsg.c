@@ -20,6 +20,8 @@
 #define TTY_RPMSG_MINOR 0
 #define TTY_RPMSG_MAJOR 2
 
+#define IMX_RPMSG_DEFAULT_BAUD 115200
+
 enum tty_rpmsg_header_type {
 	TTY_RPMSG_REQUEST,
 	TTY_RPMSG_RESPONSE,
@@ -83,8 +85,11 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 		// ack for baudrate or tx
 		spin_lock_irq(&port->request_id_lock);
 		if (msg->request_id != port->inflight_request_id) {
-			dev_warn(&rpdev->dev, "received unexpected id %x (expected %x)\n",
-				msg->request_id, port->inflight_request_id);
+			// non-wait message are always 0xffff
+			if (port->inflight_request_id != 0xffff)
+				dev_warn(&rpdev->dev,
+					 "received unexpected id %x (expected %x)\n",
+					 msg->request_id, port->inflight_request_id);
 			spin_unlock_irq(&port->request_id_lock);
 			return 0;
 		}
@@ -118,7 +123,7 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 }
 
 static int tty_send_and_wait(struct imx_rpmsg_port *port, struct imx_rpmsg_tty_msg *msg,
-			     const void *data, size_t len)
+			     const void *data, size_t len, bool wait)
 {
 	int err;
 
@@ -138,12 +143,18 @@ static int tty_send_and_wait(struct imx_rpmsg_port *port, struct imx_rpmsg_tty_m
 	port->inflight_request_id = port->last_request_id++;
 	spin_unlock_irq(&port->request_id_lock);
 	msg->request_id = port->inflight_request_id;
+	if (!wait)
+		port->inflight_request_id = 0xffff;
 
 	err = rpmsg_send(port->rpdev->ept, msg,
 				 imx_rpmsg_uart_msg_size(len));
 	if (err) {
 		dev_err(&port->rpdev->dev, "rpmsg_send failed: %d\n", err);
 		goto err_out;
+	}
+	if (!wait) {
+		mutex_unlock(&port->tx_lock);
+		return 0;
 	}
 	err = wait_for_completion_timeout(&port->cmd_complete, msecs_to_jiffies(RPMSG_TIMEOUT));
 	if (!err) {
@@ -214,7 +225,7 @@ static int imx_rpmsg_uart_write(struct tty_struct *tty,
 		tlen = remain > RPMSG_MAX_SIZE ? RPMSG_MAX_SIZE : remain;
 
 		/* send a message to our remote processor */
-		ret = tty_send_and_wait(port, &msg, tbuf, tlen);
+		ret = tty_send_and_wait(port, &msg, tbuf, tlen, true);
 		if (ret)
 			return ret;
 
@@ -247,8 +258,26 @@ static void imx_rpmsg_uart_set_termios(struct tty_struct *tty,
 	if (C_BAUD(tty) != (old->c_cflag & CBAUD)) {
 		u32 baud = tty_get_baud_rate(tty);
 
-		tty_send_and_wait(port, (void *)&msg, &baud, sizeof(baud));
+		tty_send_and_wait(port, (void *)&msg, &baud, sizeof(baud), true);
 	}
+}
+
+static int imx_rpmsg_uart_set_default_baud(struct imx_rpmsg_port *port, u32 baud)
+{
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cate = IMX_RPMSG_TTY,
+		.header.major = TTY_RPMSG_MAJOR,
+		.header.minor = TTY_RPMSG_MINOR,
+		.header.type = TTY_RPMSG_REQUEST,
+		.header.cmd = TTY_RPMSG_COMMAND_SET_BAUD,
+	};
+	u16 len = sizeof(baud);
+
+	memcpy(msg.buf, &baud, len);
+	msg.len = len;
+
+	// async start - can't wait for reply in probe()
+	return tty_send_and_wait(port, (void *)&msg, &baud, sizeof(baud), false);
 }
 
 static const struct tty_operations imx_rpmsg_uart_ops = {
@@ -299,6 +328,15 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 	mutex_init(&port->tx_lock);
 	spin_lock_init(&port->request_id_lock);
 
+	/*
+	 * set the baud rate to our remote processor's UART, and tell
+	 * remote processor about this channel
+	 */
+	imx_rpmsg_uart_set_default_baud(port, IMX_RPMSG_DEFAULT_BAUD);
+	tty_termios_encode_baud_rate(&driver->init_termios,
+				     IMX_RPMSG_DEFAULT_BAUD,
+				     IMX_RPMSG_DEFAULT_BAUD);
+
 	ret = tty_register_driver(port->driver);
 	if (ret < 0) {
 		dev_err(&rpdev->dev,
@@ -341,7 +379,7 @@ static int __maybe_unused imx_rpmsg_uart_suspend(struct device *dev)
 	struct imx_rpmsg_port *port = dev_get_drvdata(dev);
 	bool enable = device_may_wakeup(dev);
 
-	return tty_send_and_wait(port, (void *)&msg, &enable, sizeof(enable));
+	return tty_send_and_wait(port, (void *)&msg, &enable, sizeof(enable), true);
 }
 
 static int __maybe_unused imx_rpmsg_uart_resume(struct device *dev)
