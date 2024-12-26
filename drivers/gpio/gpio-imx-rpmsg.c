@@ -696,6 +696,7 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	gc->label = kasprintf(GFP_KERNEL, "imx-rpmsg-gpio-%d", port->idx);
 	gc->ngpio = ngpio;
 	gc->base = -1;
+	gc->can_sleep = true;
 
 	for (i = 0; i < ngpio; i++) {
 		port->gpio_pins[i].pin_idx = i;
