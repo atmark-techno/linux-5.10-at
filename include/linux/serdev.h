@@ -260,10 +260,6 @@ static inline int serdev_device_break_ctl(struct serdev_device *serdev, int brea
 {
 	return -EOPNOTSUPP;
 }
-static inline int serdev_device_break_ctl(struct serdev_device *serdev, int break_state)
-{
-	return -EOPNOTSUPP;
-}
 static inline int serdev_device_write(struct serdev_device *sdev, const unsigned char *buf,
 				      size_t count, unsigned long timeout)
 {
