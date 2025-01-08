@@ -30,7 +30,7 @@ enum tty_rpmsg_header_type {
 
 enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_PAYLOAD,
-	TTY_RPMSG_COMMAND_SET_BAUD,
+	TTY_RPMSG_COMMAND_SET_CFLAG,
 	TTY_RPMSG_COMMAND_NOTIFY,
 	TTY_RPMSG_COMMAND_SET_WAKE,
 };
@@ -246,38 +246,59 @@ static int imx_rpmsg_uart_write_room(struct tty_struct *tty)
 	return RPMSG_MAX_SIZE;
 }
 
+static int imx_rpmsg_uart_set_cflag(struct imx_rpmsg_port *port,
+				    tcflag_t cflag, bool wait)
+{
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_SET_CFLAG,
+	};
+
+	return tty_send_and_wait(port, (void *)&msg, &cflag, sizeof(cflag), wait);
+}
+
 static void imx_rpmsg_uart_set_termios(struct tty_struct *tty,
 				       struct ktermios *old)
 {
-	struct imx_rpmsg_tty_msg msg = {
-		.header.cmd = TTY_RPMSG_COMMAND_SET_BAUD,
-	};
 	struct imx_rpmsg_port *port = container_of(tty->port,
 						   struct imx_rpmsg_port, port);
+	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
+	tcflag_t cflag = tty->termios.c_cflag;
 
-	if (C_BAUD(tty) != (old->c_cflag & CBAUD)) {
-		u32 baud = tty_get_baud_rate(tty);
+	if (cflag == old->c_cflag)
+		return;
 
-		tty_send_and_wait(port, (void *)&msg, &baud, sizeof(baud), true);
+	/*
+	 * only support CS8 and CS7, and for CS7 must enable PE.
+	 * supported mode:
+	 *  - (7,e/o,1/2)
+	 *  - (8,n,1/2)
+	 *  - (8,m/s,1/2)
+	 *  - (8,e/o,1/2)
+	 */
+	while ((cflag & CSIZE) != CS8 && (cflag & CSIZE) != CS7) {
+		cflag &= ~CSIZE;
+		cflag |= old_csize;
+		old_csize = CS8;
 	}
+
+	if (cflag & CMSPAR) {
+		if ((cflag & CSIZE) != CS8) {
+			cflag &= ~CSIZE;
+			cflag |= CS8;
+		}
+	}
+
+	/* parity must be enabled when CS7 to match 8-bits format */
+	if ((cflag & CSIZE) == CS7)
+		cflag |= PARENB;
+
+	imx_rpmsg_uart_set_cflag(port, cflag, true);
 }
 
-static int imx_rpmsg_uart_set_default_baud(struct imx_rpmsg_port *port, u32 baud)
+static int imx_rpmsg_uart_set_init_cflag(struct imx_rpmsg_port *port, tcflag_t cflag)
 {
-	struct imx_rpmsg_tty_msg msg = {
-		.header.cate = IMX_RPMSG_TTY,
-		.header.major = TTY_RPMSG_MAJOR,
-		.header.minor = TTY_RPMSG_MINOR,
-		.header.type = TTY_RPMSG_REQUEST,
-		.header.cmd = TTY_RPMSG_COMMAND_SET_BAUD,
-	};
-	u16 len = sizeof(baud);
-
-	memcpy(msg.buf, &baud, len);
-	msg.len = len;
-
 	// async start - can't wait for reply in probe()
-	return tty_send_and_wait(port, (void *)&msg, &baud, sizeof(baud), false);
+	return imx_rpmsg_uart_set_cflag(port, cflag, false);
 }
 
 static const struct tty_operations imx_rpmsg_uart_ops = {
@@ -313,6 +334,9 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 	driver->minor_start = 0;
 	driver->type = TTY_DRIVER_TYPE_CONSOLE;
 	driver->init_termios = tty_std_termios;
+	tty_termios_encode_baud_rate(&driver->init_termios,
+				     IMX_RPMSG_DEFAULT_BAUD,
+				     IMX_RPMSG_DEFAULT_BAUD);
 
 	tty_set_operations(driver, &imx_rpmsg_uart_ops);
 
@@ -332,10 +356,9 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 	 * set the baud rate to our remote processor's UART, and tell
 	 * remote processor about this channel
 	 */
-	imx_rpmsg_uart_set_default_baud(port, IMX_RPMSG_DEFAULT_BAUD);
-	tty_termios_encode_baud_rate(&driver->init_termios,
-				     IMX_RPMSG_DEFAULT_BAUD,
-				     IMX_RPMSG_DEFAULT_BAUD);
+	ret = imx_rpmsg_uart_set_init_cflag(port, driver->init_termios.c_cflag);
+	if (ret)
+		goto error;
 
 	ret = tty_register_driver(port->driver);
 	if (ret < 0) {
