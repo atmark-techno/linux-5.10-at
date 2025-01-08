@@ -9,26 +9,16 @@
 
 / {
 	model = "Atmark-Techno Armadillo-IoT Gateway A900 Board";
-	compatible = "atmark,a900", "fsl,imx8ulp";
+	compatible = "atmark,armadillo-iotg-a9e", "fsl,imx8ulp";
 
 	aliases {
 		rtc0 = &rv8803_rtc;
-	};
-
-	chosen {
-		stdout-path = &lpuart4;
 	};
 
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_leds>;
-
-		c5_led {
-			label = "sys";
-			gpios = <&rpmsg_gpioc 5 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "default-on";
-		};
 
 		f30_led {
 			label = "app";
@@ -53,26 +43,6 @@
 			gpios = <&gpiof 24 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_PROG1>;
 		};
-	};
-
-	reg_usdhc2_vmmc: regulator-usdhc2 {
-		compatible = "regulator-fixed";
-		regulator-name = "VSD_3V3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&rpmsg_gpioa 2 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		off-on-delay-us = <400000>;
-	};
-
-	reg_usb1_host_vbus: regulator-usb1-vbus {
-		compatible = "regulator-fixed";
-		regulator-name = "usb1_host_vbus";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&rpmsg_gpioa 3 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-always-on;
 	};
 
 //power
@@ -118,46 +88,6 @@
 	};
 };
 
-// SD card
-&usdhc2 {
-	pinctrl-names = "default", "state_100mhz", "state_200mhz", "sleep";
-	pinctrl-0 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
-	pinctrl-1 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
-	pinctrl-2 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
-	pinctrl-3 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
-	cd-gpios = <&gpiof 28 GPIO_ACTIVE_LOW>;
-	vmmc-supply = <&reg_usdhc2_vmmc>;
-	bus-width = <4>;
-	status = "okay";
-};
-
-// USB
-&usbotg1 {
-	dr_mode = "host";
-	status = "okay";
-};
-
-&usbmisc1 {
-	status = "okay";
-};
-
-&usbphy1 {
-	status = "okay";
-};
-
-&usbotg2 {
-	dr_mode = "host";
-	status = "okay";
-};
-
-&usbphy2 {
-	status = "okay";
-};
-
-&usbmisc2 {
-	status = "okay";
-};
-
 // USB hub
 &i2c_rpbus_1 {
 	#address-cells = <1>;
@@ -199,14 +129,6 @@
 	status = "okay";
 };
 
-// USB serial
-&lpuart4 {
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&pinctrl_lpuart4>;
-	pinctrl-1 = <&pinctrl_lpuart4sleep>;
-	status = "okay";
-};
-
 // wlan LBES5PL2EL-923
 &usdhc1 {
 	pinctrl-names = "default", "state_100mhz", "state_200mhz";
@@ -245,11 +167,6 @@
 };
 
 &gpioc_iomuxc {
-	leds {
-		imx-rpmsg,pins = <
-			IOMUXC_PTC5_PTC5 0x20000 /* OBE(1) */
-		>;
-	};
 	spi {
 		imx-rpmsg,pins = <
 			IOMUXC_PTC0_PTC0 0x2 /* PE(1) */
@@ -261,7 +178,11 @@
 };
 
 &iomuxc1 {
-	pinctrl-names = "default";
+	/*
+	 * append pinctrl_con10_gpio.
+	 * pinctrl_customize is already defined in armadillo_900.dts
+	 * and can be customized here or in other dtbos if necessary.
+	 */
 	pinctrl-0 = <&pinctrl_customize>, <&pinctrl_con10_gpio>;
 
 	/* pinctrl memo
@@ -277,26 +198,11 @@
 	 * 0x1 pull-up selection (0=pull down)
 	 */
 
-	pinctrl_customize: customizegrp {
-	};
-
 	/* overriden by at-dtweb */
 	pinctrl_con10_gpio: con10gpiogrp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF6__PTF6    0x0
 			MX8ULP_PAD_PTF7__PTF7    0x0
-		>;
-	};
-
-	pinctrl_usdhc2: usdhc2grp {
-		fsl,pins = <
-			MX8ULP_PAD_PTE3__SDHC2_CMD	0x0
-			MX8ULP_PAD_PTE2__SDHC2_CLK	0x10000
-			MX8ULP_PAD_PTE1__SDHC2_D0	0x0
-			MX8ULP_PAD_PTE0__SDHC2_D1	0x0
-			MX8ULP_PAD_PTE5__SDHC2_D2	0x0
-			MX8ULP_PAD_PTE4__SDHC2_D3	0x0
-			MX8ULP_PAD_PTF29__SDHC2_VS	0x0
 		>;
 	};
 
@@ -313,12 +219,6 @@
 		>;
 	};
 
-	pinctrl_usdhc2_gpio: usdhc2grp-gpio {
-		fsl,pins = <
-			MX8ULP_PAD_PTF28__PTF28		0x3
-		>;
-	};
-
 	pinctrl_lpi2c6: i2c6grp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x24
@@ -331,24 +231,6 @@
 		fsl,pins = <
 			MX8ULP_PAD_PTF4__LPI2C7_SCL	0x24
 			MX8ULP_PAD_PTF5__LPI2C7_SDA	0x24
-		>;
-	};
-
-	pinctrl_lpuart4: lpuart4grp {
-		fsl,pins = <
-			MX8ULP_PAD_PTF8__LPUART4_CTS_B	0x0
-			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x0
-			MX8ULP_PAD_PTF10__LPUART4_TX	0x0
-			MX8ULP_PAD_PTF11__LPUART4_RX	0x0
-		>;
-	};
-
-	pinctrl_lpuart4sleep: lpuart4sleepgrp {
-		fsl,pins = <
-			MX8ULP_PAD_PTF8__LPUART4_CTS_B	0x0
-			MX8ULP_PAD_PTF9__LPUART4_RTS_B	0x0
-			MX8ULP_PAD_PTF10__LPUART4_TX	0x0
-			MX8ULP_PAD_PTF11__LPUART4_RX	0x0
 		>;
 	};
 
