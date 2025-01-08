@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include "armadillo_900.dtsi"
+#include "armadillo_900.dts"
 
 / {
 	model = "Atmark-Techno Armadillo-IoT Gateway A900 Board";
