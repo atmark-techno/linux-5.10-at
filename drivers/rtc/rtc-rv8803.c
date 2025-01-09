@@ -599,6 +599,30 @@ static int rv8803_probe(struct i2c_client *client,
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int rv8803_suspend(struct device *dev)
+{
+	struct rv8803_data *rv8803 = dev_get_drvdata(dev);
+
+	if (rv8803->client->irq)
+		disable_irq(rv8803->client->irq);
+
+	return 0;
+}
+
+static int rv8803_resume(struct device *dev)
+{
+	struct rv8803_data *rv8803 = dev_get_drvdata(dev);
+
+	if (rv8803->client->irq)
+		enable_irq(rv8803->client->irq);
+
+	return 0;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(rv8803_pm_ops, rv8803_suspend, rv8803_resume);
+
 static const struct i2c_device_id rv8803_id[] = {
 	{ "rv8803", rv_8803 },
 	{ "rx8803", rv_8803 },
@@ -628,6 +652,7 @@ static struct i2c_driver rv8803_driver = {
 	.driver = {
 		.name = "rtc-rv8803",
 		.of_match_table = of_match_ptr(rv8803_of_match),
+		.pm = &rv8803_pm_ops,
 	},
 	.probe		= rv8803_probe,
 	.id_table	= rv8803_id,
