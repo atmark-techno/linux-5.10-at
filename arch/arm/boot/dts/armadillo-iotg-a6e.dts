@@ -15,6 +15,10 @@
 	aliases {
 		rtc0 = &rv8803;
 		rtc1 = &snvs_rtc;
+		/* If adc101c is initialized first it would take iio0 and
+		 * make iio aliases in di8ai4 overlays fail.
+		 * Hardcode it to 5 to avoid this. */
+		iio5 = &adc101c;
 	};
 
 	regulators {
@@ -31,6 +35,14 @@
 			regulator-max-microvolt = <5000000>;
 			gpio = <&gpio1 19 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
+		};
+
+		reg_3p3v: regulator-3p3v {
+			compatible = "regulator-fixed";
+			regulator-name = "3P3V";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
 		};
 	};
 
@@ -242,6 +254,9 @@
 		interrupt-parent = <&gpio1>;
 		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
 
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
 		wakeup-source;
 	};
 
@@ -254,6 +269,33 @@
 
 		interrupt-parent = <&gpio1>;
 		interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+
+		wakeup-source;
+	};
+
+	/* Added in PCB Rev.4
+	 *
+	 * VIN
+	 *  |
+	 *  R1(910kOhm)
+	 *  |
+	 *  |--VOUT(to ADC101C)
+	 *  |
+	 *  R2(110kOhm)
+	 *  |
+	 * GND
+	 *
+	 * VOUT = R2 / (R1+R2) * VIN
+	 */
+	adc101c: adc@54 {
+		compatible = "ti,adc101c";
+		reg = <0x54>;
+		label = "vin";
+		vref-supply = <&reg_3p3v>;
+
+		interrupt-parent = <&pca9534>;
+		/* pca9534 only support edge interrupts */
+		interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
 
 		wakeup-source;
 	};
