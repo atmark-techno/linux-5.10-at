@@ -4,10 +4,15 @@
  */
 
 /dts-v1/;
+/plugin/;
 
-#include "armadillo_900.dts"
+#include "imx8ulp-pinfunc.h"
+#include "imx8ulp-pinfunc-m33.h"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 
-/ {
+&{/} {
 	model = "Atmark-Techno Armadillo-IoT Gateway A900 Board";
 	compatible = "atmark,armadillo-iotg-a9e", "fsl,imx8ulp";
 
