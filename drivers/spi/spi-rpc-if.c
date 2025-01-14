@@ -95,16 +95,16 @@ static int rpcif_spi_mem_dirmap_create(struct spi_mem_dirmap_desc *desc)
 		spi_controller_get_devdata(desc->mem->spi->controller);
 
 	if (desc->info.offset + desc->info.length > U32_MAX)
-		return -ENOTSUPP;
+		return -EINVAL;
 
 	if (!rpcif_spi_mem_supports_op(desc->mem, &desc->info.op_tmpl))
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
-	if (!rpc->dirmap && desc->info.op_tmpl.data.dir == SPI_MEM_DATA_IN)
-		return -ENOTSUPP;
+	if (!rpc->dirmap)
+		return -EOPNOTSUPP;
 
-	if (desc->info.op_tmpl.data.dir == SPI_MEM_DATA_OUT)
-		return -ENOTSUPP;
+	if (desc->info.op_tmpl.data.dir != SPI_MEM_DATA_IN)
+		return -EOPNOTSUPP;
 
 	return 0;
 }
@@ -156,14 +156,20 @@ static int rpcif_spi_probe(struct platform_device *pdev)
 	ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_TX_QUAD | SPI_RX_QUAD;
 	ctlr->flags = SPI_CONTROLLER_HALF_DUPLEX;
 
-	rpcif_hw_init(rpc, false);
+	error = rpcif_hw_init(rpc, false);
+	if (error)
+		goto out_disable_rpm;
 
 	error = spi_register_controller(ctlr);
 	if (error) {
 		dev_err(&pdev->dev, "spi_register_controller failed\n");
-		rpcif_disable_rpm(rpc);
+		goto out_disable_rpm;
 	}
 
+	return 0;
+
+out_disable_rpm:
+	rpcif_disable_rpm(rpc);
 	return error;
 }
 
@@ -199,9 +205,16 @@ static SIMPLE_DEV_PM_OPS(rpcif_spi_pm_ops, rpcif_spi_suspend, rpcif_spi_resume);
 #define DEV_PM_OPS	NULL
 #endif
 
+static const struct platform_device_id rpc_if_spi_id_table[] = {
+	{ .name = "rpc-if-spi" },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(platform, rpc_if_spi_id_table);
+
 static struct platform_driver rpcif_spi_driver = {
 	.probe	= rpcif_spi_probe,
 	.remove	= rpcif_spi_remove,
+	.id_table = rpc_if_spi_id_table,
 	.driver = {
 		.name	= "rpc-if-spi",
 		.pm	= DEV_PM_OPS,

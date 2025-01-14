@@ -38,6 +38,7 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/reset.h>
 #include <linux/scatterlist.h>
 #include <linux/serial.h>
 #include <linux/serial_sci.h>
@@ -290,7 +291,7 @@ static const struct sci_port_params sci_port_params[SCIx_NR_REGTYPES] = {
 	},
 
 	/*
-	 * The "SCIFA" that is in RZ/T and RZ/A2.
+	 * The "SCIFA" that is in RZ/A2, RZ/G2L and RZ/T.
 	 * It looks like a normal SCIF with FIFO data, but with a
 	 * compressed address space. Also, the break out of interrupts
 	 * are different: ERI/BRI, RXI, TXI, TEI, DRI.
@@ -307,6 +308,7 @@ static const struct sci_port_params sci_port_params[SCIx_NR_REGTYPES] = {
 			[SCFDR]		= { 0x0E, 16 },
 			[SCSPTR]	= { 0x10, 16 },
 			[SCLSR]		= { 0x12, 16 },
+			[SEMR]		= { 0x14, 8 },
 		},
 		.fifosize = 16,
 		.overrun_reg = SCLSR,
@@ -586,14 +588,28 @@ static void sci_start_tx(struct uart_port *port)
 
 	if (s->chan_tx && !uart_circ_empty(&s->port.state->xmit) &&
 	    dma_submit_error(s->cookie_tx)) {
+		if (s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE)
+			/* Switch irq from SCIF to DMA */
+			disable_irq_nosync(s->irqs[SCIx_TXI_IRQ]);
+
 		s->cookie_tx = 0;
 		schedule_work(&s->work_tx);
 	}
 #endif
 
-	if (!s->chan_tx || port->type == PORT_SCIFA || port->type == PORT_SCIFB) {
+	if (!s->chan_tx || s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE ||
+	    port->type == PORT_SCIFA || port->type == PORT_SCIFB) {
 		/* Set TIE (Transmit Interrupt Enable) bit in SCSCR */
 		ctrl = serial_port_in(port, SCSCR);
+
+		/*
+		 * For SCI, TE (transmit enable) must be set after setting TIE
+		 * (transmit interrupt enable) or in the same instruction to start
+		 * the transmit process.
+		 */
+		if (port->type == PORT_SCI)
+			ctrl |= SCSCR_TE;
+
 		serial_port_out(port, SCSCR, ctrl | SCSCR_TIE);
 	}
 }
@@ -831,6 +847,11 @@ static void sci_transmit_chars(struct uart_port *port)
 		} else if (!uart_circ_empty(xmit) && !stopped) {
 			c = xmit->buf[xmit->tail];
 			xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
+		} else if (port->type == PORT_SCI && uart_circ_empty(xmit)) {
+			ctrl = serial_port_in(port, SCSCR);
+			ctrl &= ~SCSCR_TE;
+			serial_port_out(port, SCSCR, ctrl);
+			return;
 		} else {
 			break;
 		}
@@ -844,9 +865,16 @@ static void sci_transmit_chars(struct uart_port *port)
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
-	if (uart_circ_empty(xmit))
-		sci_stop_tx(port);
+	if (uart_circ_empty(xmit)) {
+		if (port->type == PORT_SCI) {
+			ctrl = serial_port_in(port, SCSCR);
+			ctrl &= ~SCSCR_TIE;
+			ctrl |= SCSCR_TEIE;
+			serial_port_out(port, SCSCR, ctrl);
+		}
 
+		sci_stop_tx(port);
+	}
 }
 
 /* On SH3, SCIF may read end-of-break as a space->mark char */
@@ -1208,9 +1236,15 @@ static void sci_dma_tx_complete(void *arg)
 		schedule_work(&s->work_tx);
 	} else {
 		s->cookie_tx = -EINVAL;
-		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB) {
+		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB ||
+		    s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE) {
 			u16 ctrl = serial_port_in(port, SCSCR);
 			serial_port_out(port, SCSCR, ctrl & ~SCSCR_TIE);
+			if (s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE) {
+				/* Switch irq from DMA to SCIF */
+				dmaengine_pause(s->chan_tx_saved);
+				enable_irq(s->irqs[SCIx_TXI_IRQ]);
+			}
 		}
 	}
 
@@ -1287,9 +1321,13 @@ static void sci_dma_rx_reenable_irq(struct sci_port *s)
 
 	/* Direct new serial port interrupts back to CPU */
 	scr = serial_port_in(port, SCSCR);
-	if (port->type == PORT_SCIFA || port->type == PORT_SCIFB) {
-		scr &= ~SCSCR_RDRQE;
+	if (port->type == PORT_SCIFA || port->type == PORT_SCIFB ||
+	    s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE) {
 		enable_irq(s->irqs[SCIx_RXI_IRQ]);
+		if (s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE)
+			scif_set_rtrg(port, s->rx_trigger);
+		else
+			scr &= ~SCSCR_RDRQE;
 	}
 	serial_port_out(port, SCSCR, scr | SCSCR_RIE);
 }
@@ -1528,7 +1566,8 @@ static enum hrtimer_restart sci_dma_rx_timer_fn(struct hrtimer *t)
 			tty_flip_buffer_push(&port->state->port);
 	}
 
-	if (port->type == PORT_SCIFA || port->type == PORT_SCIFB)
+	if (port->type == PORT_SCIFA || port->type == PORT_SCIFB ||
+	    s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE)
 		sci_dma_rx_submit(s, true);
 
 	sci_dma_rx_reenable_irq(s);
@@ -1554,15 +1593,12 @@ static struct dma_chan *sci_request_dma_chan(struct uart_port *port,
 
 	memset(&cfg, 0, sizeof(cfg));
 	cfg.direction = dir;
-	if (dir == DMA_MEM_TO_DEV) {
-		cfg.dst_addr = port->mapbase +
-			(sci_getreg(port, SCxTDR)->offset << port->regshift);
-		cfg.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-	} else {
-		cfg.src_addr = port->mapbase +
-			(sci_getreg(port, SCxRDR)->offset << port->regshift);
-		cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-	}
+	cfg.dst_addr = port->mapbase +
+		(sci_getreg(port, SCxTDR)->offset << port->regshift);
+	cfg.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+	cfg.src_addr = port->mapbase +
+		(sci_getreg(port, SCxRDR)->offset << port->regshift);
+	cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
 
 	ret = dmaengine_slave_config(chan, &cfg);
 	if (ret) {
@@ -1655,7 +1691,8 @@ static void sci_request_dma(struct uart_port *port)
 
 		s->chan_rx_saved = s->chan_rx = chan;
 
-		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB)
+		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB ||
+		    s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE)
 			sci_dma_rx_submit(s, false);
 	}
 }
@@ -1708,9 +1745,15 @@ static irqreturn_t sci_rx_interrupt(int irq, void *ptr)
 		u16 ssr = serial_port_in(port, SCxSR);
 
 		/* Disable future Rx interrupts */
-		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB) {
-			disable_irq_nosync(irq);
-			scr |= SCSCR_RDRQE;
+		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB ||
+		    s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE) {
+			disable_irq_nosync(s->irqs[SCIx_RXI_IRQ]);
+			if (s->cfg->regtype == SCIx_RZ_SCIFA_REGTYPE) {
+				scif_set_rtrg(port, 1);
+				scr |= SCSCR_RIE;
+			} else {
+				scr |= SCSCR_RDRQE;
+			}
 		} else {
 			if (sci_dma_rx_submit(s, false) < 0)
 				goto handle_pio;
@@ -1755,6 +1798,24 @@ static irqreturn_t sci_tx_interrupt(int irq, void *ptr)
 
 	spin_lock_irqsave(&port->lock, flags);
 	sci_transmit_chars(port);
+	spin_unlock_irqrestore(&port->lock, flags);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t sci_tx_end_interrupt(int irq, void *ptr)
+{
+	struct uart_port *port = ptr;
+	unsigned long flags;
+	unsigned short ctrl;
+
+	if (port->type != PORT_SCI)
+		return sci_tx_interrupt(irq, ptr);
+
+	spin_lock_irqsave(&port->lock, flags);
+	ctrl = serial_port_in(port, SCSCR);
+	ctrl &= ~(SCSCR_TE | SCSCR_TEIE);
+	serial_port_out(port, SCSCR, ctrl);
 	spin_unlock_irqrestore(&port->lock, flags);
 
 	return IRQ_HANDLED;
@@ -1896,7 +1957,7 @@ static const struct sci_irq_desc {
 
 	[SCIx_TEI_IRQ] = {
 		.desc = "tx end",
-		.handler = sci_tx_interrupt,
+		.handler = sci_tx_end_interrupt,
 	},
 
 	/*
@@ -2537,6 +2598,9 @@ done:
 	if (termios->c_cflag & PARENB)
 		bits++;
 
+	if (sci_getreg(port, SEMR)->size)
+		serial_port_out(port, SEMR, 0);
+
 	if (best_clk >= 0) {
 		if (port->type == PORT_SCIFA || port->type == PORT_SCIFB)
 			switch (srr + 1) {
@@ -2618,8 +2682,14 @@ done:
 		sci_set_mctrl(port, port->mctrl);
 	}
 
-	scr_val |= SCSCR_RE | SCSCR_TE |
-		   (s->cfg->scscr & ~(SCSCR_CKE1 | SCSCR_CKE0));
+	/*
+	 * For SCI, TE (transmit enable) must be set after setting TIE
+	 * (transmit interrupt enable) or in the same instruction to
+	 * start the transmitting process. So skip setting TE here for SCI.
+	 */
+	if (port->type != PORT_SCI)
+		scr_val |= SCSCR_TE;
+	scr_val |= SCSCR_RE | (s->cfg->scscr & ~(SCSCR_CKE1 | SCSCR_CKE0));
 	serial_port_out(port, SCSCR, scr_val | s->hscif_tot);
 	if ((srr + 1 == 5) &&
 	    (port->type == PORT_SCIFA || port->type == PORT_SCIFB)) {
@@ -3211,6 +3281,10 @@ static const struct of_device_id of_sci_match[] = {
 		.compatible = "renesas,scif-r7s9210",
 		.data = SCI_OF_DATA(PORT_SCIF, SCIx_RZ_SCIFA_REGTYPE),
 	},
+	{
+		.compatible = "renesas,scif-r9a07g044",
+		.data = SCI_OF_DATA(PORT_SCIF, SCIx_RZ_SCIFA_REGTYPE),
+	},
 	/* Family-specific types */
 	{
 		.compatible = "renesas,rcar-gen1-scif",
@@ -3244,23 +3318,47 @@ static const struct of_device_id of_sci_match[] = {
 };
 MODULE_DEVICE_TABLE(of, of_sci_match);
 
+static void sci_reset_control_assert(void *data)
+{
+	reset_control_assert(data);
+}
+
 static struct plat_sci_port *sci_parse_dt(struct platform_device *pdev,
 					  unsigned int *dev_id)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct reset_control *rstc;
 	struct plat_sci_port *p;
 	struct sci_port *sp;
 	const void *data;
-	int id;
+	int id, ret;
 
 	if (!IS_ENABLED(CONFIG_OF) || !np)
-		return NULL;
+		return ERR_PTR(-EINVAL);
 
 	data = of_device_get_match_data(&pdev->dev);
 
+	rstc = devm_reset_control_get_optional_exclusive(&pdev->dev, NULL);
+	if (IS_ERR(rstc))
+		return ERR_PTR(dev_err_probe(&pdev->dev, PTR_ERR(rstc),
+					     "failed to get reset ctrl\n"));
+
+	ret = reset_control_deassert(rstc);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to deassert reset %d\n", ret);
+		return ERR_PTR(ret);
+	}
+
+	ret = devm_add_action_or_reset(&pdev->dev, sci_reset_control_assert, rstc);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to register assert devm action, %d\n",
+			ret);
+		return ERR_PTR(ret);
+	}
+
 	p = devm_kzalloc(&pdev->dev, sizeof(struct plat_sci_port), GFP_KERNEL);
 	if (!p)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 
 	/* Get the line number from the aliases node. */
 	id = of_alias_get_id(np, "serial");
@@ -3268,11 +3366,11 @@ static struct plat_sci_port *sci_parse_dt(struct platform_device *pdev,
 		id = ffz(sci_ports_in_use);
 	if (id < 0) {
 		dev_err(&pdev->dev, "failed to get alias id (%d)\n", id);
-		return NULL;
+		return ERR_PTR(-EINVAL);
 	}
 	if (id >= ARRAY_SIZE(sci_ports)) {
 		dev_err(&pdev->dev, "serial%d out of range\n", id);
-		return NULL;
+		return ERR_PTR(-EINVAL);
 	}
 
 	sp = &sci_ports[id];
@@ -3359,8 +3457,8 @@ static int sci_probe(struct platform_device *dev)
 
 	if (dev->dev.of_node) {
 		p = sci_parse_dt(dev, &dev_id);
-		if (p == NULL)
-			return -EINVAL;
+		if (IS_ERR(p))
+			return PTR_ERR(p);
 	} else {
 		p = dev->dev.platform_data;
 		if (p == NULL) {
@@ -3493,6 +3591,7 @@ static int __init rzscifa_early_console_setup(struct earlycon_device *device,
 	port_cfg.regtype = SCIx_RZ_SCIFA_REGTYPE;
 	return early_console_setup(device, PORT_SCIF);
 }
+
 static int __init scifa_early_console_setup(struct earlycon_device *device,
 					  const char *opt)
 {
@@ -3512,6 +3611,7 @@ static int __init hscif_early_console_setup(struct earlycon_device *device,
 OF_EARLYCON_DECLARE(sci, "renesas,sci", sci_early_console_setup);
 OF_EARLYCON_DECLARE(scif, "renesas,scif", scif_early_console_setup);
 OF_EARLYCON_DECLARE(scif, "renesas,scif-r7s9210", rzscifa_early_console_setup);
+OF_EARLYCON_DECLARE(scif, "renesas,scif-r9a07g044", rzscifa_early_console_setup);
 OF_EARLYCON_DECLARE(scifa, "renesas,scifa", scifa_early_console_setup);
 OF_EARLYCON_DECLARE(scifb, "renesas,scifb", scifb_early_console_setup);
 OF_EARLYCON_DECLARE(hscif, "renesas,hscif", hscif_early_console_setup);

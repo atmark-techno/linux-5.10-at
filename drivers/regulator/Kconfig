@@ -913,6 +913,18 @@ config REGULATOR_QCOM_USB_VBUS
 	  Say M here if you want to include support for enabling the VBUS output
 	  as a module. The module will be named "qcom_usb_vbus_regulator".
 
+config REGULATOR_RAA215300
+	tristate "Renesas RAA215300 driver"
+	select REGMAP_I2C
+	depends on COMMON_CLK
+	depends on I2C
+	help
+	  If you say yes to this option, support will be included for the
+	  Renesas RAA215300 PMIC.
+
+	  Say M here if you want to include support for Renesas RAA215300 PMIC
+	  as a module. The module will be named "raa215300".
+
 config REGULATOR_RASPBERRYPI_TOUCHSCREEN_ATTINY
 	tristate "Raspberry Pi 7-inch touchscreen panel ATTINY regulator"
 	depends on BACKLIGHT_CLASS_DEVICE
@@ -1249,6 +1261,15 @@ config REGULATOR_UNIPHIER
 	default ARCH_UNIPHIER
 	help
 	  Support for regulators implemented on Socionext UniPhier SoCs.
+
+config REGULATOR_RZG2L_VBCTRL
+	tristate "Renesas RZ/G2L USB VBUS regulator driver"
+	depends on RESET_RZG2L_USBPHY_CTRL || COMPILE_TEST
+	depends on OF
+	select REGMAP_MMIO
+	default RESET_RZG2L_USBPHY_CTRL
+	help
+	  Support for VBUS regulators implemented on Renesas RZ/G2L SoCs.
 
 config REGULATOR_VCTRL
 	tristate "Voltage controlled regulators"

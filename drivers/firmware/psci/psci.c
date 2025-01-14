@@ -259,7 +259,8 @@ static int get_set_conduit_method(struct device_node *np)
 	return 0;
 }
 
-static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
+static int psci_sys_reset(struct notifier_block *nb, unsigned long action,
+			  void *data)
 {
 	if ((reboot_mode == REBOOT_WARM || reboot_mode == REBOOT_SOFT) &&
 	    psci_system_reset2_supported) {
@@ -272,7 +273,14 @@ static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 	} else {
 		invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0);
 	}
+
+	return NOTIFY_DONE;
 }
+
+static struct notifier_block psci_sys_reset_nb = {
+	.notifier_call = psci_sys_reset,
+	.priority = 129,
+};
 
 static void psci_sys_poweroff(void)
 {
@@ -418,17 +426,6 @@ static void __init psci_init_smccc(void)
 
 }
 
-static int psci_restart_notifier(struct notifier_block *nb,
-                unsigned long action, void *data) {
-	pr_emerg("Resetting through psci\n");
-	psci_sys_reset(REBOOT_COLD, NULL);
-	return NOTIFY_OK;
-}
-static struct notifier_block psci_restart_nb = {
-	.notifier_call = psci_restart_notifier,
-	.priority = 200,
-};
-
 static void __init psci_0_2_set_functions(void)
 {
 	pr_info("Using standard PSCI v0.2 function IDs\n");
@@ -451,9 +448,7 @@ static void __init psci_0_2_set_functions(void)
 
 	psci_ops.migrate_info_type = psci_migrate_info_type;
 
-	if (register_restart_handler(&psci_restart_nb)) {
-		pr_warn("Could not register psci restart handler\n");
-	}
+	register_restart_handler(&psci_sys_reset_nb);
 
 	pm_power_off = psci_sys_poweroff;
 }
