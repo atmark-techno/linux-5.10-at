@@ -767,7 +767,7 @@ static int stmmac_noirq_suspend(struct device *dev)
 		return 0;
 
 	if (!device_may_wakeup(priv->device) || !priv->plat->pmt)
-		stmmac_bus_clks_enable(priv, false);
+		stmmac_bus_clks_config(priv, false);
 
 	return 0;
 }
@@ -782,7 +782,7 @@ static int stmmac_noirq_resume(struct device *dev)
 		return 0;
 
 	if (!device_may_wakeup(priv->device) || !priv->plat->pmt)
-		ret = stmmac_bus_clks_enable(priv, true);
+		ret = stmmac_bus_clks_config(priv, true);
 
 	return ret;
 }

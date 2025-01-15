@@ -296,6 +296,6 @@ static inline int stmmac_selftest_get_count(struct stmmac_priv *priv)
 }
 #endif /* CONFIG_STMMAC_SELFTESTS */
 
-int stmmac_bus_clks_enable(struct stmmac_priv *priv, bool enabled);
+int stmmac_bus_clks_config(struct stmmac_priv *priv, bool enabled);
 
 #endif /* __STMMAC_H__ */

@@ -120,7 +120,7 @@ static void stmmac_exit_fs(struct net_device *dev);
 
 #define STMMAC_COAL_TIMER(x) (jiffies + usecs_to_jiffies(x))
 
-int stmmac_bus_clks_enable(struct stmmac_priv *priv, bool enabled)
+int stmmac_bus_clks_config(struct stmmac_priv *priv, bool enabled)
 {
 	int ret = 0;
 
@@ -140,7 +140,7 @@ int stmmac_bus_clks_enable(struct stmmac_priv *priv, bool enabled)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(stmmac_bus_clks_enable);
+EXPORT_SYMBOL_GPL(stmmac_bus_clks_config);
 
 /**
  * stmmac_verify_args - verify the driver parameters.
@@ -2942,7 +2942,7 @@ static int stmmac_open(struct net_device *dev)
 	u32 chan;
 	int ret;
 
-	ret = stmmac_bus_clks_enable(priv, true);
+	ret = stmmac_bus_clks_config(priv, true);
 	if (ret)
 		return ret;
 	if (priv->plat->init)
@@ -3139,7 +3139,7 @@ static int stmmac_release(struct net_device *dev)
 
 	if (priv->plat->exit)
 		priv->plat->exit(pdev, priv->plat->bsp_priv);
-	stmmac_bus_clks_enable(priv, false);
+	stmmac_bus_clks_config(priv, false);
 
 	return 0;
 }
@@ -4481,7 +4481,7 @@ static int stmmac_set_mac_address(struct net_device *ndev, void *addr)
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	int ret = 0;
 
-	ret = stmmac_bus_clks_enable(priv, true);
+	ret = stmmac_bus_clks_config(priv, true);
 	if (ret)
 		return ret;
 
@@ -4492,7 +4492,7 @@ static int stmmac_set_mac_address(struct net_device *ndev, void *addr)
 	stmmac_set_umac_addr(priv, priv->hw, ndev->dev_addr, 0);
 
 error_set_mac:
-	stmmac_bus_clks_enable(priv, false);
+	stmmac_bus_clks_config(priv, false);
 	return ret;
 }
 
@@ -4812,7 +4812,7 @@ static int stmmac_vlan_rx_kill_vid(struct net_device *ndev, __be16 proto, u16 vi
 	bool is_double = false;
 	int ret;
 
-	ret = stmmac_bus_clks_enable(priv, true);
+	ret = stmmac_bus_clks_config(priv, true);
 	if (ret)
 		return ret;
 
@@ -4837,7 +4837,7 @@ static int stmmac_vlan_rx_kill_vid(struct net_device *ndev, __be16 proto, u16 vi
 
 	ret = stmmac_vlan_update(priv, is_double);
 
-	stmmac_bus_clks_enable(priv, false);
+	stmmac_bus_clks_config(priv, false);
 	return ret;
 }
 
@@ -5319,7 +5319,7 @@ int stmmac_dvr_probe(struct device *device,
 
 	if (priv->plat->exit)
 		priv->plat->exit(pdev, priv->plat->bsp_priv);
-	stmmac_bus_clks_enable(priv, false);
+	stmmac_bus_clks_config(priv, false);
 
 	return ret;
 
@@ -5333,7 +5333,7 @@ error_mdio_register:
 	stmmac_napi_del(ndev);
 error_hw_init:
 	destroy_workqueue(priv->wq);
-	stmmac_bus_clks_enable(priv, false);
+	stmmac_bus_clks_config(priv, false);
 
 	return ret;
 }
@@ -5365,7 +5365,7 @@ int stmmac_dvr_remove(struct device *dev)
 	if (priv->plat->stmmac_rst)
 		reset_control_assert(priv->plat->stmmac_rst);
 	if (netif_status)
-		stmmac_bus_clks_enable(priv, false);
+		stmmac_bus_clks_config(priv, false);
 	if (priv->hw->pcs != STMMAC_PCS_TBI &&
 	    priv->hw->pcs != STMMAC_PCS_RTBI)
 		stmmac_mdio_unregister(ndev);
