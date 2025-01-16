@@ -262,13 +262,13 @@ static int imx_rpmsg_uart_write_room(struct tty_struct *tty)
 }
 
 static int imx_rpmsg_uart_set_cflag(struct imx_rpmsg_port *port,
-				    tcflag_t cflag, bool wait)
+				    tcflag_t cflag)
 {
 	struct imx_rpmsg_tty_msg msg = {
 		.header.cmd = TTY_RPMSG_COMMAND_SET_CFLAG,
 	};
 
-	return tty_send_and_wait(port, (void *)&msg, &cflag, sizeof(cflag), wait);
+	return tty_send_and_wait(port, (void *)&msg, &cflag, sizeof(cflag), true);
 }
 
 static void imx_rpmsg_uart_set_termios(struct tty_struct *tty,
@@ -307,13 +307,7 @@ static void imx_rpmsg_uart_set_termios(struct tty_struct *tty,
 	if ((cflag & CSIZE) == CS7)
 		cflag |= PARENB;
 
-	imx_rpmsg_uart_set_cflag(port, cflag, true);
-}
-
-static int imx_rpmsg_uart_set_init_cflag(struct imx_rpmsg_port *port, tcflag_t cflag)
-{
-	// async start - can't wait for reply in probe()
-	return imx_rpmsg_uart_set_cflag(port, cflag, false);
+	imx_rpmsg_uart_set_cflag(port, cflag);
 }
 
 static const struct tty_operations imx_rpmsg_uart_ops = {
@@ -331,6 +325,10 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	struct imx_rpmsg_port *port;
 	struct tty_driver *driver;
 	struct rpmsg_device *rpdev = uart_rpmsg.rpdev;
+
+	/* defer probing until we can process rpmsg replies */
+	if (!rpdev)
+		return -EPROBE_DEFER;
 
 	port = devm_kzalloc(&pdev->dev, sizeof(*port), GFP_KERNEL);
 	if (!port)
@@ -372,7 +370,7 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	 * set the baud rate to our remote processor's UART, and tell
 	 * remote processor about this channel
 	 */
-	ret = imx_rpmsg_uart_set_init_cflag(port, driver->init_termios.c_cflag);
+	ret = imx_rpmsg_uart_set_cflag(port, driver->init_termios.c_cflag);
 	if (ret)
 		goto error;
 
@@ -449,11 +447,18 @@ static struct platform_driver imx_rpmsg_uart_platform_driver = {
 
 static int imx_rpmsg_uart_rpmsg_probe(struct rpmsg_device *rpdev)
 {
-	uart_rpmsg.rpdev = rpdev;
+	int rc;
+
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 			rpdev->src, rpdev->dst);
 
-	return platform_driver_register(&imx_rpmsg_uart_platform_driver);
+	rc = platform_driver_register(&imx_rpmsg_uart_platform_driver);
+
+	/* platform_driver_register() calls the platform probe immediately,
+	 * but we need it to process rpmsg replies so only set rpdev last
+	 * to make the first platform probe defer */
+	uart_rpmsg.rpdev = rpdev;
+	return rc;
 }
 
 static void imx_rpmsg_uart_rpmsg_remove(struct rpmsg_device *rpdev)
