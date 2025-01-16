@@ -93,6 +93,10 @@
 			spi-max-frequency = <1000000>;
 		};
 	};
+
+	rs485: rs485 {
+		compatible = "fsl,imx-rpmsg-tty-serial";
+	};
 };
 
 // USB hub

@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/imx_rpmsg.h>
+#include <linux/platform_device.h>
 #include <linux/rpmsg.h>
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
@@ -17,6 +18,7 @@
 #include <linux/virtio.h>
 
 #define RPMSG_TIMEOUT   1000
+#define IMX_RPMSG_UART_PORT_PER_SOC_MAX 1
 #define TTY_RPMSG_MINOR 0
 #define TTY_RPMSG_MAJOR 2
 
@@ -43,6 +45,7 @@ struct imx_rpmsg_port {
 	struct tty_port		port;
 	spinlock_t		rx_lock;
 	struct rpmsg_device	*rpdev;
+	struct platform_device  *pdev;
 	struct tty_driver	*driver;
 
 	struct mutex		tx_lock;
@@ -69,11 +72,20 @@ struct imx_rpmsg_tty_msg {
 #define imx_rpmsg_uart_msg_size(s) (sizeof(struct imx_rpmsg_tty_msg) - \
 				    RPMSG_MAX_SIZE + s)
 
+struct rpmsg_uart {
+	struct rpmsg_device *rpdev;
+	struct imx_rpmsg_port *ports[IMX_RPMSG_UART_PORT_PER_SOC_MAX];
+};
+
+/* We need these to be global because rpmsg_probe has no way to pass
+ * values to the platform_probe */
+static struct rpmsg_uart uart_rpmsg;
+
 static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 			     void *priv, u32 src)
 {
 	struct imx_rpmsg_tty_msg *msg = data;
-	struct imx_rpmsg_port *port = dev_get_drvdata(&rpdev->dev);
+	struct imx_rpmsg_port *port;
 	unsigned char *buf;
 	int space;
 
@@ -82,6 +94,7 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 			     data, len,  true);
 
 	if (msg->header.type == TTY_RPMSG_RESPONSE) {
+		port = uart_rpmsg.ports[0];
 		// ack for baudrate or tx
 		spin_lock_irq(&port->request_id_lock);
 		if (msg->request_id != port->inflight_request_id) {
@@ -106,6 +119,8 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 		return 0;
 	}
 	/* XXX check length, version... */
+
+	port = uart_rpmsg.ports[0];
 
 	spin_lock_bh(&port->rx_lock);
 	space = tty_prepare_flip_string(&port->port, &buf, msg->len);
@@ -310,16 +325,14 @@ static const struct tty_operations imx_rpmsg_uart_ops = {
 	.set_termios		= imx_rpmsg_uart_set_termios,
 };
 
-static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
+static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct imx_rpmsg_port *port;
 	struct tty_driver *driver;
+	struct rpmsg_device *rpdev = uart_rpmsg.rpdev;
 
-	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
-		 rpdev->src, rpdev->dst);
-
-	port = devm_kzalloc(&rpdev->dev, sizeof(*port), GFP_KERNEL);
+	port = devm_kzalloc(&pdev->dev, sizeof(*port), GFP_KERNEL);
 	if (!port)
 		return -ENOMEM;
 
@@ -344,13 +357,16 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 	port->port.ops = &imx_rpmsg_port_ops;
 	port->port.low_latency = port->port.flags | ASYNC_LOW_LATENCY;
 	port->rpdev = rpdev;
-	dev_set_drvdata(&rpdev->dev, port);
+	port->pdev = pdev;
 	driver->driver_state = port;
 	port->driver = driver;
 	spin_lock_init(&port->rx_lock);
 	init_completion(&port->cmd_complete);
 	mutex_init(&port->tx_lock);
 	spin_lock_init(&port->request_id_lock);
+
+	platform_set_drvdata(pdev, port);
+	uart_rpmsg.ports[0] = port;
 
 	/*
 	 * set the baud rate to our remote processor's UART, and tell
@@ -362,14 +378,15 @@ static int imx_rpmsg_uart_probe(struct rpmsg_device *rpdev)
 
 	ret = tty_register_driver(port->driver);
 	if (ret < 0) {
-		dev_err(&rpdev->dev,
+		dev_err(&pdev->dev,
 			"Couldn't install rpmsg tty driver: ret %d\n", ret);
 		goto error;
 	} else {
-		dev_info(&rpdev->dev, "Install rpmsg tty driver!\n");
+		dev_info(&pdev->dev, "Install rpmsg tty driver!\n");
 	}
 
-	device_set_wakeup_capable(&rpdev->dev, true);
+	device_set_wakeup_capable(&pdev->dev, true);
+
 
 	return 0;
 
@@ -381,17 +398,18 @@ error:
 	return ret;
 }
 
-static void imx_rpmsg_uart_remove(struct rpmsg_device *rpdev)
+static int imx_rpmsg_uart_platform_remove(struct platform_device *pdev)
 {
-	struct imx_rpmsg_port *port = dev_get_drvdata(&rpdev->dev);
+	struct imx_rpmsg_port *port = platform_get_drvdata(pdev);
 
-	dev_info(&rpdev->dev, "rpmsg tty driver is removed\n");
+	dev_info(&pdev->dev, "rpmsg tty driver is removed\n");
 
 	tty_unregister_driver(port->driver);
 	kfree(port->driver->name);
 	put_tty_driver(port->driver);
 	tty_port_destroy(&port->port);
 	port->driver = NULL;
+	return 0;
 }
 
 static int __maybe_unused imx_rpmsg_uart_suspend(struct device *dev)
@@ -414,29 +432,59 @@ static int __maybe_unused imx_rpmsg_uart_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(imx_rpmsg_uart_pm_ops, imx_rpmsg_uart_suspend,
 			 imx_rpmsg_uart_resume);
 
+static const struct of_device_id imx_rpmsg_uart_dt_ids[] = {
+	{ .compatible = "fsl,imx-rpmsg-tty-serial" },
+	{ /* sentinel */ }
+};
+
+static struct platform_driver imx_rpmsg_uart_platform_driver = {
+	.driver = {
+		.name = "imx-rpmsg-tty-serial",
+		.pm		= &imx_rpmsg_uart_pm_ops,
+		.of_match_table = imx_rpmsg_uart_dt_ids,
+	},
+	.probe = imx_rpmsg_uart_platform_probe,
+	.remove = imx_rpmsg_uart_platform_remove,
+};
+
+static int imx_rpmsg_uart_rpmsg_probe(struct rpmsg_device *rpdev)
+{
+	uart_rpmsg.rpdev = rpdev;
+	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
+			rpdev->src, rpdev->dst);
+
+	return platform_driver_register(&imx_rpmsg_uart_platform_driver);
+}
+
+static void imx_rpmsg_uart_rpmsg_remove(struct rpmsg_device *rpdev)
+{
+	dev_info(&rpdev->dev, "uart channel removed\n");
+	platform_driver_unregister(&imx_rpmsg_uart_platform_driver);
+	uart_rpmsg.rpdev = NULL;
+}
+
 static struct rpmsg_device_id tty_rpmsg_id_table[] = {
 	{ .name = "rpmsg-tty-channel" },
 	{ },
 };
 
-static struct rpmsg_driver imx_rpmsg_uart_driver = {
+static struct rpmsg_driver imx_rpmsg_uart_rpmsg_driver = {
 	.drv.name	= KBUILD_MODNAME,
-	.drv.pm		= &imx_rpmsg_uart_pm_ops,
 	.drv.owner	= THIS_MODULE,
 	.id_table	= tty_rpmsg_id_table,
-	.probe		= imx_rpmsg_uart_probe,
+	.probe		= imx_rpmsg_uart_rpmsg_probe,
 	.callback	= imx_rpmsg_uart_cb,
-	.remove		= imx_rpmsg_uart_remove,
+	.remove		= imx_rpmsg_uart_rpmsg_remove,
 };
 
 static int __init imx_rpmsg_uart_init(void)
 {
-	return register_rpmsg_driver(&imx_rpmsg_uart_driver);
+	return register_rpmsg_driver(&imx_rpmsg_uart_rpmsg_driver);
 }
 
 static void __exit imx_rpmsg_uart_fini(void)
 {
-	unregister_rpmsg_driver(&imx_rpmsg_uart_driver);
+	unregister_rpmsg_driver(&imx_rpmsg_uart_rpmsg_driver);
 }
 module_init(imx_rpmsg_uart_init);
 module_exit(imx_rpmsg_uart_fini);
