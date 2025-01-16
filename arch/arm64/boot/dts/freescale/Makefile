@@ -234,10 +234,10 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_900.dtb
 DTC_FLAGS_armadillo_900 := -@
 DTC_FLAGS_armadillo_iotg_a9e := -@
 dtb-$(CONFIG_ARCH_MXC) += armadillo_900-customize.dtbo \
+			  armadillo_900-nousb.dtbo \
+			  armadillo_900-usdhc2-alwayson.dtbo \
 			  armadillo_iotg_a9e.dtbo \
 			  armadillo_iotg_a9e-sim7672.dtbo \
-			  armadillo_iotg_a9e-nousb.dtbo \
-			  armadillo_iotg_a9e-usdhc2-alwayson.dtbo \
 			  armadillo_iotg_a9e-at-dtweb.dtbo
 
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
