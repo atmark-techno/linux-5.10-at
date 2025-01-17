@@ -8,6 +8,97 @@
 #ifndef __DTS_IMX8ULP_PINFUNC_M33_H
 #define __DTS_IMX8ULP_PINFUNC_M33_H
 
+/*
+ * Constants used for m33 drivers
+ */
+/**************************
+ * TTY
+ *************************/
+/* tty: port_type */
+#define TTY_TYPE_LPUART		0
+#define TTY_TYPE_CUSTOM		1
+
+/* tty: uart_index */
+#define LPUART0			0
+#define LPUART1			1
+
+/* tty: rs485_flags */
+#define LPUART_RS485_ENABLED            (1 << 0)
+/* Logical level for driver output enable pin when sending */
+#define LPUART_RS485_DE_ON_SEND         (1 << 1)
+/* Logical level for driver output enable pin after sent */
+#define LPUART_RS485_DE_AFTER_SEND      (1 << 2)
+#define LPUART_RS485_RX_DURING_TX       (1 << 4)
+
+/**************************
+ * gpio pin numbers
+ * (used when we do not need full pinctrl)
+ *************************/
+#define PIN_PTA1		0x001
+#define PIN_PTA2		0x002
+#define PIN_PTA3		0x003
+#define PIN_PTA4		0x004
+#define PIN_PTA5		0x005
+#define PIN_PTA6		0x006
+#define PIN_PTA7		0x007
+#define PIN_PTA8		0x008
+#define PIN_PTA9		0x009
+#define PIN_PTA10		0x00a
+#define PIN_PTA11		0x00b
+#define PIN_PTA12		0x00c
+#define PIN_PTA13		0x00d
+#define PIN_PTA14		0x00e
+#define PIN_PTA15		0x00f
+#define PIN_PTA16		0x010
+#define PIN_PTA17		0x011
+#define PIN_PTA18		0x012
+#define PIN_PTA19		0x013
+#define PIN_PTA20		0x014
+#define PIN_PTA21		0x015
+#define PIN_PTA22		0x016
+#define PIN_PTA23		0x017
+#define PIN_PTA24		0x018
+#define PIN_PTB0		0x100
+#define PIN_PTB1		0x101
+#define PIN_PTB2		0x102
+#define PIN_PTB3		0x103
+#define PIN_PTB4		0x104
+#define PIN_PTB5		0x105
+#define PIN_PTB6		0x106
+#define PIN_PTB7		0x107
+#define PIN_PTB8		0x108
+#define PIN_PTB9		0x109
+#define PIN_PTB10		0x10a
+#define PIN_PTB11		0x10b
+#define PIN_PTB12		0x10c
+#define PIN_PTB13		0x10d
+#define PIN_PTB14		0x10e
+#define PIN_PTB15		0x10f
+#define PIN_PTC0		0x200
+#define PIN_PTC1		0x201
+#define PIN_PTC2		0x202
+#define PIN_PTC3		0x203
+#define PIN_PTC4		0x204
+#define PIN_PTC5		0x205
+#define PIN_PTC6		0x206
+#define PIN_PTC7		0x207
+#define PIN_PTC8		0x208
+#define PIN_PTC9		0x209
+#define PIN_PTC10		0x20a
+#define PIN_PTC11		0x20b
+#define PIN_PTC12		0x20c
+#define PIN_PTC13		0x20d
+#define PIN_PTC14		0x20e
+#define PIN_PTC15		0x20f
+#define PIN_PTC16		0x210
+#define PIN_PTC17		0x211
+#define PIN_PTC18		0x212
+#define PIN_PTC19		0x213
+#define PIN_PTC20		0x214
+#define PIN_PTC21		0x215
+#define PIN_PTC22		0x216
+#define PIN_PTC23		0x217
+
 /*!
  * @addtogroup iomuxc_driver
  * @{

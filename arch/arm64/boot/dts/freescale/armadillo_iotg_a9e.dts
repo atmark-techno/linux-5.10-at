@@ -20,6 +20,7 @@
 		/* aliases in overlay do not work natively and we need to
 		 * hardcode node paths as strings instead */
 		rtc0 = "/soc@0/bus@29800000/i2c@29840000/rtc@32";
+		ttyrpmsg0 = "/lpuart0";
 	};
 
 	leds {
@@ -94,8 +95,13 @@
 		};
 	};
 
-	rs485: rs485 {
+	lpuart0 {
 		compatible = "fsl,imx-rpmsg-tty-serial";
+		port_type = <TTY_TYPE_LPUART>;
+		uart_index = <LPUART0>;
+		rs485_flags = <(LPUART_RS485_ENABLED | LPUART_RS485_DE_ON_SEND)>;
+		rs485_de_gpio = <PIN_PTA17>;
+		suspend_wakeup_gpio = <PIN_PTA15>; /* rx pin selected in iomuxc */
 	};
 };
 
@@ -174,6 +180,17 @@
 	bluetooth {
 		compatible = "nxp,88w8987-bt";
 		btnxpuart,required-netdev = "mlan0";
+	};
+};
+
+&gpioa_iomuxc {
+	lpuart0 {
+		imx-rpmsg,pins = <
+			IOMUXC_PTA18_LPUART0_TX (IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK)
+			IOMUXC_PTA15_LPUART0_RX (IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK)
+			IOMUXC_PTA16_PTA16	IOMUXC_PCR_PE_MASK
+			IOMUXC_PTA17_PTA17	IOMUXC_PCR_PE_MASK
+		>;
 	};
 };
 

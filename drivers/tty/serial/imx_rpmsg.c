@@ -5,22 +5,27 @@
  * Based on: drivers/rpmsg/imx_rpmsg_tty.c, Copyright 2019 NXP
  */
 
-#include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/idr.h>
+#include <linux/imx_rpmsg.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/imx_rpmsg.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/rpmsg.h>
+#include <linux/slab.h>
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
 #include <linux/tty_flip.h>
 #include <linux/virtio.h>
 
 #define RPMSG_TIMEOUT   1000
-#define IMX_RPMSG_UART_PORT_PER_SOC_MAX 1
+/* Further improvement: could count compatible nodes with e.g.
+ * `for_each_compatible_node(dn, NULL, "xxx") count++;`
+ * and allocate dynamically */
+#define IMX_RPMSG_UART_PORT_PER_SOC_MAX 4
 #define TTY_RPMSG_MINOR 0
-#define TTY_RPMSG_MAJOR 2
+#define TTY_RPMSG_MAJOR 3
 
 #define IMX_RPMSG_DEFAULT_BAUD 115200
 
@@ -35,6 +40,28 @@ enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_SET_CFLAG,
 	TTY_RPMSG_COMMAND_NOTIFY,
 	TTY_RPMSG_COMMAND_SET_WAKE,
+	TTY_RPMSG_COMMAND_INIT,
+};
+
+enum tty_rpmsg_init_type {
+	TTY_TYPE_LPUART,
+	TTY_TYPE_CUSTOM,
+};
+
+struct srtm_tty_init_payload {
+	uint32_t port_type;
+	union {
+		struct {
+			uint32_t uart_index;
+			uint32_t rs485_flags;
+			uint32_t rs485_de_gpio;
+			uint32_t suspend_wakeup_gpio;
+			uint32_t cflag;
+		} lpuart;
+		struct {
+			char name[32];
+		} custom;
+	};
 };
 
 /*
@@ -50,6 +77,7 @@ struct imx_rpmsg_port {
 
 	struct mutex		tx_lock;
 	struct completion	cmd_complete;
+	u8			port_idx;
 	u8			last_retcode;
 	u8			last_request_id;
 	u16			inflight_request_id;
@@ -57,16 +85,19 @@ struct imx_rpmsg_port {
 };
 
 /* imx_rpmsg_tty_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE */
-#define RPMSG_MAX_SIZE	(RPMSG_MAX_PAYLOAD_SIZE - (IMX_RPMSG_HEAD_SIZE + 3))
+#define RPMSG_MAX_SIZE	(RPMSG_MAX_PAYLOAD_SIZE - (IMX_RPMSG_HEAD_SIZE + 4))
 struct imx_rpmsg_tty_msg {
 	struct imx_rpmsg_head header;
+	u8 port_idx;
 	u8 request_id;
 	u16 len;
 	union {
 		u8 buf[RPMSG_MAX_SIZE];
-		//uint32_t baudrate; // not actually used to avoid unaligned access.. & fails build_bug_on
+		u32 cflag;
+		/* note: packed only by design, sanity is ensured by checking size */
+		struct srtm_tty_init_payload init;
 		u8 retcode;
-	};
+	} __packed __aligned(1);
 } __packed __aligned(1);
 
 #define imx_rpmsg_uart_msg_size(s) (sizeof(struct imx_rpmsg_tty_msg) - \
@@ -75,6 +106,7 @@ struct imx_rpmsg_tty_msg {
 struct rpmsg_uart {
 	struct rpmsg_device *rpdev;
 	struct imx_rpmsg_port *ports[IMX_RPMSG_UART_PORT_PER_SOC_MAX];
+	struct ida ida;
 };
 
 /* We need these to be global because rpmsg_probe has no way to pass
@@ -93,12 +125,28 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 	print_hex_dump_debug(__func__, DUMP_PREFIX_NONE, 16, 1,
 			     data, len,  true);
 
+	if (msg->header.major != TTY_RPMSG_MAJOR) {
+		dev_err(&rpdev->dev, "invalid version\n");
+		return 0;
+	}
+	if (msg->port_idx >= IMX_RPMSG_UART_PORT_PER_SOC_MAX
+	    || !uart_rpmsg.ports[msg->port_idx]) {
+		dev_err(&rpdev->dev, "port_idx %d too large\n", msg->port_idx);
+		return 0;
+	}
+	port = uart_rpmsg.ports[msg->port_idx];
+
 	if (msg->header.type == TTY_RPMSG_RESPONSE) {
-		port = uart_rpmsg.ports[0];
-		// ack for baudrate or tx
+		/* 1 for ret */
+		if (len != imx_rpmsg_uart_msg_size(1)) {
+			dev_err(&rpdev->dev, "got response size %d, expected %zd\n",
+				len, imx_rpmsg_uart_msg_size(1));
+			return 0;
+		}
+		/* ack for baudrate or tx */
 		spin_lock_irq(&port->request_id_lock);
 		if (msg->request_id != port->inflight_request_id) {
-			// non-wait message are always 0xffff
+			/* non-wait message are always 0xffff */
 			if (port->inflight_request_id != 0xffff)
 				dev_warn(&rpdev->dev,
 					 "received unexpected id %x (expected %x)\n",
@@ -118,16 +166,18 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 		/* invalid message */
 		return 0;
 	}
-	/* XXX check length, version... */
-
-	port = uart_rpmsg.ports[0];
+	if (len < imx_rpmsg_uart_msg_size(msg->len)) {
+		dev_err(&rpdev->dev, "Short message, expected at least %zd, got %d\n",
+			imx_rpmsg_uart_msg_size(msg->len), len);
+		return 0;
+	}
 
 	spin_lock_bh(&port->rx_lock);
 	space = tty_prepare_flip_string(&port->port, &buf, msg->len);
 	if (space <= 0) {
 		dev_err(&rpdev->dev, "No memory for tty_prepare_flip_string\n");
 		spin_unlock_bh(&port->rx_lock);
-		return -ENOMEM;
+		return 0;
 	}
 
 	memcpy(buf, msg->buf, msg->len);
@@ -150,6 +200,7 @@ static int tty_send_and_wait(struct imx_rpmsg_port *port, struct imx_rpmsg_tty_m
 	msg->header.minor = TTY_RPMSG_MINOR;
 	msg->header.type = TTY_RPMSG_REQUEST;
 	msg->len = len;
+	msg->port_idx = port->port_idx;
 	memcpy(msg->buf, data, len);
 
 	reinit_completion(&port->cmd_complete);
@@ -319,9 +370,75 @@ static const struct tty_operations imx_rpmsg_uart_ops = {
 	.set_termios		= imx_rpmsg_uart_set_termios,
 };
 
+#define READ_PROP_OR_RETURN(name) \
+		ret = of_property_read_u32(np, #name, &init.lpuart. name); \
+		if (ret) { \
+			dev_err(dev, "%pOF: error reading %s: %d\n", \
+				np, #name, ret); \
+			return ret; \
+		}
+static int imx_rpmsg_uart_init_remote(struct imx_rpmsg_port *port,
+				      tcflag_t cflag)
+{
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_INIT,
+	};
+	struct device *dev = &port->pdev->dev;
+	struct device_node *np = dev->of_node;
+	struct srtm_tty_init_payload init = { 0 };
+	int ret;
+	const char *str;
+
+	ret = of_property_read_u32(np, "port_type", &init.port_type);
+	if (ret) {
+		dev_err(dev, "%pOF: error reading port_type: %d\n", np, ret);
+		return ret;
+	}
+
+	switch (init.port_type) {
+	case TTY_TYPE_LPUART:
+		READ_PROP_OR_RETURN(uart_index);
+		ret = of_property_read_u32(np, "rs485_flags",
+					   &init.lpuart.rs485_flags);
+		if (ret == 0) {
+			/* not an error, rs485 disabled if missing */
+			READ_PROP_OR_RETURN(rs485_de_gpio);
+		}
+		ret = of_property_read_u32(np, "suspend_wakeup_gpio",
+					   &init.lpuart.suspend_wakeup_gpio);
+		if (ret < 0) {
+			dev_info(dev, "%pOF: no suspend wakeup gpio set, will not wake up\n",
+					np);
+			/* setting wakeup will error out m33-side and fail suspend */
+			init.lpuart.suspend_wakeup_gpio = -1;
+		}
+		init.lpuart.cflag = cflag;
+		break;
+	case TTY_TYPE_CUSTOM:
+		ret = of_property_read_string(np, "port_name", &str);
+		if (ret) {
+			dev_err(dev, "%pOF: error reading port_name: %d\n",
+				np, ret);
+			return ret;
+		}
+		ret = strscpy(init.custom.name, str, sizeof(init.custom.name));
+		if (ret < 0) {
+			dev_err(dev, "%pOF: port_name too long\n", np);
+			return ret;
+		}
+		break;
+	default:
+		dev_err(dev, "%pOF: invalid port_type %d\n", np, init.port_type);
+		return -EINVAL;
+	}
+
+	return tty_send_and_wait(port, (void *)&msg, &init, sizeof(init), true);
+}
+#undef READ_PROP_OR_RETURN
+
 static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret, of_id, id = -1;
 	struct imx_rpmsg_port *port;
 	struct tty_driver *driver;
 	struct rpmsg_device *rpdev = uart_rpmsg.rpdev;
@@ -338,9 +455,23 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(driver))
 		return PTR_ERR(driver);
 
+	of_id = of_alias_get_id(pdev->dev.of_node, "ttyrpmsg");
+	if (of_id >= 0) {
+		id = ida_simple_get(&uart_rpmsg.ida, of_id, of_id + 1, GFP_KERNEL);
+		if (id < 0)
+			dev_warn(&pdev->dev, "Alias ID %d not available\n", of_id);
+	}
+	if (id < 0)
+		id = ida_simple_get(&uart_rpmsg.ida, 0, 0, GFP_KERNEL);
+	if (id >= IMX_RPMSG_UART_PORT_PER_SOC_MAX) {
+		dev_err(&pdev->dev, "id %d higher than max %d\n",
+			id, IMX_RPMSG_UART_PORT_PER_SOC_MAX);
+		ret = -ERANGE;
+		goto error;
+	}
+
 	driver->driver_name = "imx_rpmsg";
-	// XXX add ida or alias if we support more than 1 in the future
-	driver->name = kasprintf(GFP_KERNEL, "ttyrpmsg0");
+	driver->name = kasprintf(GFP_KERNEL, "ttyrpmsg%d", id);
 	driver->major = UNNAMED_MAJOR;
 	driver->minor_start = 0;
 	driver->type = TTY_DRIVER_TYPE_CONSOLE;
@@ -356,6 +487,7 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	port->port.low_latency = port->port.flags | ASYNC_LOW_LATENCY;
 	port->rpdev = rpdev;
 	port->pdev = pdev;
+	port->port_idx = id;
 	driver->driver_state = port;
 	port->driver = driver;
 	spin_lock_init(&port->rx_lock);
@@ -364,21 +496,21 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	spin_lock_init(&port->request_id_lock);
 
 	platform_set_drvdata(pdev, port);
-	uart_rpmsg.ports[0] = port;
+	uart_rpmsg.ports[id] = port;
 
 	/*
 	 * set the baud rate to our remote processor's UART, and tell
 	 * remote processor about this channel
 	 */
-	ret = imx_rpmsg_uart_set_cflag(port, driver->init_termios.c_cflag);
+	ret = imx_rpmsg_uart_init_remote(port, driver->init_termios.c_cflag);
 	if (ret)
-		goto error;
+		goto error_port;
 
 	ret = tty_register_driver(port->driver);
 	if (ret < 0) {
 		dev_err(&pdev->dev,
 			"Couldn't install rpmsg tty driver: ret %d\n", ret);
-		goto error;
+		goto error_port;
 	} else {
 		dev_info(&pdev->dev, "Install rpmsg tty driver!\n");
 	}
@@ -388,10 +520,12 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 
 	return 0;
 
-error:
-	put_tty_driver(port->driver);
+error_port:
 	tty_port_destroy(&port->port);
+error:
+	put_tty_driver(driver);
 	port->driver = NULL;
+	ida_free(&uart_rpmsg.ida, id);
 
 	return ret;
 }
@@ -451,6 +585,7 @@ static int imx_rpmsg_uart_rpmsg_probe(struct rpmsg_device *rpdev)
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 			rpdev->src, rpdev->dst);
+	ida_init(&uart_rpmsg.ida);
 
 	rc = platform_driver_register(&imx_rpmsg_uart_platform_driver);
 
@@ -466,6 +601,7 @@ static void imx_rpmsg_uart_rpmsg_remove(struct rpmsg_device *rpdev)
 	dev_info(&rpdev->dev, "uart channel removed\n");
 	platform_driver_unregister(&imx_rpmsg_uart_platform_driver);
 	uart_rpmsg.rpdev = NULL;
+	ida_destroy(&uart_rpmsg.ida);
 }
 
 static struct rpmsg_device_id tty_rpmsg_id_table[] = {
