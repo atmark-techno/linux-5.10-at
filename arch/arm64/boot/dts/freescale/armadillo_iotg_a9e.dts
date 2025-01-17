@@ -17,7 +17,9 @@
 	compatible = "atmark,armadillo-iotg-a9e", "fsl,imx8ulp";
 
 	aliases {
-		rtc0 = &rv8803_rtc;
+		/* aliases in overlay do not work natively and we need to
+		 * hardcode node paths as strings instead */
+		rtc0 = "/soc@0/bus@29800000/i2c@29840000/rtc@32";
 	};
 
 	leds {
