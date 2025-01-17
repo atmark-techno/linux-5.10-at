@@ -28,7 +28,7 @@
 #include <linux/workqueue.h>
 
 #define RPMSG_TIMEOUT	1000
-#define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	10
+#define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	3
 #define IMX_RPMSG_GPIO_VERSION_MAJOR 3
 #define IMX_RPMSG_GPIO_VERSION_MINOR 0
 #define GPIO_RPMSG_PINCTRL_UNSET 0xffffffff
@@ -213,7 +213,8 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 
 		complete(&gpio_rpmsg.cmd_complete);
 	} else if (msg->header.type == GPIO_RPMSG_NOTIFY) {
-		if (msg->port_idx >= IMX_RPMSG_GPIO_PORT_PER_SOC_MAX) {
+		if (msg->port_idx >= IMX_RPMSG_GPIO_PORT_PER_SOC_MAX
+		    || !gpio_rpmsg.port_store[msg->port_idx]) {
 			dev_err(&gpio_rpmsg.rpdev->dev, "port_idx %d too large\n", msg->port_idx);
 			return 0;
 		}
