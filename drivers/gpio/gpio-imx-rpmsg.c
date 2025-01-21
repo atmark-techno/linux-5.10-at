@@ -29,7 +29,7 @@
 
 #define RPMSG_TIMEOUT	1000
 #define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	3
-#define IMX_RPMSG_GPIO_VERSION_MAJOR 3
+#define IMX_RPMSG_GPIO_VERSION_MAJOR 4
 #define IMX_RPMSG_GPIO_VERSION_MINOR 0
 #define GPIO_RPMSG_PINCTRL_UNSET 0xffffffff
 
@@ -55,6 +55,7 @@ enum gpio_rpmsg_header_cmd {
 	GPIO_RPMSG_OUTPUT_INIT,
 	GPIO_RPMSG_INPUT_GET,
 	GPIO_RPMSG_OUTPUT_SET,
+	GPIO_RPMSG_PINCTRL,
 };
 
 struct gpio_rpmsg_data {
@@ -66,16 +67,17 @@ struct gpio_rpmsg_data {
 		struct {
 			u8 event;
 			u8 wakeup;
-			u32 pinctrl;
 		} __packed input_init;
 		struct {
 			u8 value;
-			u32 pinctrl;
 		} __packed output_init;
 		/* no arg for input_get */
 		struct {
 			u8 value;
 		} output_set;
+		struct {
+			u32 pinctrl[6];
+		} __packed pinctrl;
 		struct {
 			u8 retcode;
 			u8 value; /* only valid for input_get */
@@ -90,7 +92,6 @@ struct imx_rpmsg_gpio_pin {
 	u8 irq_mask;
 	u8 irq_wake;
 	u32 irq_type;
-	u32 pinctrl;
 	struct work_struct rpmsg_ack_work;
 };
 
@@ -285,7 +286,6 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
 	msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
 	msg.input_init.wakeup = 0;
-	msg.input_init.pinctrl = port->gpio_pins[gpio].pinctrl;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
@@ -336,7 +336,6 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_OUTPUT_INIT;
 	msg.output_init.value = val;
-	msg.output_init.pinctrl = port->gpio_pins[gpio].pinctrl;
 
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
 
@@ -433,7 +432,6 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 
 	msg.input_init.event = port->gpio_pins[gpio_idx].irq_type;
 	msg.input_init.wakeup = 1;
-	msg.input_init.pinctrl = port->gpio_pins[gpio_idx].pinctrl;
 
 	/* need to wait for the reply:
 	 * if the reply comes after mailbox the subsystem suspended
@@ -562,7 +560,6 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 	imx_rpmsg_gpio_msg_init(port, gpio_idx, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
 
-	msg.input_init.pinctrl = port->gpio_pins[gpio_idx].pinctrl;
 	if (READ_ONCE(pin->irq_shutdown)) {
 		msg.input_init.event = GPIO_RPMSG_TRI_DISABLE;
 		msg.input_init.wakeup = 0;
@@ -584,52 +581,71 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 
 static int imx_rpmsg_gpio_get_one_pinctrl(struct imx_rpmsg_gpio_port *port, struct device_node *np)
 {
-	int count = of_property_count_elems_of_size(np, "imx-rpmsg,pins", sizeof(u32));
-	int i, err = 0;
+	struct property *prop = of_find_property(np, "imx-rpmsg,pins", NULL);
+	int i, count, err = 0;
+	const __be32 *cur = NULL;
+	struct gpio_rpmsg_data msg = { 0 };
 
-	if (count < 0) {
-		dev_info(port->gc.parent, "No imx-rpmsg,pins node in gpio %d's pinctrl '%s'\n",
-			 port->idx, np->name);
+	if (!prop || !prop->value) {
+		dev_info(port->gc.parent, "No imx-rpmsg,pins node in %pOF\n", np);
 		/* just skip, not a hard error */
 		return 0;
 	}
-
-	if (count % 2 != 0) {
-		dev_err(port->gc.parent, "Expected an even number of elements in gpio %d's pinctrl '%s', got %d\n",
-			 port->idx, np->name, count);
+	if (prop->length % sizeof(u32) != 0) {
+		dev_err(port->gc.parent, "Expected %pOF to contain u32s\n", np);
 		return -EINVAL;
 	}
 
-	for (i = 0; i < count; i += 2) {
-		uint32_t pin, pinctrl;
+	count = prop->length / sizeof(u32);
+	if (count % 7 != 0) {
+		dev_err(port->gc.parent, "Expected a multiple of 7 elements in %pOF, got %d\n",
+			np, count);
+		return -EINVAL;
+	}
 
-		err = of_property_read_u32_index(np, "imx-rpmsg,pins", i, &pin);
-		if (err)
+	imx_rpmsg_gpio_msg_init(port, 0, &msg);
+	msg.header.cmd = GPIO_RPMSG_PINCTRL;
+
+	for (i = 0; i < count / 7; i++) {
+		int j;
+		uint32_t pin;
+		uint32_t *pinctrl = msg.pinctrl.pinctrl;
+		u8 wait;
+
+		cur = of_prop_next_u32(prop, cur, &pin);
+		if (!cur)
+			err = -ENOENT;
+		for (j = 0; j < ARRAY_SIZE(msg.pinctrl.pinctrl); j++) {
+			cur = of_prop_next_u32(prop, cur, &pinctrl[j]);
+			if (!cur)
+				err = -ENOENT;
+		}
+		if (err) {
+			dev_err(port->gc.parent, "Short number of values in %pOF\n", np);
 			break;
-		err = of_property_read_u32_index(np, "imx-rpmsg,pins", i + 1, &pinctrl);
-		if (err)
-			break;
+		}
 
 		/* pin should be within range.. */
 		if ((pin >> 8) != port->idx) {
-			dev_err(port->gc.parent, "gpio %d's pinctrl '%s', pin %#x not for this gpio\n",
-				port->idx, np->name, pin);
+			dev_err(port->gc.parent, "In %pOF, pin %#x not for this gpio, ignored.\n",
+				np, pin);
+			continue;
 		}
 		pin = pin & 0xff;
 		if (pin >= port->gc.ngpio) {
-			dev_err(port->gc.parent, "gpio %d's pinctrl '%s', pin %#x > ngpio %#x\n",
-				port->idx, np->name, pin, port->gc.ngpio);
+			dev_err(port->gc.parent, "In %pOF, pin %#x > ngpio %#x: invalid binding used?\n",
+				np, pin, port->gc.ngpio);
+			continue;
 		}
-		if (port->gpio_pins[pin].pinctrl != GPIO_RPMSG_PINCTRL_UNSET) {
-			dev_warn(port->gc.parent, "gpio %d's pin %#x was already set, overwriting it in '%s'\n",
-				 port->idx, pin, np->name);
+		msg.pin_idx = pin;
+
+		dev_dbg(port->gc.parent, "Setting gpio %d pin %#x pinctrl to %#x/%#x/%#x/%#x/%#x/%#x\n",
+			port->idx, pin, pinctrl[0], pinctrl[1], pinctrl[2],
+			pinctrl[3], pinctrl[4], pinctrl[5]);
+		if (gpio_send_message(port, &msg, &gpio_rpmsg, &wait) < 0) {
+			dev_err(port->gc.parent, "Previous m33-side error was in %pOF\n", np);
 		}
-		dev_dbg(port->gc.parent, "Set gpio %d pin %#x pinctrl to %#x\n", port->idx, pin, pinctrl);
-		port->gpio_pins[pin].pinctrl = pinctrl;
 	}
-	if (err)
-		dev_err(port->gc.parent, "Error in gpio %d's pinctrl '%s': %d\n",
-			 port->idx, np->name, err);
 
 	return err;
 }
@@ -704,7 +720,6 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 
 	for (i = 0; i < ngpio; i++) {
 		port->gpio_pins[i].pin_idx = i;
-		port->gpio_pins[i].pinctrl = GPIO_RPMSG_PINCTRL_UNSET;
 		INIT_WORK(&port->gpio_pins[i].rpmsg_ack_work, imx_rpmsg_gpio_send_ack);
 	}
 	ret = imx_rpmsg_gpio_get_pinctrl(port);
