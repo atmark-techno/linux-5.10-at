@@ -731,6 +731,7 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	armadillo-iotg-a6e-di8ai4-4th.dtbo \
 	armadillo-iotg-a6e-els31.dtbo \
 	armadillo-iotg-a6e-ems31.dtbo \
+	armadillo-iotg-a6e-sim7672.dtbo \
 	armadillo-iotg-a6e-lwb5plus.dtbo \
 	armadillo-iotg-a6e-stdwn-ind-do1.dtbo \
 	armadillo-iotg-a6e-stdwn-ind-con8-pin7.dtbo

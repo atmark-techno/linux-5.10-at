@@ -1,0 +1,117 @@
+/*
+ * Copyright (C) 2025 Atmark Techno, Inc. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: (GPL-2.0 OR MIT)
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/input/gpio-keys.h>
+#include "imx6ull-pinfunc.h"
+#include "imx6ull-pinfunc-snvs.h"
+
+&{/} {
+	model = "Atmark Techno Armadillo-IoT Gateway A6E Cat.1 bis Board";
+
+	regulators: regulators0 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg_usbotg2_vbus: regulator-usbotg2vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "USB_OTG2_VBUS";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+                };
+
+		reg_sim7672_vbat: regulator-sim7672-vbat {
+			compatible = "regulator-fixed";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_sim7672_vbat>;
+			regulator-name = "sim7672_vbat";
+			regulator-min-microvolt = <3800000>;
+			regulator-max-microvolt = <3800000>;
+			gpio = <&gpio3 18 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+			off-on-delay = <100000>;
+			startup-delay-us = <500>;
+		};
+        };
+
+	sim7672_reset: sim7672-reset {
+		compatible = "sim7672-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sim7672_reset>;
+		pwrkey-gpios = <&gpio4 19 GPIO_ACTIVE_HIGH>;
+		usbboot-gpios = <&pca9534 4 GPIO_ACTIVE_LOW>;
+		status-gpios = <&gpio5 0 GPIO_ACTIVE_HIGH>;
+		dtr-gpios = <&gpio4 20 GPIO_ACTIVE_HIGH>;
+		vbus-gpios = <&gpio4 17 GPIO_ACTIVE_HIGH>;
+		vbat-supply = <&reg_sim7672_vbat>;
+	};
+
+	gpio-wakeup {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_wakeup>;
+
+		ring0 {
+			label = "RING0";
+			gpios = <&gpio4 16 GPIO_ACTIVE_LOW>;
+			wakeup-source;
+			wakeup-event-action = <EV_ACT_ASSERTED>;
+			linux,code = <KEY_WAKEUP>;
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl_sim7672_vbat: sim7672vbatgrp {
+		fsl,pins = <
+			MX6UL_PAD_LCD_DATA13__GPIO3_IO18	0x0b008 /* VCC_LTE */
+		>;
+	};
+
+	pinctrl_sim7672_reset: sim7672resetgrp {
+		fsl,pins = <
+			MX6UL_PAD_CSI_VSYNC__GPIO4_IO19		0x0b008 /* SIM7672 PWRKEY */
+			MX6UL_PAD_SNVS_TAMPER0__GPIO5_IO00	0x0b008 /* SIM7672 STATUS */
+			MX6UL_PAD_CSI_HSYNC__GPIO4_IO20		0x0b008 /* SIM7672 MAIN_UART_DTR */
+			MX6UL_PAD_CSI_MCLK__GPIO4_IO17		0x0b008 /* LTE_VBUS */
+		>;
+	};
+
+	pinctrl_uart4: uart4grp {
+		fsl,pins= <
+			MX6UL_PAD_LCD_CLK__UART4_DCE_TX		0x00008 /* SIM7672 MAIN_UART_RXD */
+			MX6UL_PAD_LCD_ENABLE__UART4_DCE_RX	0x1b0b1 /* SIM7672 MAIN_UART_TXD */
+			MX6UL_PAD_LCD_HSYNC__UART4_DCE_CTS	0x00008 /* SIM7672 MAIN_UART_RTS */
+			MX6UL_PAD_LCD_VSYNC__UART4_DCE_RTS	0x1b0b1 /* SIM7672 MAIN_UART_CTS */
+		>;
+	};
+
+	pinctrl_gpio_wakeup: gpio_wakeupgrp {
+		fsl,pins = <
+			MX6UL_PAD_NAND_DQS__GPIO4_IO16	0x1b0b8 /* SIM7672 MAIN_UART_RI */
+		>;
+	};
+};
+
+/* SIM7672(LTE) */
+&uart4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart4>;
+	status = "okay";
+	uart-has-rtscts;
+};
+
+&usbotg2 {
+	vbus-supply = <&reg_usbotg2_vbus>;
+	dr_mode = "host";
+	disable-over-current;
+	status = "okay";
+};
