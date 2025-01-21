@@ -669,6 +669,9 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	int i;
 	int ret;
 
+	if (!gpio_rpmsg.rpdev)
+		return -EPROBE_DEFER;
+
 	ret = of_property_read_u32(np, "gpio-count", &ngpio);
 	if (ret) {
 		// fallback to historic value
@@ -742,7 +745,7 @@ static struct platform_driver imx_rpmsg_gpio_driver = {
 
 static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
 {
-	gpio_rpmsg.rpdev = rpdev;
+	int rc;
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 			rpdev->src, rpdev->dst);
 
@@ -756,7 +759,9 @@ static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
 		return -ENOMEM;
 	}
 
-	return platform_driver_register(&imx_rpmsg_gpio_driver);
+	rc = platform_driver_register(&imx_rpmsg_gpio_driver);
+	gpio_rpmsg.rpdev = rpdev;
+	return rc;
 }
 
 static void gpio_rpmsg_remove(struct rpmsg_device *rpdev)
