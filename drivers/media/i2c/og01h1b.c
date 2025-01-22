@@ -6020,7 +6020,7 @@ static const struct v4l2_ctrl_ops og01h1b_ctrl_ops = {
  * Return: 0 if successful, error code otherwise.
  */
 static int og01h1b_enum_mbus_code(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_pad_config *sd_state,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
 	switch (code->index) {
@@ -6046,7 +6046,7 @@ static int og01h1b_enum_mbus_code(struct v4l2_subdev *sd,
  * Return: 0 if successful, error code otherwise.
  */
 static int og01h1b_enum_frame_size(struct v4l2_subdev *sd,
-				  struct v4l2_subdev_state *sd_state,
+				  struct v4l2_subdev_pad_config *sd_state,
 				  struct v4l2_subdev_frame_size_enum *fsize)
 {
 	struct og01h1b *og01h1b = to_og01h1b(sd);
@@ -6098,7 +6098,7 @@ static void og01h1b_fill_pad_format(struct og01h1b *og01h1b,
  * Return: 0 if successful, error code otherwise.
  */
 static int og01h1b_get_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_pad_config *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
 	struct og01h1b *og01h1b = to_og01h1b(sd);
@@ -6129,7 +6129,7 @@ static int og01h1b_get_pad_format(struct v4l2_subdev *sd,
  * Return: 0 if successful, error code otherwise.
  */
 static int og01h1b_set_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_pad_config *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
 	struct og01h1b *og01h1b = to_og01h1b(sd);
@@ -6177,7 +6177,7 @@ static int og01h1b_set_pad_format(struct v4l2_subdev *sd,
  * Return: 0 if successful, error code otherwise.
  */
 static int og01h1b_init_pad_cfg(struct v4l2_subdev *sd,
-			       struct v4l2_subdev_state *sd_state)
+			       struct v4l2_subdev_pad_config *sd_state)
 {
 	struct og01h1b *og01h1b = to_og01h1b(sd);
 	struct v4l2_subdev_format fmt = { 0 };
@@ -6191,7 +6191,7 @@ static int og01h1b_init_pad_cfg(struct v4l2_subdev *sd,
 
 static const struct v4l2_rect *
 __og01h1b_get_pad_crop(struct og01h1b *og01h1b,
-		      struct v4l2_subdev_state *sd_state,
+		      struct v4l2_subdev_pad_config *sd_state,
 		      unsigned int pad, enum v4l2_subdev_format_whence which)
 {
 	switch (which) {
@@ -6205,7 +6205,7 @@ __og01h1b_get_pad_crop(struct og01h1b *og01h1b,
 }
 
 static int og01h1b_get_selection(struct v4l2_subdev *sd,
-				struct v4l2_subdev_state *sd_state,
+				struct v4l2_subdev_pad_config *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
 	return 0;
@@ -6673,7 +6673,7 @@ static int og01h1b_init_controls(struct og01h1b *og01h1b)
  *
  * Return: 0 if successful, error code otherwise.
  */
-static int og01h1b_probe(struct i2c_client *client)
+static int og01h1b_probe(struct i2c_client *client, const struct i2c_device_id *device_id)
 {
 	struct og01h1b *og01h1b;
 	int ret;
@@ -6743,7 +6743,7 @@ static int og01h1b_probe(struct i2c_client *client)
 		goto error_handler_free;
 	}
 
-	ret = v4l2_async_register_subdev_sensor(&og01h1b->sd);
+	ret = v4l2_async_register_subdev_sensor_common(&og01h1b->sd);
 	if (ret < 0) {
 		dev_err(og01h1b->dev,
 			"failed to register async subdev: %d", ret);
@@ -6776,7 +6776,7 @@ error_mutex_destroy:
  *
  * Return: 0 if successful, error code otherwise.
  */
-static void og01h1b_remove(struct i2c_client *client)
+static int og01h1b_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct og01h1b *og01h1b = to_og01h1b(sd);
@@ -6792,6 +6792,8 @@ static void og01h1b_remove(struct i2c_client *client)
 
 	mutex_destroy(&og01h1b->mutex);
 	printk("og01h1b_remove:mutex_destroy");
+
+	return 0;
 }
 
 static const struct dev_pm_ops og01h1b_pm_ops = {
