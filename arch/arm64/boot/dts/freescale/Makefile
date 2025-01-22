@@ -117,6 +117,7 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-arducam.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-imx219.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-ox01f10.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-thcv24xa-ox01f10.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-og01h1b.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-lte-ext-board.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-high-g0-es-ext-board.dtbo
 DTC_FLAGS_armadillo_iotg_g4-high-g0-es-ext-board := -@
