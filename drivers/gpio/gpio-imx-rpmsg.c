@@ -805,7 +805,12 @@ static int __init gpio_imx_rpmsg_init(void)
 {
 	return register_rpmsg_driver(&gpio_rpmsg_driver);
 }
-device_initcall(gpio_imx_rpmsg_init);
+static void __exit gpio_imx_rpmsg_fini(void)
+{
+	unregister_rpmsg_driver(&gpio_rpmsg_driver);
+}
+module_init(gpio_imx_rpmsg_init);
+module_exit(gpio_imx_rpmsg_fini);
 
 MODULE_AUTHOR("NXP Semiconductor");
 MODULE_DESCRIPTION("NXP i.MX7ULP rpmsg gpio driver");
