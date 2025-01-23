@@ -70,3 +70,9 @@
 		#gpio-cells = <2>;
 	};
 };
+
+&pi4ioe5v9554_4 {
+	gpio-line-names =
+		/* PI4IOE5V9554_4_00 - 03 */ "DI27", "DI28", "DI29", "DI30",
+		/* PI4IOE5V9554_4_04 - 07 */ "DI31", "DI32", "DI33", "DI34";
+};

@@ -295,3 +295,33 @@
 	clock-frequency = <100000>;
 	status = "okay";
 };
+
+&gpio1 {
+	gpio-line-names =
+		/* GPIO1_IO00 - 03 */ "", "CON8_7", "CON8_8", "CON8_9",
+		/* GPIO1_IO04 - 07 */ "CON8_10", "", "", "",
+		/* GPIO1_IO08 - 11 */ "", "", "SW1", "",
+		/* GPIO1_IO12 - 15 */ "", "", "", "",
+		/* GPIO1_IO16 - 19 */ "", "LED_WWAN", "LED_YELLOW", "",
+		/* GPIO1_IO20 - 23 */ "", "", "LED_SYS", "LED_APP",
+		/* GPIO1_IO24 - 27 */ "", "", "", "",
+		/* GPIO1_IO28 - 31 */ "", "", "", "";
+};
+
+&gpio3 {
+	gpio-line-names =
+		/* GPIO3_IO00 - 03 */ "", "", "", "",
+		/* GPIO3_IO04 - 07 */ "", "CON8_14", "CON8_15", "CON8_16",
+		/* GPIO3_IO08 - 11 */ "CON8_17", "", "CON8_19", "CON8_20",
+		/* GPIO3_IO12 - 15 */ "CON8_21", "CON8_22", "CON8_23", "CON8_24",
+		/* GPIO3_IO16 - 19 */ "CON8_25", "", "", "",
+		/* GPIO3_IO20 - 23 */ "CON8_26", "CON8_27", "CON8_28", "",
+		/* GPIO3_IO24 - 27 */ "", "CON8_29", "CON8_30", "CON8_31",
+		/* GPIO3_IO28 - 31 */ "CON8_32", "", "", "";
+};
+
+&pca9534 {
+	gpio-line-names =
+		/* PCA9534_00 - 03 */ "DI1", "DI2", "DO1", "DO2",
+		/* PCA9534_04 - 07 */ "", "", "", "";
+};
