@@ -326,3 +326,39 @@
 	timeout-sec = <10>;
 	fsl,ext-reset-output;
 };
+
+&gpio1 {
+	gpio-line-names =
+		/* GPIO1_IO00 - 03 */ "", "CON11_37", "CON11_36", "CON11_35",
+		/* GPIO1_IO04 - 07 */ "CON11_34", "LED_RED", "", "",
+		/* GPIO1_IO08 - 11 */ "LED_GREEN", "", "SW1", "",
+		/* GPIO1_IO12 - 15 */ "", "", "", "",
+		/* GPIO1_IO16 - 19 */ "CON9_5", "CON9_3", "LED_YELLOW", "",
+		/* GPIO1_IO20 - 23 */ "CON14_3", "CON14_4", "CON9_1", "CON9_2",
+		/* GPIO1_IO24 - 27 */ "", "", "", "",
+		/* GPIO1_IO28 - 31 */ "", "", "CON9_6", "CON9_4";
+};
+
+&gpio3 {
+	gpio-line-names =
+		/* GPIO3_IO00 - 03 */ "CON11_8", "CON11_11", "CON11_9", "CON11_10",
+		/* GPIO3_IO04 - 07 */ "", "CON11_13", "CON11_14", "CON11_15",
+		/* GPIO3_IO08 - 11 */ "CON11_16", "CON11_17", "CON11_18", "CON11_20",
+		/* GPIO3_IO12 - 15 */ "CON11_21", "CON11_22", "CON11_23", "CON11_24",
+		/* GPIO3_IO16 - 19 */ "CON11_25", "CON11_27", "CON11_28", "CON11_29",
+		/* GPIO3_IO20 - 23 */ "CON11_30", "CON11_31", "CON11_32", "CON9_13",
+		/* GPIO3_IO24 - 27 */ "CON9_14", "CON9_15", "CON9_16", "CON9_17",
+		/* GPIO3_IO28 - 31 */ "CON9_18", "", "", "";
+};
+
+&gpio4 {
+	gpio-line-names =
+		/* GPIO4_IO00 - 03 */ "", "", "", "",
+		/* GPIO4_IO04 - 07 */ "", "", "CON9_25", "CON9_26",
+		/* GPIO4_IO08 - 11 */ "CON9_27", "CON9_28", "", "",
+		/* GPIO4_IO12 - 15 */ "", "", "", "",
+		/* GPIO4_IO16 - 19 */ "CON11_12", "", "CON11_39", "CON11_49",
+		/* GPIO4_IO20 - 23 */ "CON11_48", "CON11_40", "CON11_42", "CON11_43",
+		/* GPIO4_IO24 - 27 */ "CON11_41", "CON11_47", "CON11_46", "CON11_45",
+		/* GPIO4_IO28 - 31 */ "CON11_44", "", "", "";
+};
