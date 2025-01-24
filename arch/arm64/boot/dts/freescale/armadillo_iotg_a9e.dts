@@ -103,6 +103,10 @@
 		rs485_de_gpio = <PIN_PTA17>;
 		suspend_wakeup_gpio = <PIN_PTA15>; /* rx pin selected in iomuxc */
 	};
+
+	vin_adc {
+		compatible = "fsl,imx-rpmsg-adc";
+	};
 };
 
 // USB hub

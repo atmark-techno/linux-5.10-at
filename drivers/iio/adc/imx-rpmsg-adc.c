@@ -97,7 +97,7 @@ struct imx_rpmsg_adc {
 /* rpmsg callback has a void *priv but it is not settable
  * when invoked with rpmsg_driver probe, so we need a global...
  */
-static struct imx_rpmsg_adc *adc_rpmsg;
+static struct imx_rpmsg_adc adc_rpmsg;
 
 #define IMX_RPMSG_VOLTAGE_CHANNEL(num)                               \
 	{                                                            \
@@ -120,8 +120,7 @@ static const struct iio_chan_spec imx_rpmsg_channels[] = {
 	IMX_RPMSG_VOLTAGE_CHANNEL(0),
 };
 
-static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpmsg_msg *msg,
-				       u16 *value)
+static int imx_rpmsg_adc_send_and_wait(struct adc_rpmsg_msg *msg, u16 *value)
 {
 	int ret;
 
@@ -130,42 +129,42 @@ static int imx_rpmsg_adc_send_and_wait(struct imx_rpmsg_adc *adc, struct adc_rpm
 	msg->header.minor = ADC_RPMSG_VERSION >> 8;
 	msg->header.type = ADC_RPMSG_TYPE_REQUEST;
 
-	mutex_lock(&adc->lock);
-	reinit_completion(&adc->cmd_complete);
+	mutex_lock(&adc_rpmsg.lock);
+	reinit_completion(&adc_rpmsg.cmd_complete);
 	if (value) {
-		adc->requested_value = value;
+		adc_rpmsg.requested_value = value;
 	}
 
 	/* We need the spin lock to ensure rpmsg cb does not set last_error
 	 * after this timed out & another request started being processed */
-	spin_lock_irq(&adc->request_id_lock);
-	adc->inflight_request_id = adc->last_request_id++;
-	spin_unlock_irq(&adc->request_id_lock);
-	msg->request_id = adc->inflight_request_id;
+	spin_lock_irq(&adc_rpmsg.request_id_lock);
+	adc_rpmsg.inflight_request_id = adc_rpmsg.last_request_id++;
+	spin_unlock_irq(&adc_rpmsg.request_id_lock);
+	msg->request_id = adc_rpmsg.inflight_request_id;
 
-	ret = rpmsg_send(adc->rpdev->ept, msg, sizeof(*msg));
+	ret = rpmsg_send(adc_rpmsg.rpdev->ept, msg, sizeof(*msg));
 	if (ret < 0) {
-		dev_err(&adc->rpdev->dev, "rpmsg_send failed %d\n", ret);
-		mutex_unlock(&adc->lock);
+		dev_err(&adc_rpmsg.rpdev->dev, "rpmsg_send failed %d\n", ret);
+		mutex_unlock(&adc_rpmsg.lock);
 		return ret;
 	}
-	ret = wait_for_completion_timeout(&adc->cmd_complete,
+	ret = wait_for_completion_timeout(&adc_rpmsg.cmd_complete,
 					  msecs_to_jiffies(ADC_RPMSG_TIMEOUT_MS));
-	mutex_unlock(&adc->lock);
+	mutex_unlock(&adc_rpmsg.lock);
 	if (!ret) {
 		/* don't process late replies - lock here ensures we're not completing
 		 * the next call */
-		spin_lock_irq(&adc->request_id_lock);
-		adc->inflight_request_id = 0xffff;
-		adc->requested_value = NULL;
-		spin_unlock_irq(&adc->request_id_lock);
-		dev_err(&adc->rpdev->dev, "rpmsg reply timeout\n");
+		spin_lock_irq(&adc_rpmsg.request_id_lock);
+		adc_rpmsg.inflight_request_id = 0xffff;
+		adc_rpmsg.requested_value = NULL;
+		spin_unlock_irq(&adc_rpmsg.request_id_lock);
+		dev_err(&adc_rpmsg.rpdev->dev, "rpmsg reply timeout\n");
 		return -ETIMEDOUT;
 	}
 	return 0;
 }
 
-static int imx_rpmsg_adc_get(struct imx_rpmsg_adc *adc, int idx, int *val)
+static int imx_rpmsg_adc_get(int idx, int *val)
 {
 	struct adc_rpmsg_msg msg = {
 		.header.cmd = ADC_RPMSG_COMMAND_GET,
@@ -174,10 +173,10 @@ static int imx_rpmsg_adc_get(struct imx_rpmsg_adc *adc, int idx, int *val)
 	int ret;
 	u16 reply_val;
 
-	if (!adc || !adc->rpdev)
+	if (!adc_rpmsg.rpdev)
 		return -EINVAL;
 
-	ret = imx_rpmsg_adc_send_and_wait(adc, &msg, &reply_val);
+	ret = imx_rpmsg_adc_send_and_wait(&msg, &reply_val);
 	if (ret)
 		return ret;
 
@@ -190,12 +189,9 @@ static int imx_rpmsg_read_raw(struct iio_dev *indio_dev,
 			      struct iio_chan_spec const *channel, int *val,
 			      int *val2, long mask)
 {
-	struct imx_rpmsg_adc *adc = iio_priv(indio_dev);
-
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		/* TODO get idx */
-		return imx_rpmsg_adc_get(adc, 0, val);
+		return imx_rpmsg_adc_get(channel->channel, val);
 	default:
 		return -EINVAL;
 	}
@@ -210,7 +206,7 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 {
 	struct adc_rpmsg_msg *msg = data;
 
-	if (!adc_rpmsg || !adc_rpmsg->rpdev) {
+	if (!adc_rpmsg.rpdev) {
 		dev_err(&rpdev->dev, "Ignoring message before init\n");
 		return -EINVAL;
 	}
@@ -218,76 +214,96 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 		dev_err(&rpdev->dev, "bad type %x\n", msg->header.type);
 		return -EINVAL;
 	}
-	spin_lock_irq(&adc_rpmsg->request_id_lock);
-	if (msg->request_id != adc_rpmsg->inflight_request_id) {
-		spin_unlock_irq(&adc_rpmsg->request_id_lock);
+	spin_lock_irq(&adc_rpmsg.request_id_lock);
+	if (msg->request_id != adc_rpmsg.inflight_request_id) {
+		spin_unlock_irq(&adc_rpmsg.request_id_lock);
 		dev_err(&rpdev->dev, "bad id %x (expected %x)\n",
-			msg->request_id, adc_rpmsg->inflight_request_id);
+			msg->request_id, adc_rpmsg.inflight_request_id);
 		return -EINVAL;
 	}
 	/* don't process duplicates */
-	adc_rpmsg->inflight_request_id = 0xffff;
+	adc_rpmsg.inflight_request_id = 0xffff;
 
-	adc_rpmsg->last_retcode = msg->ret;
-	if (adc_rpmsg->requested_value) {
-		*adc_rpmsg->requested_value = msg->value;
-		adc_rpmsg->requested_value = NULL;
+	adc_rpmsg.last_retcode = msg->ret;
+	if (adc_rpmsg.requested_value) {
+		*adc_rpmsg.requested_value = msg->value;
+		adc_rpmsg.requested_value = NULL;
 	}
-	spin_unlock_irq(&adc_rpmsg->request_id_lock);
+	spin_unlock_irq(&adc_rpmsg.request_id_lock);
 
-	complete(&adc_rpmsg->cmd_complete);
+	complete(&adc_rpmsg.cmd_complete);
 	return 0;
 }
 
-static int adc_rpmsg_probe(struct rpmsg_device *rpdev)
+static int adc_rpmsg_platform_probe(struct platform_device *pdev)
 {
 	struct iio_dev *indio_dev;
-	struct imx_rpmsg_adc *adc;
 
-	if (adc_rpmsg) {
-		// reinit
-		adc_rpmsg->rpdev = rpdev;
-		return 0;
-	}
+	if (!adc_rpmsg.rpdev)
+		return -EPROBE_DEFER;
 
-	indio_dev = devm_iio_device_alloc(&rpdev->dev, sizeof(*adc));
+	indio_dev = devm_iio_device_alloc(&pdev->dev, 0);
 	if (!indio_dev) {
-		dev_err(&rpdev->dev, "Failed to allocate IIO device\n");
+		dev_err(&pdev->dev, "Failed to allocate IIO device\n");
 		return -ENOMEM;
 	}
 
-	adc = iio_priv(indio_dev);
-	adc->rpdev = rpdev;
-
-	mutex_init(&adc->lock);
-	spin_lock_init(&adc->request_id_lock);
-	init_completion(&adc->cmd_complete);
+	mutex_init(&adc_rpmsg.lock);
+	spin_lock_init(&adc_rpmsg.request_id_lock);
+	init_completion(&adc_rpmsg.cmd_complete);
 
 	/* Initiate the Industrial I/O device */
-	indio_dev->name = rpdev->id.name;
+	indio_dev->name = adc_rpmsg.rpdev->id.name;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &imx_rpmsg_info;
 	indio_dev->channels = imx_rpmsg_channels;
 	indio_dev->num_channels = ARRAY_SIZE(imx_rpmsg_channels);
 
-	/* TODO: get of by name ? other imx rpmsg drivers register both a rpmsg driver
-	 * and a platform driver by dtb, but we don't need the dtb at all and double-register
-	 * + static variable is horrible so just getting of node here is probably better..
-	 */
 	/* TODO: send configuration at probe time */
 	/* TODO: trigger not implemented in m core */
 
-	dev_info(&rpdev->dev, "new adc channel: 0x%x -> 0x%x!\n", rpdev->src, rpdev->dst);
-	/* set global for cb */
-	adc_rpmsg = adc;
+	return devm_iio_device_register(&pdev->dev, indio_dev);
+}
 
-	return devm_iio_device_register(&rpdev->dev, indio_dev);
+static int adc_rpmsg_platform_remove(struct platform_device *pdev)
+{
+	dev_info(&pdev->dev, "rpmsg adc driver is removed\n");
+
+	/* iio device is automatically freed, nothing to do? */
+
+	return 0;
+}
+
+static const struct of_device_id adc_rpmsg_dt_ids[] = {
+	{ .compatible = "fsl,imx-rpmsg-adc" },
+	{ /* sentinel */ }
+};
+
+static struct platform_driver adc_rpmsg_platform_driver = {
+	.driver = {
+		.name = "imx-rpmsg-adc",
+		.of_match_table = adc_rpmsg_dt_ids,
+	},
+	.probe = adc_rpmsg_platform_probe,
+	.remove = adc_rpmsg_platform_remove,
+};
+
+static int adc_rpmsg_probe(struct rpmsg_device *rpdev)
+{
+	int rc;
+	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
+		 rpdev->src, rpdev->dst);
+
+	rc = platform_driver_register(&adc_rpmsg_platform_driver);
+	adc_rpmsg.rpdev = rpdev;
+	return rc;
 }
 
 static void adc_rpmsg_remove(struct rpmsg_device *rpdev)
 {
-	dev_info(&rpdev->dev, "removed adc channel\n");
-	adc_rpmsg->rpdev = NULL;
+	dev_info(&rpdev->dev, "adc channel removed\n");
+	platform_driver_unregister(&adc_rpmsg_platform_driver);
+	adc_rpmsg.rpdev = NULL;
 }
 
 static struct rpmsg_device_id adc_rpmsg_id_table[] = {
@@ -308,7 +324,13 @@ static int __init imx_rpmsg_adc_init(void)
 {
 	return register_rpmsg_driver(&adc_rpmsg_driver);
 }
-device_initcall(imx_rpmsg_adc_init);
+static void __exit imx_rpmsg_adc_fini(void)
+{
+	unregister_rpmsg_driver(&adc_rpmsg_driver);
+}
+module_init(imx_rpmsg_adc_init);
+module_exit(imx_rpmsg_adc_fini);
+
 
 MODULE_AUTHOR("Dominique Martinet <dominique.martinet@atmark-techno.com>");
 MODULE_DESCRIPTION("IMX RPMSG ADC driver");
