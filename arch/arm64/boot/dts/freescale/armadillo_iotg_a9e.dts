@@ -104,8 +104,16 @@
 		suspend_wakeup_gpio = <PIN_PTA15>; /* rx pin selected in iomuxc */
 	};
 
-	vin_adc {
+	adc {
 		compatible = "fsl,imx-rpmsg-adc";
+		vin {
+			chan_index = <0>;
+			adc_index = <ADC1>;
+			adc_chan = <5>;
+			adc_side = <kLPADC_SampleChannelSingleEndSideB>;
+			adc_scale = <kLPADC_SamplePartScale>;
+			adc_average = <kLPADC_HardwareAverageCount4>;
+		};
 	};
 };
 
@@ -194,6 +202,11 @@
 			IOMUXC_PTA15_LPUART0_RX (IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK)
 			IOMUXC_PTA16_PTA16	IOMUXC_PCR_PE_MASK
 			IOMUXC_PTA17_PTA17	IOMUXC_PCR_PE_MASK
+		>;
+	};
+	adc {
+		imx-rpmsg,pins = <
+			IOMUXC_PTA24_ADC1_CH5B	0
 		>;
 	};
 };

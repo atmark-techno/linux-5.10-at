@@ -5,46 +5,6 @@
  * Driver for imx rpmsg
  */
 
-/*
- * The adc-rpmsg transfer protocol
- *   +---------------+-------------------------------+
- *   |  Byte Offset  |            Content            |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       0       |           Category            |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |     1 ~ 2     |           Version             |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       3       |             Type              |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       4       |           Command             |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       5       |           Reserved0           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       6       |           Reserved1           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       7       |           Reserved2           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       8       |           Reserved3           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       9       |           Reserved4           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       10      |          Request ID           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       11      |           ADC index           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       12      |          Return code          |
- *   +---------------+---+---+---+---+---+---+---+---+
- *   |       13      |           ADC value           |
- *   +---------------+---+---+---+---+---+---+---+---+
- *
- * Return values are
- *  0x00 success
- *  0x01 failed
- *  0x02 not supported (bad protocol or command)
- */
-
-
-
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/imx_rpmsg.h>
@@ -64,13 +24,21 @@
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
 
-#define ADC_RPMSG_TIMEOUT_MS                    500
+#define ADC_RPMSG_TIMEOUT_MS			500
 
-#define ADC_RPMSG_VERSION                       0x0001
-#define ADC_RPMSG_TYPE_REQUEST                  0x00
-#define ADC_RPMSG_TYPE_RESPONSE                 0x01 // SRTM_MessageTypeResponse
-#define ADC_RPMSG_COMMAND_GET                   0x00
-#define ADC_RPMSG_COMMAND_SET                   0x01
+#define ADC_RPMSG_VERSION			0x0002
+#define ADC_RPMSG_TYPE_REQUEST			0x00
+#define ADC_RPMSG_TYPE_RESPONSE			0x01 // SRTM_MessageTypeResponse
+#define ADC_RPMSG_COMMAND_GET			0x00
+#define ADC_RPMSG_COMMAND_INIT			0x01
+
+struct srtm_adc_init_payload {
+	uint8_t adc_index;
+	uint8_t adc_chan;
+	uint8_t adc_side;
+	uint8_t adc_scale;
+	uint8_t adc_average;
+} __packed;
 
 struct adc_rpmsg_msg {
 	struct imx_rpmsg_head header;
@@ -78,8 +46,13 @@ struct adc_rpmsg_msg {
 	/* Payload Start*/
 	u8 request_id;
 	u8 idx;
-	u8 ret;
-	u16 value;
+	union {
+		struct srtm_adc_init_payload init;
+		struct {
+			u8 ret;
+			u16 value;
+		} __packed response;
+	} __packed;
 } __packed __aligned(1);
 
 struct imx_rpmsg_adc {
@@ -100,7 +73,7 @@ struct imx_rpmsg_adc {
 static struct imx_rpmsg_adc adc_rpmsg;
 
 #define IMX_RPMSG_VOLTAGE_CHANNEL(num)                               \
-	{                                                            \
+	(struct iio_chan_spec){                                                            \
 		.type = IIO_VOLTAGE,                                 \
 		.channel = (num),                                    \
 		.indexed = 1,                                        \
@@ -115,10 +88,6 @@ static struct imx_rpmsg_adc adc_rpmsg;
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),        \
 		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),\
 	}
-
-static const struct iio_chan_spec imx_rpmsg_channels[] = {
-	IMX_RPMSG_VOLTAGE_CHANNEL(0),
-};
 
 static int imx_rpmsg_adc_send_and_wait(struct adc_rpmsg_msg *msg, u16 *value)
 {
@@ -161,7 +130,7 @@ static int imx_rpmsg_adc_send_and_wait(struct adc_rpmsg_msg *msg, u16 *value)
 		dev_err(&adc_rpmsg.rpdev->dev, "rpmsg reply timeout\n");
 		return -ETIMEDOUT;
 	}
-	return 0;
+	return adc_rpmsg.last_retcode;
 }
 
 static int imx_rpmsg_adc_get(int idx, int *val)
@@ -224,9 +193,9 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 	/* don't process duplicates */
 	adc_rpmsg.inflight_request_id = 0xffff;
 
-	adc_rpmsg.last_retcode = msg->ret;
+	adc_rpmsg.last_retcode = msg->response.ret;
 	if (adc_rpmsg.requested_value) {
-		*adc_rpmsg.requested_value = msg->value;
+		*adc_rpmsg.requested_value = msg->response.value;
 		adc_rpmsg.requested_value = NULL;
 	}
 	spin_unlock_irq(&adc_rpmsg.request_id_lock);
@@ -234,6 +203,69 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 	complete(&adc_rpmsg.cmd_complete);
 	return 0;
 }
+
+#define READ_PROP_OR_RETURN(name) \
+                ret = of_property_read_u32(chan_node, #name, &tmp); \
+		if (!ret && tmp > 255) \
+			ret = -ERANGE; \
+                if (ret) { \
+                        dev_err(dev, "%pOF: error reading %s: %d\n", \
+                                chan_node, #name, ret); \
+                        return ERR_PTR(ret); \
+                } \
+		msg.init. name = tmp
+
+static struct iio_chan_spec const *
+adc_rpmsg_init_remote(struct device *dev, int *num)
+{
+	struct adc_rpmsg_msg msg = {
+		.header.cmd = ADC_RPMSG_COMMAND_INIT,
+	};
+	int count, ret, index;
+	uint32_t tmp;
+	struct iio_chan_spec *channels;
+	struct device_node *chan_node;
+
+	count = of_get_available_child_count(dev->of_node);
+	if (count == 0) {
+		dev_err(dev, "%pOF: no channel configured\n", dev->of_node);
+		return ERR_PTR(-ENOENT);
+	}
+
+	channels = devm_kzalloc(dev, count * sizeof(struct iio_chan_spec), GFP_KERNEL);
+	count = 0;
+
+	for_each_available_child_of_node(dev->of_node, chan_node) {
+		ret = of_property_read_u32(chan_node, "chan_index", &index);
+		if (ret) {
+			dev_err(dev, "%pOF: error reading chan_index: %d\n", chan_node, ret);
+			continue;
+		}
+		msg.idx = index;
+		READ_PROP_OR_RETURN(adc_index);
+		READ_PROP_OR_RETURN(adc_chan);
+		READ_PROP_OR_RETURN(adc_side);
+		READ_PROP_OR_RETURN(adc_scale);
+		READ_PROP_OR_RETURN(adc_average);
+
+		ret = imx_rpmsg_adc_send_and_wait(&msg, NULL);
+		if (ret) {
+			dev_err(dev, "init of node %pOF failed: %d\n", chan_node, ret);
+			continue;
+		}
+
+		channels[count] = IMX_RPMSG_VOLTAGE_CHANNEL(index);
+		count++;
+	}
+
+	/* if we get here, some error messages were printed */
+	if (count == 0)
+		return ERR_PTR(-EINVAL);
+
+	*num = count;
+	return channels;
+}
+#undef READ_PROP_OR_RETURN
 
 static int adc_rpmsg_platform_probe(struct platform_device *pdev)
 {
@@ -256,10 +288,14 @@ static int adc_rpmsg_platform_probe(struct platform_device *pdev)
 	indio_dev->name = adc_rpmsg.rpdev->id.name;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &imx_rpmsg_info;
-	indio_dev->channels = imx_rpmsg_channels;
-	indio_dev->num_channels = ARRAY_SIZE(imx_rpmsg_channels);
 
-	/* TODO: send configuration at probe time */
+	indio_dev->channels = adc_rpmsg_init_remote(&pdev->dev,
+						    &indio_dev->num_channels);
+	if (IS_ERR(indio_dev->channels))
+		return PTR_ERR(indio_dev->channels);
+
+	dev_info(&pdev->dev, "Registering iio with %d channel(s)\n",
+		 indio_dev->num_channels);
 	/* TODO: trigger not implemented in m core */
 
 	return devm_iio_device_register(&pdev->dev, indio_dev);

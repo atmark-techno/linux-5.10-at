@@ -30,6 +30,44 @@
 #define LPUART_RS485_DE_AFTER_SEND      (1 << 2)
 #define LPUART_RS485_RX_DURING_TX       (1 << 4)
 
+
+/**************************
+ * ADC
+ *************************/
+/* adc: adc_index */
+#define ADC0			0
+#define ADC1			1
+
+/* adc: adc_side */
+/* Single-end mode, only A-side channel is converted. */
+#define kLPADC_SampleChannelSingleEndSideA	0x0
+/*< Single-end mode, only B-side channel is converted. */
+#define kLPADC_SampleChannelSingleEndSideB	0x1
+/* Differential mode, the ADC result is (CHnA-CHnB). */
+#define kLPADC_SampleChannelDiffBothSideAB	0x2
+/* Differential mode, the ADC result is (CHnB-CHnA). */
+#define kLPADC_SampleChannelDiffBothSideBA	0x3
+
+/* adc: adc_scale */
+/* Use divided input voltage signal. */
+#define kLPADC_SamplePartScale			0
+/* Full scale (Factor of 1). */
+#define kLPADC_SampleFullScale			1
+
+/* adc: adc_average */
+/* Number of sampling averaged before giving a result */
+#define kLPADC_HardwareAverageCount1		0
+#define kLPADC_HardwareAverageCount2		1
+#define kLPADC_HardwareAverageCount4		2
+#define kLPADC_HardwareAverageCount8		3
+#define kLPADC_HardwareAverageCount16		4
+#define kLPADC_HardwareAverageCount32		5
+#define kLPADC_HardwareAverageCount64		6
+#define kLPADC_HardwareAverageCount128		7
+
+
+
+
 /**************************
  * gpio pin numbers
  * (used when we do not need full pinctrl)
