@@ -46,7 +46,7 @@
 	rpmsg_gpioa: gpio@0 {
 		compatible = "fsl,imx-rpmsg-gpio";
 		port_idx = <0>;
-		gpio-count = <24>;
+		gpio-count = <25>;
 		gpio-controller;
 		#gpio-cells = <2>;
 		#interrupt-cells = <2>;
