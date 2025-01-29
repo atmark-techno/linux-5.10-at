@@ -46,6 +46,7 @@ enum tty_rpmsg_header_cmd {
 enum tty_rpmsg_init_type {
 	TTY_TYPE_LPUART,
 	TTY_TYPE_CUSTOM,
+	TTY_TYPE_M33_CONSOLE,
 };
 
 struct srtm_tty_init_payload {
@@ -427,6 +428,9 @@ static int imx_rpmsg_uart_init_remote(struct imx_rpmsg_port *port,
 			return ret;
 		}
 		break;
+	case TTY_TYPE_M33_CONSOLE:
+		// nothing to set
+		break;
 	default:
 		dev_err(dev, "%pOF: invalid port_type %d\n", np, init.port_type);
 		return -EINVAL;
@@ -497,6 +501,10 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, port);
 	uart_rpmsg.ports[id] = port;
+
+	if (of_property_read_bool(pdev->dev.of_node, "rpmsg-tty-no-echo")) {
+		driver->init_termios.c_lflag &= ~ECHO;
+	}
 
 	/*
 	 * set the baud rate to our remote processor's UART, and tell
