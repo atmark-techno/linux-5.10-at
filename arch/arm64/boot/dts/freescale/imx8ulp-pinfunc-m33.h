@@ -67,6 +67,57 @@
 #define kLPADC_HardwareAverageCount128		7
 
 
+/**************************
+ * i2c
+ *************************/
+/* i2c: port_type */
+#define I2C_TYPE_LPI2C		0
+#define I2C_TYPE_FLEXIO		1
+
+/* i2c: i2c_index */
+#define LPI2C0			0
+#define LPI2C1			1
+
+
+/**************************
+ * flexio
+ * For drivers that support it
+ *************************/
+#define FLEXIO0			0
+
+/* flexio pins */
+#define FLEXIO0_PTA8		0
+#define FLEXIO0_PTA9		1
+#define FLEXIO0_PTA10		2
+#define FLEXIO0_PTA11		3
+#define FLEXIO0_PTA12		4
+#define FLEXIO0_PTA13		5
+#define FLEXIO0_PTA14		6
+#define FLEXIO0_PTA15		7
+#define FLEXIO0_PTA16		8
+#define FLEXIO0_PTA17		9
+#define FLEXIO0_PTA18		10
+#define FLEXIO0_PTA19		11
+#define FLEXIO0_PTA20		12
+#define FLEXIO0_PTA21		13
+#define FLEXIO0_PTA22		14
+#define FLEXIO0_PTA23		15
+#define FLEXIO0_PTB0		16
+#define FLEXIO0_PTB1		17
+#define FLEXIO0_PTB2		18
+#define FLEXIO0_PTB3		19
+#define FLEXIO0_PTB4		20
+#define FLEXIO0_PTB5		21
+#define FLEXIO0_PTB6		22
+#define FLEXIO0_PTB7		23
+#define FLEXIO0_PTB8		24
+#define FLEXIO0_PTB9		25
+#define FLEXIO0_PTB10		26
+#define FLEXIO0_PTB11		27
+#define FLEXIO0_PTB12		28
+#define FLEXIO0_PTB13		29
+#define FLEXIO0_PTB14		30
+#define FLEXIO0_PTB15		31
 
 
 /**************************

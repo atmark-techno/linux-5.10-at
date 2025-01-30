@@ -63,6 +63,7 @@
  *
  */
 
+#include <linux/idr.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/imx_rpmsg.h>
@@ -82,13 +83,35 @@
 #define I2C_RPMSG_TIMEOUT			500 /* unit: ms */
 
 #define I2C_RPMSG_VERSION			0x0001
+
 #define I2C_RPMSG_TYPE_REQUEST			0x00
 #define I2C_RPMSG_TYPE_RESPONSE			0x01
+
 #define I2C_RPMSG_COMMAND_READ			0x00
 #define I2C_RPMSG_COMMAND_WRITE			0x01
+#define I2C_RPMSG_COMMAND_INIT			0x02
+
 #define I2C_RPMSG_PRIORITY			0x01
 
 #define I2C_RPMSG_M_STOP			0x0200
+
+enum {
+	I2C_TYPE_LPI2C,
+	I2C_TYPE_FLEXIO,
+};
+
+struct i2c_rpmsg_init_payload {
+	uint32_t i2c_type;
+	uint32_t i2c_index;
+	uint32_t i2c_baudrate;
+	union {
+		/* nothing for lpi2c */
+		struct {
+			uint32_t scl_pin;
+			uint32_t sda_pin;
+		} __packed flexio;
+	} __packed;
+} __packed;
 
 /* i2c_rpmsg_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE */
 #define I2C_RPMSG_HDR_SIZE (IMX_RPMSG_HEAD_SIZE + 8)
@@ -102,7 +125,10 @@ struct i2c_rpmsg_msg {
 	u16 addr;
 	u16 flags;
 	u16 len;
-	u8 buf[I2C_RPMSG_MAX_BUF_SIZE];
+	union {
+		u8 buf[I2C_RPMSG_MAX_BUF_SIZE];
+		struct i2c_rpmsg_init_payload init;
+	} __packed;
 } __packed __aligned(1);
 
 struct i2c_rpmsg_info {
@@ -110,6 +136,7 @@ struct i2c_rpmsg_info {
 	struct device *dev;
 	struct completion cmd_complete;
 	struct mutex lock;
+	struct ida ida;
 
 	u8 ret_val;
 	u8 bus_id;
@@ -167,6 +194,13 @@ static int rpmsg_xfer(struct i2c_rpmsg_msg *rmsg, struct i2c_rpmsg_info *info)
 {
 	int ret, size;
 
+	reinit_completion(&info->cmd_complete);
+
+	rmsg->header.cate = IMX_RPMSG_I2C;
+	rmsg->header.major = I2C_RPMSG_VERSION;
+	rmsg->header.minor = I2C_RPMSG_VERSION >> 8;
+	rmsg->header.type = I2C_RPMSG_TYPE_REQUEST;
+	rmsg->header.reserved[0] = I2C_RPMSG_PRIORITY;
 	switch (rmsg->header.cmd) {
 	case I2C_RPMSG_COMMAND_WRITE:
 		size = sizeof(struct i2c_rpmsg_msg) - I2C_RPMSG_MAX_BUF_SIZE + rmsg->len;
@@ -174,10 +208,16 @@ static int rpmsg_xfer(struct i2c_rpmsg_msg *rmsg, struct i2c_rpmsg_info *info)
 	case I2C_RPMSG_COMMAND_READ:
 		size = sizeof(struct i2c_rpmsg_msg) - I2C_RPMSG_MAX_BUF_SIZE;
 		break;
+	case I2C_RPMSG_COMMAND_INIT:
+		size = sizeof(struct i2c_rpmsg_msg) - I2C_RPMSG_MAX_BUF_SIZE +
+			sizeof(struct i2c_rpmsg_init_payload);
+		break;
 	default:
 		WARN_ON(1);
 		return -EINVAL;
 	}
+	info->bus_id = rmsg->bus_id;
+	info->addr = rmsg->addr;
 
 	ret = rpmsg_send(info->rpdev->ept, (void *)rmsg, size);
 	if (ret < 0) {
@@ -218,22 +258,15 @@ static int i2c_rpmsg_read(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	}
 
 	memset(&rmsg, 0, sizeof(struct i2c_rpmsg_msg));
-	rmsg.header.cate = IMX_RPMSG_I2C;
-	rmsg.header.major = I2C_RPMSG_VERSION;
-	rmsg.header.minor = I2C_RPMSG_VERSION >> 8;
-	rmsg.header.type = I2C_RPMSG_TYPE_REQUEST;
 	rmsg.header.cmd = I2C_RPMSG_COMMAND_READ;
-	rmsg.header.reserved[0] = I2C_RPMSG_PRIORITY;
 	rmsg.bus_id = bus_id;
-	rmsg.ret_val = 0;
 	rmsg.addr = msg->addr;
 	if (is_last)
 		rmsg.flags = msg->flags | I2C_RPMSG_M_STOP;
 	else
 		rmsg.flags = msg->flags;
-	rmsg.len = (msg->len);
+	rmsg.len = msg->len;
 
-	reinit_completion(&info->cmd_complete);
 	info->buf = msg->buf;
 	info->len = msg->len;
 
@@ -253,7 +286,6 @@ static int i2c_rpmsg_read(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 						int bus_id, bool is_last)
 {
-	int i, ret;
 	struct i2c_rpmsg_msg rmsg;
 
 	if (!info || !info->rpdev)
@@ -261,20 +293,14 @@ int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 
 	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
 		dev_err(&info->rpdev->dev,
-		"%s failed: data length greater than %d, len=%d\n",
-		__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
+			"%s failed: data length greater than %d, len=%d\n",
+			__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
 		return -EINVAL;
 	}
 
 	memset(&rmsg, 0, sizeof(struct i2c_rpmsg_msg));
-	rmsg.header.cate = IMX_RPMSG_I2C;
-	rmsg.header.major = I2C_RPMSG_VERSION;
-	rmsg.header.minor = I2C_RPMSG_VERSION >> 8;
-	rmsg.header.type = I2C_RPMSG_TYPE_REQUEST;
 	rmsg.header.cmd = I2C_RPMSG_COMMAND_WRITE;
-	rmsg.header.reserved[0] = I2C_RPMSG_PRIORITY;
 	rmsg.bus_id = bus_id;
-	rmsg.ret_val = 0;
 	rmsg.addr = msg->addr;
 	if (is_last)
 		rmsg.flags = msg->flags | I2C_RPMSG_M_STOP;
@@ -282,14 +308,9 @@ int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 		rmsg.flags = msg->flags;
 	rmsg.len = msg->len;
 
-	for (i = 0; i < rmsg.len; i++)
-		rmsg.buf[i] = msg->buf[i];
+	memcpy(rmsg.buf, msg->buf, msg->len);
 
-	reinit_completion(&info->cmd_complete);
-
-	ret = rpmsg_xfer(&rmsg, info);
-
-	return ret;
+	return rpmsg_xfer(&rmsg, info);
 }
 
 static int i2c_rpmsg_probe(struct rpmsg_device *rpdev)
@@ -301,13 +322,14 @@ static int i2c_rpmsg_probe(struct rpmsg_device *rpdev)
 		return -EINVAL;
 	}
 
-	i2c_rpmsg.rpdev = rpdev;
-
 	mutex_init(&i2c_rpmsg.lock);
 	init_completion(&i2c_rpmsg.cmd_complete);
+	ida_init(&i2c_rpmsg.ida);
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
-						rpdev->src, rpdev->dst);
+		 rpdev->src, rpdev->dst);
+
+	i2c_rpmsg.rpdev = rpdev;
 
 	return ret;
 }
@@ -316,6 +338,7 @@ static void i2c_rpmsg_remove(struct rpmsg_device *rpdev)
 {
 	i2c_rpmsg.rpdev = NULL;
 	dev_info(&rpdev->dev, "i2c rpmsg driver is removed\n");
+	ida_destroy(&i2c_rpmsg.ida);
 }
 
 static struct rpmsg_device_id i2c_rpmsg_id_table[] = {
@@ -349,9 +372,6 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 			is_last = true;
 
 		pmsg = &msgs[i];
-
-		i2c_rpmsg.bus_id = rdata->adapter.nr;
-		i2c_rpmsg.addr = pmsg->addr;
 
 		if (pmsg->flags & I2C_M_RD) {
 			ret = i2c_rpmsg_read(pmsg, &i2c_rpmsg,
@@ -392,13 +412,74 @@ static const struct i2c_adapter_quirks i2c_rpbus_quirks = {
 	.max_read_len = I2C_RPMSG_MAX_BUF_SIZE,
 };
 
+static int i2c_rpbus_init_remote(struct device *dev, int bus_id)
+{
+	struct i2c_rpmsg_msg rmsg = { 0 };
+	/* need to build locally and memcpy for alignment */
+	struct i2c_rpmsg_init_payload init = { 0 };
+	struct device_node *np = dev->of_node;
+	int ret;
+
+	rmsg.header.cmd = I2C_RPMSG_COMMAND_INIT;
+	rmsg.bus_id = bus_id;
+	rmsg.len = sizeof(struct i2c_rpmsg_init_payload);
+
+	ret = of_property_read_u32(np, "i2c_type", &init.i2c_type);
+	if (ret) {
+		dev_err(dev, "%pOF: error reading i2c_type: %d\n", np, ret);
+		return ret;
+	}
+
+	ret = of_property_read_u32(np, "i2c_index", &init.i2c_index);
+	if (ret) {
+		dev_err(dev, "%pOF: error reading i2c_index: %d\n", np, ret);
+		return ret;
+	}
+
+	ret = of_property_read_u32(np, "i2c_baudrate", &init.i2c_baudrate);
+	if (ret) {
+		dev_err(dev, "%pOF: error reading i2c_baudrate: %d\n", np, ret);
+		return ret;
+	}
+
+	switch (init.i2c_type) {
+	case I2C_TYPE_LPI2C:
+		break;
+	case I2C_TYPE_FLEXIO:
+		ret = of_property_read_u32(np, "i2c_SCL_pin", &init.flexio.scl_pin);
+		if (ret) {
+			dev_err(dev, "%pOF: error reading i2c_SCL_pin: %d\n", np, ret);
+			return ret;
+		}
+
+		ret = of_property_read_u32(np, "i2c_SDA_pin", &init.flexio.sda_pin);
+		if (ret) {
+			dev_err(dev, "%pOF: error reading i2c_SDA_pin: %d\n", np, ret);
+			return ret;
+		}
+		break;
+	default:
+		dev_err(dev, "%pOF: invalid i2c_type %d\n", np, init.i2c_type);
+		return -EINVAL;
+	}
+
+	memcpy(&rmsg.init, &init, sizeof(init));
+	mutex_lock(&i2c_rpmsg.lock);
+	ret = rpmsg_xfer(&rmsg, &i2c_rpmsg);
+	mutex_unlock(&i2c_rpmsg.lock);
+	if (ret)
+		dev_err(dev, "%pOF: register failed, check parameters: %d\n", np, ret);
+
+	return ret;
+}
+
 static int i2c_rpbus_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct imx_rpmsg_i2c_data *rdata;
 	struct i2c_adapter *adapter;
-	int ret;
+	int ret, of_id, id = -1;
 
 	if (!i2c_rpmsg.rpdev)
 		return -EPROBE_DEFER;
@@ -414,31 +495,39 @@ static int i2c_rpbus_probe(struct platform_device *pdev)
 	adapter->algo = &i2c_rpbus_algorithm;
 	adapter->dev.parent = dev;
 	adapter->dev.of_node = np;
-	adapter->nr = of_alias_get_id(np, "i2c");
-	/*
-	 * The driver will send the adapter->nr as BUS ID to the other
-	 * side, and the other side will check the BUS ID to see whether
-	 * the BUS has been registered. If there is alias id for this
-	 * virtual adapter, linux kernel will automatically allocate one
-	 * id which might be not the same number used in the other side,
-	 * cause i2c slave probe failure under this virtual I2C bus.
-	 * So let's add a BUG_ON to catch this issue earlier.
-	 */
-	BUG_ON(adapter->nr < 0);
+	of_id = of_alias_get_id(np, "i2c");
+	if (of_id >= 0) {
+		id = ida_simple_get(&i2c_rpmsg.ida, of_id, of_id + 1, GFP_KERNEL);
+                if (id < 0)
+                        dev_warn(&pdev->dev, "Alias ID %d not available\n", of_id);
+        }
+	if (id < 0)
+		id = ida_simple_get(&i2c_rpmsg.ida, 0, 0, GFP_KERNEL);
+	adapter->nr = id;
+
 	adapter->quirks = &i2c_rpbus_quirks;
 	snprintf(rdata->adapter.name, sizeof(rdata->adapter.name), "%s",
 							"i2c-rpmsg-adapter");
 	platform_set_drvdata(pdev, rdata);
 
+	ret = i2c_rpbus_init_remote(&pdev->dev, id);
+	if (ret)
+		goto error;
+
+
 	ret = i2c_add_adapter(&rdata->adapter);
 	if (ret < 0) {
 		dev_err(dev, "failed to add I2C adapter: %d\n", ret);
-		return ret;
+		goto error;
 	}
 
 	dev_info(dev, "add I2C adapter %s successfully\n", rdata->adapter.name);
 
 	return 0;
+
+error:
+	ida_free(&i2c_rpmsg.ida, id);
+	return ret;
 }
 
 static int i2c_rpbus_remove(struct platform_device *pdev)
