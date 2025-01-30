@@ -18,6 +18,7 @@
 #define TTY_TYPE_LPUART		0
 #define TTY_TYPE_CUSTOM		1
 #define TTY_TYPE_M33_CONSOLE	2
+#define TTY_TYPE_FLEXIO		3
 
 /* tty: uart_index */
 #define LPUART0			0

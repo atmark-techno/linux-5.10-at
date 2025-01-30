@@ -47,6 +47,7 @@ enum tty_rpmsg_init_type {
 	TTY_TYPE_LPUART,
 	TTY_TYPE_CUSTOM,
 	TTY_TYPE_M33_CONSOLE,
+	TTY_TYPE_FLEXIO,
 };
 
 struct srtm_tty_init_payload {
@@ -62,6 +63,14 @@ struct srtm_tty_init_payload {
 		struct {
 			char name[32];
 		} custom;
+		// nothing for m33 console
+		struct {
+			uint32_t flexio_index;
+			uint32_t flexio_rx;
+			uint32_t flexio_tx;
+			uint32_t suspend_wakeup_gpio;
+			uint32_t cflag;
+		} flexio;
 	};
 };
 
@@ -371,10 +380,10 @@ static const struct tty_operations imx_rpmsg_uart_ops = {
 	.set_termios		= imx_rpmsg_uart_set_termios,
 };
 
-#define READ_PROP_OR_RETURN(name) \
-		ret = of_property_read_u32(np, #name, &init.lpuart. name); \
+#define READ_PROP_OR_RETURN(group, name) \
+		ret = of_property_read_u32(np, #name, &init. group . name); \
 		if (ret) { \
-			dev_err(dev, "%pOF: error reading %s: %d\n", \
+			dev_err(dev, "%pOF: error reading prop %s: %d\n", \
 				np, #name, ret); \
 			return ret; \
 		}
@@ -398,12 +407,13 @@ static int imx_rpmsg_uart_init_remote(struct imx_rpmsg_port *port,
 
 	switch (init.port_type) {
 	case TTY_TYPE_LPUART:
-		READ_PROP_OR_RETURN(uart_index);
+		READ_PROP_OR_RETURN(lpuart, uart_index);
 		ret = of_property_read_u32(np, "rs485_flags",
 					   &init.lpuart.rs485_flags);
 		if (ret == 0) {
-			/* not an error, rs485 disabled if missing */
-			READ_PROP_OR_RETURN(rs485_de_gpio);
+			/* rs485 disabled if flags missing, but de_gpio is
+			 * mandatory if enabled */
+			READ_PROP_OR_RETURN(lpuart, rs485_de_gpio);
 		}
 		ret = of_property_read_u32(np, "suspend_wakeup_gpio",
 					   &init.lpuart.suspend_wakeup_gpio);
@@ -430,6 +440,20 @@ static int imx_rpmsg_uart_init_remote(struct imx_rpmsg_port *port,
 		break;
 	case TTY_TYPE_M33_CONSOLE:
 		// nothing to set
+		break;
+	case TTY_TYPE_FLEXIO:
+		READ_PROP_OR_RETURN(flexio, flexio_index);
+		READ_PROP_OR_RETURN(flexio, flexio_rx);
+		READ_PROP_OR_RETURN(flexio, flexio_tx);
+		ret = of_property_read_u32(np, "suspend_wakeup_gpio",
+					   &init.flexio.suspend_wakeup_gpio);
+		if (ret < 0) {
+			dev_info(dev, "%pOF: no suspend wakeup gpio set, will not wake up\n",
+					np);
+			/* setting wakeup will error out m33-side and fail suspend */
+			init.flexio.suspend_wakeup_gpio = -1;
+		}
+		init.flexio.cflag = cflag;
 		break;
 	default:
 		dev_err(dev, "%pOF: invalid port_type %d\n", np, init.port_type);
