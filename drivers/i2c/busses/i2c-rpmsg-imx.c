@@ -108,12 +108,14 @@ struct i2c_rpmsg_msg {
 struct i2c_rpmsg_info {
 	struct rpmsg_device *rpdev;
 	struct device *dev;
-	struct i2c_rpmsg_msg *msg;
 	struct completion cmd_complete;
 	struct mutex lock;
 
+	u8 ret_val;
 	u8 bus_id;
 	u16 addr;
+	u16 len;
+	u8 *buf;
 };
 
 static struct i2c_rpmsg_info i2c_rpmsg;
@@ -147,7 +149,14 @@ static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 	}
 
 	/* Receive Success */
-	i2c_rpmsg.msg = msg;
+	i2c_rpmsg.ret_val = msg->ret_val;
+
+	if (i2c_rpmsg.buf) {
+		/* we could copy min, but mismatch is an error anyway */
+		if (i2c_rpmsg.len == msg->len)
+			memcpy(i2c_rpmsg.buf, msg->buf, i2c_rpmsg.len);
+		i2c_rpmsg.len = msg->len;
+	}
 
 	complete(&i2c_rpmsg.cmd_complete);
 
@@ -183,10 +192,10 @@ static int rpmsg_xfer(struct i2c_rpmsg_msg *rmsg, struct i2c_rpmsg_info *info)
 		return -ETIMEDOUT;
 	}
 
-	if (info->msg->ret_val) {
+	if (info->ret_val) {
 		dev_dbg(&info->rpdev->dev,
-			"%s failed: %d\n", __func__, info->msg->ret_val);
-		return -(info->msg->ret_val);
+			"%s failed: %d\n", __func__, info->ret_val);
+		return -(info->ret_val);
 	}
 
 	return 0;
@@ -225,21 +234,20 @@ static int i2c_rpmsg_read(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	rmsg.len = (msg->len);
 
 	reinit_completion(&info->cmd_complete);
+	info->buf = msg->buf;
+	info->len = msg->len;
 
 	ret = rpmsg_xfer(&rmsg, info);
+	info->buf = NULL;
 	if (ret)
 		return ret;
 
-	if (!info->msg ||
-	    (info->msg->len != msg->len)) {
-		dev_err(&info->rpdev->dev,
-					"%s failed: %d\n", __func__, -EPROTO);
+	if ((info->len != msg->len)) {
+		dev_err(&info->rpdev->dev, "%s failed: %d\n", __func__, -EPROTO);
 		return -EPROTO;
 	}
 
-	memcpy(msg->buf, info->msg->buf, info->msg->len);
-
-	return msg->len;
+	return info->len;
 }
 
 int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
@@ -280,8 +288,6 @@ int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	reinit_completion(&info->cmd_complete);
 
 	ret = rpmsg_xfer(&rmsg, info);
-	if (ret)
-		return ret;
 
 	return ret;
 }
