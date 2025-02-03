@@ -654,10 +654,8 @@ static int usb251xb_probe(struct usb251xb *hub)
 	if (np && of_id) {
 		err = usb251xb_get_ofdata(hub,
 					  (struct usb251xb_data *)of_id->data);
-		if (err) {
-			dev_err(dev, "failed to get ofdata: %d\n", err);
-			return err;
-		}
+		if (err)
+			return dev_err_probe(dev, err, "failed to get ofdata\n");
 	}
 
 	/*
