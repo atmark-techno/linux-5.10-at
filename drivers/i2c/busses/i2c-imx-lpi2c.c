@@ -853,7 +853,7 @@ static int lpi2c_dma_init(struct device *dev,
 	lpi2c_imx->dma_tx = dma_request_chan(dev, "tx");
 	if (IS_ERR(lpi2c_imx->dma_tx)) {
 		ret = PTR_ERR(lpi2c_imx->dma_tx);
-		dev_err(dev, "can't get the TX DMA channel, error %d!\n", ret);
+		dev_err_probe(dev, ret, "can't get the TX DMA channel, error %d!\n", ret);
 		lpi2c_imx->dma_tx = NULL;
 		goto err;
 	}
