@@ -125,9 +125,12 @@
 };
 
 // secure element
-&i2c_rpbus_2 {
+&lpi2c6 {
 	#address-cells = <1>;
 	#size-cells = <0>;
+	clock-frequency = <384000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpi2c6>;
 	status = "okay";
 
 	i2c_type = <I2C_TYPE_FLEXIO>;
@@ -136,7 +139,6 @@
 	i2c_SCL_pin = <20>; // PTB4
 	i2c_SDA_pin = <21>; // PTB5
 };
-
 
 &imx8ulp_cm33 {
 	ipc-only;
@@ -316,6 +318,13 @@
 	pinctrl_se_enable: seenablegrp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF12__PTF12		0x3
+		>;
+	};
+
+	pinctrl_lpi2c6: i2c6grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x24
+			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x24
 		>;
 	};
 

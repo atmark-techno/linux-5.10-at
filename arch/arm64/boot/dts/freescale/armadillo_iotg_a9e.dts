@@ -43,12 +43,10 @@
 
 	gpio-keys {
 		compatible = "gpio-keys";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_gpio_keys>;
 
 		gpio_keys_sw1: sw1 {
 			label = "SW1";
-			gpios = <&gpiof 24 GPIO_ACTIVE_LOW>;
+			gpios = <&rpmsg_gpioc 10 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_PROG1>;
 		};
 	};
@@ -117,7 +115,7 @@
 	};
 };
 
-// USB hub
+// USB hub, RTC, eeprom
 &i2c_rpbus_1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -132,16 +130,6 @@
 		reg = <0x2c>;
 		reset-gpios = <&rpmsg_gpioa 19 GPIO_ACTIVE_LOW>;
 	};
-};
-
-//RTC, eeprom
-&lpi2c6 {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	clock-frequency = <384000>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_lpi2c6>;
-	status = "okay";
 
 	rv8803_rtc: rtc@32 {
 		compatible = "microcrystal,rv8803";
@@ -230,6 +218,11 @@
 			IOMUXC_PTC3_PTC3 0x20000 /* OBE(1) */
 		>;
 	};
+	sw1_gpio_keys {
+		imx-rpmsg,pins = <
+			IOMUXC_PTC10_PTC10	0x1100003
+		>;
+	};
 };
 
 &iomuxc1 {
@@ -268,19 +261,6 @@
 		>;
 	};
 
-	pinctrl_gpio_keys: gpiokeygrp {
-		fsl,pins = <
-			MX8ULP_PAD_PTF24__PTF24		0x1100003
-		>;
-	};
-
-	pinctrl_lpi2c6: i2c6grp {
-		fsl,pins = <
-			MX8ULP_PAD_PTF0__LPI2C6_SCL	0x24
-			MX8ULP_PAD_PTF1__LPI2C6_SDA	0x24
-		>;
-	};
-
 	/* con 10 i2c */
 	pinctrl_lpi2c7: i2c7grp {
 		fsl,pins = <
@@ -300,7 +280,7 @@
 			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0 // IND_RST_WL
 			MX8ULP_PAD_PTF3__PTF3		0x0 // SPI_INT
 			MX8ULP_PAD_PTF16__PTF16		0x0 // IND_RST_BT
-			MX8ULP_PAD_PTD17__PTD17		0x0 // WL_WAKE_IN
+			MX8ULP_PAD_PTF2__PTF2		0x0 // WL_WAKE_IN
 			MX8ULP_PAD_PTE6__PTE6		0x0 // BT15.4_WAKE_IN
 		>;
 	};
@@ -315,7 +295,7 @@
 			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0 // IND_RST_WL
 			MX8ULP_PAD_PTF3__PTF3		0x0 // SPI_INT
 			MX8ULP_PAD_PTF16__PTF16		0x0 // IND_RST_BT
-			MX8ULP_PAD_PTD17__PTD17		0x0 // WL_WAKE_IN
+			MX8ULP_PAD_PTF2__PTF2		0x0 // WL_WAKE_IN
 			MX8ULP_PAD_PTE6__PTE6		0x0 // BT15.4_WAKE_IN
 		>;
 	};
@@ -330,7 +310,7 @@
 			MX8ULP_PAD_PTD13__SDHC1_RESET_B	0x0 // IND_RST_WL
 			MX8ULP_PAD_PTF3__PTF3		0x0 // SPI_INT
 			MX8ULP_PAD_PTF16__PTF16		0x0 // IND_RST_BT
-			MX8ULP_PAD_PTD17__PTD17		0x0 // WL_WAKE_IN
+			MX8ULP_PAD_PTF2__PTF2		0x0 // WL_WAKE_IN
 			MX8ULP_PAD_PTE6__PTE6		0x0 // BT15.4_WAKE_IN
 		>;
 	};

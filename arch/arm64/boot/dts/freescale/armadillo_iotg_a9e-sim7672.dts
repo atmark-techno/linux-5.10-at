@@ -50,13 +50,11 @@
 	};
 };
 
-#if 0 /* TODO: Fix how to use pins on Real Time Domain */
-&uart2 {
+&lpuart5 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_uart2>;
+	pinctrl-0 = <&pinctrl_lpuart5>;
 	status = "okay";
 };
-#endif
 
 &gpioc_iomuxc {
 	pinctrl_sim7672_vbat: sim7672_vbat_grp {
@@ -67,16 +65,14 @@
 };
 
 &iomuxc1 {
-#if 0 /* TODO: Fix how to use pins on Real Time Domain */
-	pinctrl_uart2: uart4grp {
+	pinctrl_lpuart5: lpuart5grp {
 		fsl,pins = <
-			MX8ULP_PAD_PTB0__LPUART2_CTS_B	0x0
-			MX8ULP_PAD_PTB2__LPUART2_TX	0x0
-			MX8ULP_PAD_PTB3__LPUART2_RX	0x0
-			MX8ULP_PAD_PTB1__LPUART2_RTS_B	0x0
+			MX8ULP_PAD_PTE8__LPUART6_CTS_B	0x3
+			MX8ULP_PAD_PTE9__LPUART6_RTS_B	0x3
+			MX8ULP_PAD_PTE10__LPUART6_TX	0x3
+			MX8ULP_PAD_PTE11__LPUART6_RX	0x3
 		>;
 	};
-#endif
 
 	pinctrl_sim7672_reset: sim7672_reset_grp {
 		fsl,pins = <
