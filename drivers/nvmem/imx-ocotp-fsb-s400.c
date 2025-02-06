@@ -89,7 +89,14 @@ static int read_words_via_fsb(void *priv, unsigned int bank, u32 *buf)
 		size = fuse->hw->fsb_bank_reg[i].flag ? 4 : 8;
 
 		for (i = 0; i < size; i++) {
-			*buf = readl_relaxed(regs + (reg_id + i) * 4);
+			if (size == 4) {
+				*buf = readl_relaxed(regs + (reg_id + i/2) * 4);
+				if (i%2)
+					*buf >>= 16;
+				*buf &= 0xFFFF;
+			} else {
+				*buf = readl_relaxed(regs + (reg_id + i) * 4);
+			}
 			buf = buf + 1;
 		}
 	}
