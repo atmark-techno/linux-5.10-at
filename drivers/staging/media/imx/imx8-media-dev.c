@@ -1112,6 +1112,8 @@ static int mxc_md_probe(struct platform_device *pdev)
 				/* no sensors connected */
 				mxc_md_unregister_all(mxc_md);
 				v4l2_async_notifier_unregister(&mxc_md->subdev_notifier);
+				ret = -EPROBE_DEFER;
+				goto clean_ents;
 			}
 		}
 	}
