@@ -268,10 +268,9 @@ static int pwm_rpmsg_probe(struct rpmsg_device *rpdev)
 		return -EINVAL;
 	}
 
-	pwm_rpmsg.rpdev = rpdev;
-
 	mutex_init(&pwm_rpmsg.lock);
 	init_completion(&pwm_rpmsg.cmd_complete);
+	pwm_rpmsg.rpdev = rpdev;
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 						rpdev->src, rpdev->dst);
