@@ -41,6 +41,7 @@ enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_NOTIFY,
 	TTY_RPMSG_COMMAND_SET_WAKE,
 	TTY_RPMSG_COMMAND_INIT,
+	TTY_RPMSG_COMMAND_ACTIVATE,
 };
 
 enum tty_rpmsg_init_type {
@@ -82,7 +83,7 @@ struct imx_rpmsg_port {
 	struct tty_port		port;
 	spinlock_t		rx_lock;
 	struct rpmsg_device	*rpdev;
-	struct platform_device  *pdev;
+	struct platform_device	*pdev;
 	struct tty_driver	*driver;
 
 	struct mutex		tx_lock;
@@ -133,7 +134,7 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	dev_dbg(&rpdev->dev, "msg(<- src 0x%x) len %d\n", src, len);
 	print_hex_dump_debug(__func__, DUMP_PREFIX_NONE, 16, 1,
-			     data, len,  true);
+			     data, len, true);
 
 	if (msg->header.major != TTY_RPMSG_MAJOR) {
 		dev_err(&rpdev->dev, "invalid version\n");
@@ -257,8 +258,6 @@ err_out:
 	return err;
 }
 
-static struct tty_port_operations  imx_rpmsg_port_ops = { };
-
 static int imx_rpmsg_uart_install(struct tty_driver *driver,
 				  struct tty_struct *tty)
 {
@@ -378,6 +377,40 @@ static const struct tty_operations imx_rpmsg_uart_ops = {
 	.write			= imx_rpmsg_uart_write,
 	.write_room		= imx_rpmsg_uart_write_room,
 	.set_termios		= imx_rpmsg_uart_set_termios,
+};
+
+static int imx_rpmsg_uart_send_activate(struct imx_rpmsg_port *port, bool activate_)
+{
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_ACTIVATE,
+	};
+	uint8_t activate = activate_;
+
+	return tty_send_and_wait(port, (void *)&msg, &activate, sizeof(activate), true);
+}
+
+static int imx_rpmsg_uart_activate(struct tty_port *tty_port, struct tty_struct *tty)
+{
+	struct imx_rpmsg_port *port = container_of(tty_port,
+						   struct imx_rpmsg_port, port);
+
+	WARN_ONCE(tty->port != tty_port,
+			"port activate called with weird port?");
+
+	return imx_rpmsg_uart_send_activate(port, true);
+}
+
+static void imx_rpmsg_uart_shutdown(struct tty_port *tty_port)
+{
+	struct imx_rpmsg_port *port = container_of(tty_port,
+						   struct imx_rpmsg_port, port);
+
+	imx_rpmsg_uart_send_activate(port, false);
+}
+
+static struct tty_port_operations imx_rpmsg_port_ops = {
+	.activate = imx_rpmsg_uart_activate,
+	.shutdown = imx_rpmsg_uart_shutdown,
 };
 
 #define READ_PROP_OR_RETURN(group, name) \
