@@ -1723,14 +1723,19 @@ static struct ox01f10_power_rail *ox01f10_parse_dt(struct i2c_client *client)
 		return NULL;
 
 	gpio = of_get_named_gpio(node, "pwdn-gpios", 0);
-	if (!gpio_is_valid(gpio)) {
+	if (gpio == -EPROBE_DEFER) {
+		err = -EPROBE_DEFER;
+		goto error;
+	} else if (!gpio_is_valid(gpio)) {
 		dev_err(&client->dev, "pwdn gpios not in DT\n");
+		err = NULL;
 		goto error;
 	}
 	err = devm_gpio_request_one(&client->dev, gpio,
 				    GPIOF_DIR_OUT, "pwdn");
 	if (err < 0) {
 		dev_err(&client->dev, "Failed to request gpio\n");
+		err = NULL;
 		goto error;
 	}
 
@@ -1740,7 +1745,7 @@ static struct ox01f10_power_rail *ox01f10_parse_dt(struct i2c_client *client)
 
 error:
 	devm_kfree(&client->dev, power);
-	return NULL;
+	return ERR_PTR(err);
 }
 
 static int ox01f10_link_setup(struct media_entity *entity,
@@ -1806,13 +1811,14 @@ static int ox01f10_probe(struct i2c_client *client,
 	
 	priv->regmap = devm_regmap_init_i2c(client, &sensor_regmap_config);
 	if (IS_ERR(priv->regmap)) {
-		dev_err(&client->dev,
-			"regmap init failed: %ld\n", PTR_ERR(priv->regmap));
-		return -ENODEV;
+		return dev_err_probe(&client->dev, PTR_ERR(priv->regmap),
+				     "regmap init failed\n");
 	}
 
 	priv->power = ox01f10_parse_dt(client);
-	if (!priv->power) {
+	if (PTR_ERR(priv->power) == -EPROBE_DEFER) {
+		return -EPROBE_DEFER;
+	} else if (!priv->power) {
 		dev_err(&client->dev, "unable to get platform data\n");
 		return -EFAULT;
 	}
