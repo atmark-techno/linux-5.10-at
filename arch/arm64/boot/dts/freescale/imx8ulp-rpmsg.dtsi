@@ -14,6 +14,7 @@
 		i2c1 = &i2c_rpbus_1;
 		i2c2 = &i2c_rpbus_2;
 		pwm0 = &tpm_rpchip_0;
+		pwm1 = &tpm_rpchip_1;
 	};
 
 	wm8960_mclk: wm8960-mclk {
@@ -85,10 +86,17 @@
 		};
 	};
 
-	tpm_rpchip_0: pwm {
+	tpm_rpchip_0: pwm@0 {
 		compatible = "fsl,pwm-rpchip";
 		#pwm-cells = <3>;
 		fsl,pwm-channel-number = <6>;
+		status = "disabled";
+	};
+
+	tpm_rpchip_1: pwm@1 {
+		compatible = "fsl,pwm-rpchip";
+		#pwm-cells = <3>;
+		fsl,pwm-channel-number = <2>;
 		status = "disabled";
 	};
 };
