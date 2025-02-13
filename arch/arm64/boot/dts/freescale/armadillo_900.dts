@@ -15,7 +15,7 @@
 	compatible = "atmark,armadillo-900", "fsl,imx8ulp";
 
 	aliases {
-		ttyrpmsg2 = &rpmsg_console;
+		ttyrpmsg0 = &rpmsg_console;
 	};
 
 	chosen {
