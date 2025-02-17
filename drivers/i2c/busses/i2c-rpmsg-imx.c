@@ -496,13 +496,12 @@ static int i2c_rpbus_probe(struct platform_device *pdev)
 	adapter->dev.parent = dev;
 	adapter->dev.of_node = np;
 	of_id = of_alias_get_id(np, "i2c");
-	if (of_id >= 0) {
+	if (of_id >= 0)
 		id = ida_simple_get(&i2c_rpmsg.ida, of_id, of_id + 1, GFP_KERNEL);
-                if (id < 0)
-                        dev_warn(&pdev->dev, "Alias ID %d not available\n", of_id);
-        }
 	if (id < 0)
 		id = ida_simple_get(&i2c_rpmsg.ida, 0, 0, GFP_KERNEL);
+	if (of_id >= 0 && id != of_id)
+		dev_warn(&pdev->dev, "Alias ID %d not available - got %d\n", of_id, id);
 	adapter->nr = id;
 
 	adapter->quirks = &i2c_rpbus_quirks;

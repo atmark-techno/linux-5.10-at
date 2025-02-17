@@ -518,13 +518,12 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 		return PTR_ERR(driver);
 
 	of_id = of_alias_get_id(pdev->dev.of_node, "ttyrpmsg");
-	if (of_id >= 0) {
+	if (of_id >= 0)
 		id = ida_simple_get(&uart_rpmsg.ida, of_id, of_id + 1, GFP_KERNEL);
-		if (id < 0)
-			dev_warn(&pdev->dev, "Alias ID %d not available\n", of_id);
-	}
 	if (id < 0)
 		id = ida_simple_get(&uart_rpmsg.ida, 0, 0, GFP_KERNEL);
+	if (of_id >= 0 && id != of_id)
+		dev_warn(&pdev->dev, "Alias ID %d not available - got %d\n", of_id, id);
 	if (id >= IMX_RPMSG_UART_PORT_PER_SOC_MAX) {
 		dev_err(&pdev->dev, "id %d higher than max %d\n",
 			id, IMX_RPMSG_UART_PORT_PER_SOC_MAX);
