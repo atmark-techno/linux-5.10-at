@@ -67,10 +67,12 @@
 &iomuxc1 {
 	pinctrl_lpuart5: lpuart5grp {
 		fsl,pins = <
-			MX8ULP_PAD_PTE8__LPUART6_CTS_B	0x3
-			MX8ULP_PAD_PTE9__LPUART6_RTS_B	0x3
-			MX8ULP_PAD_PTE10__LPUART6_TX	0x3
-			MX8ULP_PAD_PTE11__LPUART6_RX	0x3
+			MX8ULP_PAD_PTE6__LPUART5_TX	0x0 /* pull-up in sim7672 */
+			MX8ULP_PAD_PTE7__LPUART5_RX	0x0 /* pull-up in sim7672 */
+
+			/* TODO: support gpio cts/rts in fsl_lpuart driver */
+			MX8ULP_PAD_PTD12__PTD12		0x0 /* CTS, pull-up in sim7672 */
+			MX8ULP_PAD_PTD15__PTD15		0x0 /* RTS, pull-up in sim7672 */
 		>;
 	};
 
