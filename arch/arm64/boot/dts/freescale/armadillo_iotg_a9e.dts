@@ -13,7 +13,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 &{/} {
-	model = "Atmark-Techno Armadillo-IoT Gateway A900 Board";
+	model = "Atmark-Techno Armadillo-IoT Gateway A9E Board";
 	compatible = "atmark,armadillo-iotg-a9e", "fsl,imx8ulp";
 
 	aliases {
