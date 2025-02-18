@@ -104,6 +104,7 @@
 
 	adc {
 		compatible = "fsl,imx-rpmsg-adc";
+		label = "vin";
 		vin {
 			chan_index = <0>;
 			adc_index = <ADC1>;
