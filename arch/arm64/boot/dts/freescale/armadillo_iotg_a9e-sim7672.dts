@@ -38,7 +38,7 @@
 		vbat-supply = <&reg_sim7672_vbat>;
 	};
 
-	gpio_keys_sim7672: gpio-keys-sim7672 {
+	gpio_wakeup: gpio-wakeup {
 		compatible = "gpio-keys";
 
 		sim7672-ri {
