@@ -212,6 +212,15 @@
 	};
 };
 
+&gpiob_iomuxc {
+	do {
+		imx-rpmsg,pins = <
+			IOMUXC_PTB0_PTB0	IOMUXC_PCR_SRE_MASK
+			IOMUXC_PTB1_PTB1	IOMUXC_PCR_SRE_MASK
+		>;
+	};
+};
+
 &gpioc_iomuxc {
 	spi {
 		imx-rpmsg,pins = <
