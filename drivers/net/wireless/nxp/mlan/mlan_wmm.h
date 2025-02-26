@@ -4,7 +4,7 @@
  *  of wmm functionalities
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2024 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -203,6 +203,14 @@ extern mlan_status wlan_cmd_wmm_queue_stats(pmlan_private pmpriv,
 extern mlan_status wlan_cmd_wmm_ts_status(pmlan_private pmpriv,
 					  HostCmd_DS_COMMAND *cmd,
 					  t_void *pdata_buf);
+/** WMM HOST ADDTS request command handler */
+extern mlan_status wlan_cmd_wmm_host_addts_req(pmlan_private pmpriv,
+					       HostCmd_DS_COMMAND *cmd,
+					       t_void *pdata_buf);
+/** WMM HOST DELTS request command handler */
+extern mlan_status wlan_cmd_wmm_host_delts_req(pmlan_private pmpriv,
+					       HostCmd_DS_COMMAND *cmd,
+					       t_void *pdata_buf);
 
 /*
  *  Functions used in the cmdresp handling routine
@@ -243,4 +251,20 @@ extern mlan_status wlan_ret_wmm_queue_config(pmlan_private pmpriv,
 
 mlan_status wlan_wmm_cfg_ioctl(pmlan_adapter pmadapter,
 			       pmlan_ioctl_req pioctl_req);
+
+void wlan_wmm_update_sta_tx_rate(pmlan_private priv, t_u8 *mac,
+				 HostCmd_TX_RATE_QUERY *rate);
+
+void wlan_wmm_consume_byte_budget(raListTbl *ra_list, mlan_buffer *pmbuf);
+void wlan_wmm_consume_mpdu_budget(raListTbl *ra_list);
+
+static INLINE void wlan_advance_bss_on_pkt_push(pmlan_adapter pmadapter,
+						mlan_bssprio_tbl *bssprio_tbl)
+{
+	if (pmadapter->mclient_tx_supported)
+		return;
+
+	bssprio_tbl->bssprio_cur = bssprio_tbl->bssprio_cur->pnext;
+}
+
 #endif /* !_MLAN_WMM_H_ */

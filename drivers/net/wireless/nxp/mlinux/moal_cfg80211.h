@@ -110,6 +110,8 @@ void woal_host_mlme_disconnect(pmoal_private priv, u16 reason_code, u8 *sa);
 void woal_host_mlme_work_queue(struct work_struct *work);
 void woal_host_mlme_process_assoc_resp(moal_private *priv,
 				       mlan_ds_assoc_info *assoc_info);
+void woal_host_mlme_process_assoc_timeout(moal_private *priv,
+					  struct cfg80211_bss *bss);
 #endif
 #endif
 
@@ -470,7 +472,12 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 #endif
 
 #if KERNEL_VERSION(3, 12, 0) <= CFG80211_VERSION_CODE
-#if KERNEL_VERSION(3, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 12, 0) <= CFG80211_VERSION_CODE
+int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
+					struct net_device *dev,
+					struct cfg80211_chan_def *chandef,
+					u32 cac_time_msi, int link_id);
+#elif KERNEL_VERSION(3, 15, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 					struct net_device *dev,
 					struct cfg80211_chan_def *chandef,

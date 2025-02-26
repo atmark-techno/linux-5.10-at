@@ -3,7 +3,7 @@
  *  @brief This file contains AP mode transmit and receive functions
  *
  *
- *  Copyright 2009-2021 NXP
+ *  Copyright 2009-2021, 2024 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -106,51 +106,6 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 	return ret;
 }
 
-/**
- *  @brief This function will check if unicast packet need be dropped
- *
- *  @param priv    A pointer to mlan_private
- *  @param mac     mac address to find in station list table
- *
- *  @return	       MLAN_STATUS_FAILURE -- drop packet, otherwise forward to
- * network stack
- */
-static mlan_status wlan_check_unicast_packet(mlan_private *priv, t_u8 *mac)
-{
-	int j;
-	sta_node *sta_ptr = MNULL;
-	pmlan_adapter pmadapter = priv->adapter;
-	pmlan_private pmpriv = MNULL;
-	t_u8 pkt_type = 0;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	ENTER();
-	for (j = 0; j < MLAN_MAX_BSS_NUM; ++j) {
-		pmpriv = pmadapter->priv[j];
-		if (pmpriv) {
-			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_STA)
-				continue;
-			sta_ptr = wlan_get_station_entry(pmpriv, mac);
-			if (sta_ptr) {
-				if (pmpriv == priv)
-					pkt_type = PKT_INTRA_UCAST;
-				else
-					pkt_type = PKT_INTER_UCAST;
-				break;
-			}
-		}
-	}
-	if ((pkt_type == PKT_INTRA_UCAST) &&
-	    (priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) {
-		PRINTM(MDATA, "Drop INTRA_UCAST packet\n");
-		ret = MLAN_STATUS_FAILURE;
-	} else if ((pkt_type == PKT_INTER_UCAST) &&
-		   (priv->pkt_fwd & PKT_FWD_INTER_UCAST)) {
-		PRINTM(MDATA, "Drop INTER_UCAST packet\n");
-		ret = MLAN_STATUS_FAILURE;
-	}
-	LEAVE();
-	return ret;
-}
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -170,6 +125,7 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	t_u32 pkt_type;
 	t_u32 tx_control;
 	t_u8 dst_mac[MLAN_MAC_ADDR_LENGTH];
+	tx_ctrl *ctrl;
 
 	ENTER();
 
@@ -189,12 +145,13 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		pmbuf->data_offset += sizeof(pkt_type) + sizeof(tx_control);
 		pmbuf->data_len -= sizeof(pkt_type) + sizeof(tx_control);
 	}
-	if (pmbuf->data_offset <
-	    (sizeof(TxPD) + pmpriv->intf_hr_len + DMA_ALIGNMENT)) {
+	if (pmbuf->data_offset < (Tx_PD_SIZEOF(pmpriv->adapter) +
+				  pmpriv->intf_hr_len + DMA_ALIGNMENT)) {
 		PRINTM(MERROR,
 		       "not enough space for TxPD: headroom=%d pkt_len=%d, required=%d\n",
 		       pmbuf->data_offset, pmbuf->data_len,
-		       sizeof(TxPD) + pmpriv->intf_hr_len + DMA_ALIGNMENT);
+		       Tx_PD_SIZEOF(pmpriv->adapter) + pmpriv->intf_hr_len +
+			       DMA_ALIGNMENT);
 		DBG_HEXDUMP(MDAT_D, "drop pkt",
 			    pmbuf->pbuf + pmbuf->data_offset, pmbuf->data_len);
 		pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
@@ -202,12 +159,13 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	}
 
 	/* head_ptr should be aligned */
-	head_ptr = pmbuf->pbuf + pmbuf->data_offset - sizeof(TxPD) -
-		   pmpriv->intf_hr_len;
+	head_ptr = pmbuf->pbuf + pmbuf->data_offset -
+		   Tx_PD_SIZEOF(pmpriv->adapter) - pmpriv->intf_hr_len;
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 
 	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
-	memset(pmpriv->adapter, plocal_tx_pd, 0, sizeof(TxPD));
+	// coverity[bad_memset:SUPPRESS]
+	memset(pmpriv->adapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmpriv->adapter));
 
 	/* Set the BSS number to TxPD */
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
@@ -309,6 +267,11 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		mc_ctrl->abs_tsf_expirytime =
 			wlan_cpu_to_le32(pmbuf->u.mc_tx_info.pkt_expiry);
 		mc_ctrl->mc_seq = wlan_cpu_to_le16(pmbuf->u.mc_tx_info.seq_num);
+	}
+
+	if (pmbuf->flags & MLAN_BUF_FLAG_LLDE_PKT_FILTER) {
+		ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
+		ctrl->llde_pkt_filter = MTRUE;
 	}
 
 	endian_convert_TxPD(plocal_tx_pd);
@@ -668,8 +631,8 @@ mlan_status wlan_uap_recv_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				newbuf->in_ts_sec = pmbuf->in_ts_sec;
 				newbuf->in_ts_usec = pmbuf->in_ts_usec;
 				newbuf->data_offset =
-					(sizeof(TxPD) + priv->intf_hr_len +
-					 DMA_ALIGNMENT);
+					(Tx_PD_SIZEOF(pmadapter) +
+					 priv->intf_hr_len + DMA_ALIGNMENT);
 				util_scalar_increment(
 					pmadapter->pmoal_handle,
 					&pmadapter->pending_bridge_pkts,
@@ -716,8 +679,8 @@ mlan_status wlan_uap_recv_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				newbuf->in_ts_sec = pmbuf->in_ts_sec;
 				newbuf->in_ts_usec = pmbuf->in_ts_usec;
 				newbuf->data_offset =
-					(sizeof(TxPD) + priv->intf_hr_len +
-					 DMA_ALIGNMENT);
+					(Tx_PD_SIZEOF(pmadapter) +
+					 priv->intf_hr_len + DMA_ALIGNMENT);
 				util_scalar_increment(
 					pmadapter->pmoal_handle,
 					&pmadapter->pending_bridge_pkts,
@@ -746,13 +709,6 @@ mlan_status wlan_uap_recv_packet(mlan_private *priv, pmlan_buffer pmbuf)
 					priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING,
 					MNULL);
 			}
-			goto done;
-		} else if (MLAN_STATUS_FAILURE ==
-			   wlan_check_unicast_packet(
-				   priv, prx_pkt->eth803_hdr.dest_addr)) {
-			/* drop packet */
-			PRINTM(MDATA, "Drop AMSDU dest " MACSTR "\n",
-			       MAC2STR(prx_pkt->eth803_hdr.dest_addr));
 			goto done;
 		}
 	}
@@ -826,8 +782,8 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				newbuf->in_ts_sec = pmbuf->in_ts_sec;
 				newbuf->in_ts_usec = pmbuf->in_ts_usec;
 				newbuf->data_offset =
-					(sizeof(TxPD) + priv->intf_hr_len +
-					 DMA_ALIGNMENT);
+					(Tx_PD_SIZEOF(pmadapter) +
+					 priv->intf_hr_len + DMA_ALIGNMENT);
 				util_scalar_increment(
 					pmadapter->pmoal_handle,
 					&pmadapter->pending_bridge_pkts,
@@ -884,7 +840,8 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 						newbuf->in_ts_usec =
 							pmbuf->in_ts_usec;
 						newbuf->data_offset =
-							(sizeof(TxPD) +
+							(Tx_PD_SIZEOF(
+								 pmadapter) +
 							 priv->intf_hr_len +
 							 DMA_ALIGNMENT);
 						util_scalar_increment(
@@ -953,14 +910,6 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				wlan_drop_tx_pkts(priv);
 			wlan_recv_event(priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING,
 					MNULL);
-			goto done;
-		} else if (MLAN_STATUS_FAILURE ==
-			   wlan_check_unicast_packet(
-				   priv, prx_pkt->eth803_hdr.dest_addr)) {
-			PRINTM(MDATA, "Drop Pkts: Rx dest " MACSTR "\n",
-			       MAC2STR(prx_pkt->eth803_hdr.dest_addr));
-			pmbuf->status_code = MLAN_ERROR_PKT_INVALID;
-			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
 			goto done;
 		}
 	}

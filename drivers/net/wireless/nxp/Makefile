@@ -9,7 +9,7 @@
 obj-$(CONFIG_MLAN) += mlan.o moal.o
 
 # version
-ccflags-y += -DMLAN_RELEASE_VERSION='"437.p21"' -DFPNUM='"92"'
+ccflags-y += -DMLAN_RELEASE_VERSION='"505.p4"' -DFPNUM='"92"'
 
 # CONFIG_DEBUG 1
 ccflags-y += -DDEBUG_LEVEL1

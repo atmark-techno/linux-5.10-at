@@ -3,7 +3,7 @@
  * @brief This file contains uap driver specific defines etc.
  *
  *
- * Copyright 2008-2022 NXP
+ * Copyright 2008-2022, 2024 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -102,6 +102,11 @@ Change log:
 #define UAP_BSS_STOP 1
 /** BSS RESET */
 #define UAP_BSS_RESET 2
+
+/* HE MAC Capabilities Information field BIT 1 for TWT Req */
+#define HE_MAC_CAP_TWT_REQ_SUPPORT MBIT(1)
+/* HE MAC Capabilities Information field BIT 2 for TWT Resp*/
+#define HE_MAC_CAP_TWT_RESP_SUPPORT MBIT(2)
 
 /** wapi_msg */
 typedef struct _wapi_msg {

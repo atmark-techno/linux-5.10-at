@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 vendor specific defines.
  *
  *
- * Copyright 2015-2021 NXP
+ * Copyright 2015-2021, 2024 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -736,6 +736,9 @@ enum vendor_sub_command {
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,
+	SUBCMD_SET_GET_SCANCFG = 0x0200,
+	SUBCMD_SET_GET_ADDBAPARAMS = 0x0201,
+	SUBCMD_SET_GET_CLR_HOSTCMD = 0x0202,
 	SUBCMD_RTT_GET_CAPA = 0x1100,
 	SUBCMD_RTT_RANGE_REQUEST,
 	SUBCMD_RTT_RANGE_CANCEL,

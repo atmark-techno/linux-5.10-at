@@ -4,7 +4,7 @@
  *  definitions used in MLAN and MOAL module.
  *
  *
- *  Copyright 2008-2023 NXP
+ *  Copyright 2008-2024 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -28,6 +28,9 @@ Change log:
 
 #ifndef _MLAN_IEEE_H_
 #define _MLAN_IEEE_H_
+
+/** WLAN header size */
+#define IEEE80211_HEADER_SIZE 24
 
 /** FIX IES size in beacon buffer */
 #define WLAN_802_11_FIXED_IE_SIZE 12
@@ -68,6 +71,9 @@ typedef enum _WLAN_802_11_NETWORK_TYPE {
 typedef enum _IEEEtypes_Ext_ElementId_e {
 	HE_CAPABILITY = 35,
 	HE_OPERATION = 36,
+	MU_EDCA_PARAM_SET = 38,
+	MBSSID_CONFIG = 55,
+	NON_INHERITANCE = 56,
 	HE_6G_CAPABILITY = 59
 } IEEEtypes_Ext_ElementId_e;
 
@@ -257,7 +263,7 @@ typedef MLAN_PACK_START struct _IEEEtypes_FastBssTransElement_t {
 	/** SNonce */
 	t_u8 s_nonce[32];
 	/** sub element */
-	t_u8 sub_element[1];
+	t_u8 sub_element[];
 } MLAN_PACK_END IEEEtypes_FastBssTransElement_t;
 
 /*Category for FT*/
@@ -544,7 +550,7 @@ typedef MLAN_PACK_START struct _IEEEtypes_AssocRsp_t {
 	/** Association ID */
 	IEEEtypes_AId_t a_id;
 	/** IE data buffer */
-	t_u8 ie_buffer[1];
+	t_u8 ie_buffer[];
 } MLAN_PACK_END IEEEtypes_AssocRsp_t, *pIEEEtypes_AssocRsp_t;
 
 /** 802.11 supported rates */
@@ -884,6 +890,28 @@ typedef MLAN_PACK_START enum _IEEEtypes_WMM_Tspec_Action_e {
 
 } MLAN_PACK_END IEEEtypes_WMM_Tspec_Action_e;
 
+/** NAN SDF vendor oui size */
+#define NAN_SDF_VENDOR_SIZE 4
+/** NAN service descriptor attribute offset */
+#define NAN_SDA_OFFSET 5
+/** NAN service control type offset */
+#define NAN_SRVC_CTRL_OFFSET 11
+/** Service control field */
+#define NAN_SRV_CTRL_TYPE_MASK (BIT(0) | BIT(1))
+/** NAN service control type */
+#define NAN_PUBLISH 0
+#define NAN_FOLLOW_UP 2
+
+/** NAN Attribute ID list */
+typedef MLAN_PACK_START enum _Nan_AttrId_e {
+	NAN_ATTR_SDA = 0x03
+} MLAN_PACK_END Nan_AttrId_e;
+
+/** Public Action Codes */
+typedef MLAN_PACK_START enum _IEEEtypes_Public_ActionCategory_e {
+	IEEE_PUBLIC_ACTION_CATEGORY_VENDOR_SPECIFIC = 9
+} MLAN_PACK_END IEEEtypes_Public_ActionCategory_e;
+
 /** WMM TSPEC Category Action Base */
 typedef MLAN_PACK_START struct {
 	IEEEtypes_ActionCategory_e category;
@@ -960,7 +988,7 @@ typedef MLAN_PACK_START struct _IEEEtypes_CountryInfoSet_t {
 	/** Country code */
 	t_u8 country_code[COUNTRY_CODE_LEN];
 	/** Set of subbands */
-	IEEEtypes_SubbandSet_t sub_band[1];
+	IEEEtypes_SubbandSet_t sub_band[];
 } MLAN_PACK_END IEEEtypes_CountryInfoSet_t, *pIEEEtypes_CountryInfoSet_t;
 
 /** Data structure for Country IE full set */
@@ -1126,6 +1154,18 @@ typedef MLAN_PACK_START struct _IEEEtypes_MultiBSSID_t {
 	/** Optional Subelement data*/
 	t_u8 sub_elem_data[];
 } MLAN_PACK_END IEEEtypes_MultiBSSID_t, *pIEEEtypes_MultiBSSID_t;
+
+/** Multi BSSID Configuration IE */
+typedef MLAN_PACK_START struct _IEEEtypes_MBSSID_Config_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** Element id extension */
+	t_u8 ext_id;
+	/** BSSID Count */
+	t_u8 bssid_cnt;
+	/** Full Set Rx Periodicity */
+	t_u8 fs_rx_periodicity;
+} MLAN_PACK_END IEEEtypes_MBSSID_Config_t, *pIEEEtypes_MBSSID_Config_t;
 /** 20/40 BSS Coexistence IE */
 typedef MLAN_PACK_START struct _IEEEtypes_2040BSSCo_t {
 	/** Generic IE header */
@@ -1440,6 +1480,32 @@ typedef MLAN_PACK_START struct _IEEEtypes_HeOp_t {
 	 * Indicator, and 6Ghz Operation Info  */
 	t_u8 option[9];
 } MLAN_PACK_END IEEEtypes_HeOp_t;
+
+/** MU EDCA Parameter Set */
+typedef MLAN_PACK_START struct _IEEEtypes_MUEDCAParamSet_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** Extended Tag */
+	t_u8 ext_tag;
+	/** QOS Information */
+	t_u8 qos_info;
+	/** MUAC BE Paramter Record */
+	t_u8 muac_be[3];
+	/** MUAC BK Paramter Record */
+	t_u8 muac_bk[3];
+	/** MUAC VI Paramter Record */
+	t_u8 muac_vi[3];
+	/** MUAC VO Paramter Record */
+	t_u8 muac_vo[3];
+} MLAN_PACK_END IEEEtypes_MUEDCAParamSet_t, *pIEEEtypes_MUEDCAParamSet_t;
+
+/** IEEE format IE */
+typedef MLAN_PACK_START struct _IEEEtypes_Element_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** IE data */
+	t_u8 data[];
+} MLAN_PACK_END IEEEtypes_Element_t, *pIEEEtypes_Element_t;
 
 /** default channel switch count */
 #define DEF_CHAN_SWITCH_COUNT 5
@@ -2069,6 +2135,10 @@ typedef struct _BSSDescriptor_t {
 	t_u8 multi_bssid_ap;
 	/** the mac address of multi-bssid AP */
 	mlan_802_11_mac_addr multi_bssid_ap_addr;
+	/** Multi BSSID Configuration IE */
+	IEEEtypes_MBSSID_Config_t *pmbssid_config;
+	/** Multi BSSID Configuration IE offset */
+	t_u16 mbssid_config_offset;
 	/** 20/40 BSS Coexistence IE */
 	IEEEtypes_2040BSSCo_t *pbss_co_2040;
 	/** 20/40 BSS Coexistence Offset */
@@ -2149,7 +2219,10 @@ typedef struct _BSSDescriptor_t {
 	IEEEtypes_MobilityDomain_t *pmd_ie;
 	/** Mobility domain IE offset in the beacon buffer */
 	t_u16 md_offset;
-
+	/** MU EDCA Parameter IE */
+	IEEEtypes_MUEDCAParamSet_t *pmuedca_ie;
+	/** MU EDCA Parameter IE offset */
+	t_u16 muedca_offset;
 	/** Pointer to the returned scan response */
 	t_u8 *pbeacon_buf;
 	/** Length of the stored scan response */

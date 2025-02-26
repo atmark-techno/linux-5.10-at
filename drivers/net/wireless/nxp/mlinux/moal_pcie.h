@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- * Copyright 2014-2021 NXP
+ * Copyright 2014-2021, 2024 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -94,7 +94,12 @@ Change log:
 #ifdef PCIEAW693
 #define PCIEUARTAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieuartaw693_combo.bin"
 #define PCIEAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieuartaw693_combo.bin"
+#define PCIEUARTAW693_COMBO_V1_FW_NAME "nxp/pcieuartaw693_combo_v1.bin.se"
+#define PCIEAW693_COMBO_V1_FW_NAME "nxp/pcieuartaw693_combo_v1.bin.se"
 #define PCIEAW693_DEFAULT_WLAN_FW_NAME "nxp/pcieaw693_wlan.bin"
+#define PCIEAW693_WLAN_V1_FW_NAME "nxp/pcieaw693_wlan_v1.bin.se"
+#define PCIEAW693_A0 0x00
+#define PCIEAW693_A1 0x01
 #endif /* PCIEAW693*/
 
 #ifdef PCIE9098
@@ -137,20 +142,6 @@ Change log:
 #define PCIEIW624_DEFAULT_WLAN_FW_NAME "nxp/pcieiw624_wlan.bin"
 #endif /* PCIEIW624 */
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
-	defined(PCIEIW624)
-#define PCIE_NUM_MSIX_VECTORS 32
-#else
-#define PCIE_NUM_MSIX_VECTORS 4
-#endif
-
-typedef struct _msix_context {
-	/** pci_dev structure pointer */
-	struct pci_dev *dev;
-	/** message id related to msix vector */
-	t_u16 msg_id;
-} msix_context;
-
 /** Structure: PCIE service card */
 typedef struct _pcie_service_card {
 	/** pci_dev structure pointer */
@@ -165,10 +156,6 @@ typedef struct _pcie_service_card {
 	void __iomem *pci_mmap;
 	/** I/O memory regions pointer to the bus */
 	void __iomem *pci_mmap1;
-#if defined(PCIE)
-	struct msix_entry msix_entries[PCIE_NUM_MSIX_VECTORS];
-	msix_context msix_contexts[PCIE_NUM_MSIX_VECTORS];
-#endif
 } pcie_service_card, *ppcie_service_card;
 
 /** Register to bus driver function */
