@@ -132,12 +132,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpi2c6>;
 	status = "okay";
-
-	i2c_type = <I2C_TYPE_FLEXIO>;
-	i2c_index = <FLEXIO0>;
-	i2c_baudrate = <400000>;
-	i2c_SCL_pin = <20>; // PTB4
-	i2c_SDA_pin = <21>; // PTB5
 };
 
 &imx8ulp_cm33 {
@@ -242,15 +236,6 @@
 	pinctrl-0 = <&pinctrl_lpuart4>;
 	pinctrl-1 = <&pinctrl_lpuart4sleep>;
 	status = "okay";
-};
-
-&gpiob_iomuxc {
-	flexio_i2c {
-		imx-rpmsg,pins = <
-			IOMUXC_PTB4_FXIO0_D20	IOMUXC_PCR_SRE_MASK
-			IOMUXC_PTB5_FXIO0_D21	IOMUXC_PCR_SRE_MASK
-		>;
-	};
 };
 
 &gpioc_iomuxc {
