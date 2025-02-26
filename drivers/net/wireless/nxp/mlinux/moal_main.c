@@ -4139,7 +4139,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 		goto err;
 	}
 	woal_get_version(handle, str_buf, sizeof(str_buf) - 1);
-	PRINTM(MMSG, "wlan: version = %s\n", str_buf);
+	pr_info("wlan: version = %s\n", str_buf);
 
 	handle->woal_notifier.notifier_call = woal_netdevice_event;
 	if (register_inetaddr_notifier(&handle->woal_notifier)) {
@@ -12941,6 +12941,7 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 		.groups = NL_MULTICAST_GROUP,
 	};
 #endif
+	int ret = 0;
 
 	ENTER();
 
@@ -12990,6 +12991,7 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 	if (!handle->params.drv_mode) {
 		PRINTM(MMSG, "wlan: stop init_adapter, drv_mode=%d\n",
 		       handle->params.drv_mode);
+		ret = -ENODEV;
 		goto err_kmalloc;
 	}
 #ifdef IMX_SUPPORT
@@ -13390,6 +13392,8 @@ err_handle:
 	MOAL_REL_SEMAPHORE(&AddRemoveCardSem);
 exit_sem_err:
 	LEAVE();
+	if (ret)
+		return ERR_PTR(ret);
 	return NULL;
 }
 
