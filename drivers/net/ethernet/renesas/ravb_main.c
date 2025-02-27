@@ -711,11 +711,11 @@ static void ravb_get_tx_tstamp(struct net_device *ndev)
 
 static void ravb_rx_csum_gbeth(struct sk_buff *skb)
 {
-	__wsum csum_proto;
-	u8 *hw_csum;
+	size_t csum_len;
+	u16 *hw_csum;
 
-	/* The hardware checksum status is contained in sizeof(__sum16) * 2 = 4
-	 * bytes appended to packet data.
+	/* The hardware checksum status is contained in 4 bytes appended to
+	 * packet data.
 	 *
 	 * For ipv4, the first 2 bytes are the ip header checksum status. We can
 	 * ignore this as it will always be re-checked in inet_gro_receive().
@@ -723,15 +723,14 @@ static void ravb_rx_csum_gbeth(struct sk_buff *skb)
 	 * The last 2 bytes are the protocol checksum status which will be zero
 	 * if the checksum has been validated.
 	 */
-	if (unlikely(skb->len < sizeof(__sum16) * 2))
+	csum_len = sizeof(*hw_csum) * 2;
+	if (unlikely(skb->len < csum_len))
 		return;
 
-	hw_csum = skb_tail_pointer(skb) - sizeof(__sum16);
-	csum_proto = csum_unfold((__force __sum16)get_unaligned_le16(hw_csum));
+	hw_csum = (u16 *)skb_tail_pointer(skb);
+	skb_trim(skb, skb->len - csum_len);
 
-	skb_trim(skb, skb->len - 2 * sizeof(__sum16));
-
-	if (!csum_proto)
+	if (!get_unaligned(--hw_csum))
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 }
 
