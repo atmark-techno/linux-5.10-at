@@ -163,6 +163,12 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 				if (err)
 					goto ret;
 				break;
+			case 15:
+				err = read_words_via_s400_api(&buf[120], 120, 8,
+							      fuse->se_dev);
+				if (err)
+					goto ret;
+				break;
 			case 25:
 			case 26:
 			case 27:
