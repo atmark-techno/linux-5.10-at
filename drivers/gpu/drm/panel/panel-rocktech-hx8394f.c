@@ -200,7 +200,8 @@ static int hx8394f_unprepare(struct drm_panel *panel)
 		msleep(20);
 	}
 
-	gpiod_set_value_cansleep(ctx->enable_gpio, 0);
+	if (ctx->enable_gpio)
+		gpiod_set_value_cansleep(ctx->enable_gpio, 0);
 
 	ret = regulator_bulk_disable(ARRAY_SIZE(ctx->supplies), ctx->supplies);
 	if (ret < 0) {
@@ -227,7 +228,8 @@ static int hx8394f_prepare(struct drm_panel *panel)
 		return ret;
 	}
 
-	gpiod_set_value_cansleep(ctx->enable_gpio, 1);
+	if (ctx->enable_gpio)
+		gpiod_set_value_cansleep(ctx->enable_gpio, 1);
 
 	if (ctx->reset_gpio) {
 		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
