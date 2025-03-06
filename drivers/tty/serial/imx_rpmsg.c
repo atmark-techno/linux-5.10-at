@@ -503,6 +503,7 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	struct imx_rpmsg_port *port;
 	struct tty_driver *driver;
 	struct rpmsg_device *rpdev = uart_rpmsg.rpdev;
+	struct device *dev;
 
 	/* defer probing until we can process rpmsg replies */
 	if (!rpdev)
@@ -537,6 +538,8 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 	driver->minor_start = 0;
 	driver->type = TTY_DRIVER_TYPE_CONSOLE;
 	driver->init_termios = tty_std_termios;
+	/* use dynamic dev to bind tty to parent dev */
+	driver->flags = TTY_DRIVER_DYNAMIC_DEV | TTY_DRIVER_UNNUMBERED_NODE;
 	tty_termios_encode_baud_rate(&driver->init_termios,
 				     IMX_RPMSG_DEFAULT_BAUD,
 				     IMX_RPMSG_DEFAULT_BAUD);
@@ -576,15 +579,23 @@ static int imx_rpmsg_uart_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 			"Couldn't install rpmsg tty driver: ret %d\n", ret);
 		goto error_port;
-	} else {
-		dev_info(&pdev->dev, "Install rpmsg tty driver!\n");
+	}
+	dev = tty_register_device(port->driver, 0, &pdev->dev);
+	if (IS_ERR(dev)) {
+		ret = PTR_ERR(dev);
+		dev_err(&pdev->dev,
+			"Couldn't register rpmsg tty device: ret %d\n", ret);
+		goto error_register;
 	}
 
 	device_set_wakeup_capable(&pdev->dev, true);
 
+	dev_info(&pdev->dev, "Initialized ttyrpmsg%d!\n", port->port_idx);
 
 	return 0;
 
+error_register:
+	tty_unregister_driver(port->driver);
 error_port:
 	tty_port_destroy(&port->port);
 error:
@@ -601,6 +612,7 @@ static int imx_rpmsg_uart_platform_remove(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "rpmsg tty driver is removed\n");
 
+	tty_unregister_device(port->driver, 0);
 	tty_unregister_driver(port->driver);
 	kfree(port->driver->name);
 	put_tty_driver(port->driver);
