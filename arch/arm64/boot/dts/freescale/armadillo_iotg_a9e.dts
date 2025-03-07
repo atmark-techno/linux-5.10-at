@@ -113,7 +113,7 @@
 			adc_index = <ADC1>;
 			adc_chan = <5>;
 			adc_side = <kLPADC_SampleChannelSingleEndSideB>;
-			adc_scale = <kLPADC_SamplePartScale>;
+			adc_scale = <kLPADC_SampleFullScale>;
 			adc_average = <kLPADC_HardwareAverageCount4>;
 		};
 	};
