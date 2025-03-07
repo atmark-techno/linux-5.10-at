@@ -107,6 +107,7 @@
 	adc {
 		compatible = "fsl,imx-rpmsg-adc";
 		label = "vin";
+		vref-supply = <&reg_vdd_1p8v>;
 		vin {
 			chan_index = <0>;
 			adc_index = <ADC1>;
