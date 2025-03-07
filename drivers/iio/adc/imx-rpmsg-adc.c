@@ -23,6 +23,7 @@
 #include <linux/iio/buffer.h>
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
+#include <linux/regulator/consumer.h>
 
 #define ADC_RPMSG_TIMEOUT_MS			500
 
@@ -31,6 +32,24 @@
 #define ADC_RPMSG_TYPE_RESPONSE			0x01 // SRTM_MessageTypeResponse
 #define ADC_RPMSG_COMMAND_GET			0x00
 #define ADC_RPMSG_COMMAND_INIT			0x01
+
+struct fraction {
+	uint8_t numerator;
+	uint8_t denominator;
+};
+
+/* When the value of the CSCALE register is 0, the ADC input voltage level is
+ * reduced by a factor of 30/64.
+ */
+static const struct fraction cscale_factor[] = {
+	{
+		.numerator = 30,
+		.denominator = 64
+	}, {
+		.numerator = 1,
+		.denominator = 1
+	}
+};
 
 struct srtm_adc_init_payload {
 	uint8_t adc_index;
@@ -67,14 +86,24 @@ struct imx_rpmsg_adc {
 	spinlock_t request_id_lock;
 };
 
+struct adc_channel_data {
+	uint8_t adc_scale;
+};
+struct imx_rpmsg_adc_data {
+	struct regulator *ref;
+	struct adc_channel_data *channel_data;
+	int num_channels;
+};
+
 /* rpmsg callback has a void *priv but it is not settable
  * when invoked with rpmsg_driver probe, so we need a global...
  */
 static struct imx_rpmsg_adc adc_rpmsg;
 
-#define IMX_RPMSG_VOLTAGE_CHANNEL(num)                               \
+#define IMX_RPMSG_VOLTAGE_CHANNEL(num, addr)                               \
 	(struct iio_chan_spec){                                                            \
 		.type = IIO_VOLTAGE,                                 \
+		.address = (addr),                                 \
 		.channel = (num),                                    \
 		.indexed = 1,                                        \
 		.scan_index = (num),                                 \
@@ -85,8 +114,8 @@ static struct imx_rpmsg_adc adc_rpmsg;
 			.shift = 0,                                  \
 			.endianness = IIO_CPU,                       \
 		},                                                   \
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),        \
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),\
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |       \
+				BIT(IIO_CHAN_INFO_SCALE),\
 	}
 
 static int imx_rpmsg_adc_send_and_wait(struct adc_rpmsg_msg *msg, u16 *value)
@@ -158,9 +187,23 @@ static int imx_rpmsg_read_raw(struct iio_dev *indio_dev,
 			      struct iio_chan_spec const *channel, int *val,
 			      int *val2, long mask)
 {
+	int cscale, ref_voltage_uv;
+	struct imx_rpmsg_adc_data *data;
+
+	data = iio_priv(indio_dev);
+
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		return imx_rpmsg_adc_get(channel->channel, val);
+	case IIO_CHAN_INFO_SCALE:
+		ref_voltage_uv = regulator_get_voltage(data->ref);
+		if (ref_voltage_uv < 0)
+			return ref_voltage_uv;
+
+		cscale = data->channel_data[channel->address].adc_scale;
+		*val = ref_voltage_uv * cscale_factor[cscale].denominator / 1000;
+		*val2 = (1 << channel->scan_type.realbits) * cscale_factor[cscale].numerator;
+		return IIO_VAL_FRACTIONAL;
 	default:
 		return -EINVAL;
 	}
@@ -216,7 +259,7 @@ static int adc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 		msg.init. name = tmp
 
 static struct iio_chan_spec const *
-adc_rpmsg_init_remote(struct device *dev, int *num)
+adc_rpmsg_init_remote(struct device *dev, int *num, struct imx_rpmsg_adc_data *data)
 {
 	struct adc_rpmsg_msg msg = {
 		.header.cmd = ADC_RPMSG_COMMAND_INIT,
@@ -233,6 +276,7 @@ adc_rpmsg_init_remote(struct device *dev, int *num)
 	}
 
 	channels = devm_kzalloc(dev, count * sizeof(struct iio_chan_spec), GFP_KERNEL);
+	data->channel_data = devm_kzalloc(dev, count * sizeof(struct adc_channel_data), GFP_KERNEL);
 	count = 0;
 
 	for_each_available_child_of_node(dev->of_node, chan_node) {
@@ -248,13 +292,20 @@ adc_rpmsg_init_remote(struct device *dev, int *num)
 		READ_PROP_OR_RETURN(adc_scale);
 		READ_PROP_OR_RETURN(adc_average);
 
+		if (msg.init.adc_scale >= ARRAY_SIZE(cscale_factor)) {
+			dev_err(dev, "%pOF: error reading adc_scale(=%d) must be smaller than %lu.\n",
+				chan_node, msg.init.adc_scale, ARRAY_SIZE(cscale_factor));
+			continue;
+		}
+
 		ret = imx_rpmsg_adc_send_and_wait(&msg, NULL);
 		if (ret) {
 			dev_err(dev, "init of node %pOF failed: %d\n", chan_node, ret);
 			continue;
 		}
 
-		channels[count] = IMX_RPMSG_VOLTAGE_CHANNEL(index);
+		channels[count] = IMX_RPMSG_VOLTAGE_CHANNEL(index, count);
+		data->channel_data[count].adc_scale = msg.init.adc_scale;
 		count++;
 	}
 
@@ -263,6 +314,7 @@ adc_rpmsg_init_remote(struct device *dev, int *num)
 		return ERR_PTR(-EINVAL);
 
 	*num = count;
+	data->num_channels = count;
 	return channels;
 }
 #undef READ_PROP_OR_RETURN
@@ -270,19 +322,33 @@ adc_rpmsg_init_remote(struct device *dev, int *num)
 static int adc_rpmsg_platform_probe(struct platform_device *pdev)
 {
 	struct iio_dev *indio_dev;
+	struct imx_rpmsg_adc_data *data;
+	int err;
 
 	if (!adc_rpmsg.rpdev)
 		return -EPROBE_DEFER;
 
-	indio_dev = devm_iio_device_alloc(&pdev->dev, 0);
+	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*data));
 	if (!indio_dev) {
 		dev_err(&pdev->dev, "Failed to allocate IIO device\n");
 		return -ENOMEM;
 	}
 
+	platform_set_drvdata(pdev, indio_dev);
+
+	data = iio_priv(indio_dev);
+
 	mutex_init(&adc_rpmsg.lock);
 	spin_lock_init(&adc_rpmsg.request_id_lock);
 	init_completion(&adc_rpmsg.cmd_complete);
+
+	data->ref = devm_regulator_get(&pdev->dev, "vref");
+	if (IS_ERR(data->ref))
+		return PTR_ERR(data->ref);
+
+	err = regulator_enable(data->ref);
+	if (err < 0)
+		return err;
 
 	/* Initiate the Industrial I/O device */
 	indio_dev->name = adc_rpmsg.rpdev->id.name;
@@ -290,7 +356,8 @@ static int adc_rpmsg_platform_probe(struct platform_device *pdev)
 	indio_dev->info = &imx_rpmsg_info;
 
 	indio_dev->channels = adc_rpmsg_init_remote(&pdev->dev,
-						    &indio_dev->num_channels);
+						    &indio_dev->num_channels,
+						    data);
 	if (IS_ERR(indio_dev->channels))
 		return PTR_ERR(indio_dev->channels);
 
@@ -303,6 +370,14 @@ static int adc_rpmsg_platform_probe(struct platform_device *pdev)
 
 static int adc_rpmsg_platform_remove(struct platform_device *pdev)
 {
+	struct iio_dev *indio_dev;
+	struct imx_rpmsg_adc_data *data;
+
+	indio_dev = platform_get_drvdata(pdev);
+	data = iio_priv(indio_dev);
+
+	regulator_disable(data->ref);
+
 	dev_info(&pdev->dev, "rpmsg adc driver is removed\n");
 
 	/* iio device is automatically freed, nothing to do? */
