@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2025 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx8ulp-pinfunc.h"
+#include "imx8ulp-pinfunc-m33.h"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&{/} {
+	model = "Atmark-Techno Armadillo-900 module EVA Board";
+	compatible = "atmark,armadillo-900", "fsl,imx8ulp";
+
+	aliases {
+		/* aliases in overlay do not work natively and we need to
+		 * hardcode node paths as strings instead */
+		rtc0 = "/soc@0/bus@29800000/i2c@29840000/rtc@32";
+	};
+
+	reg_can0_stby: regulator-can0-stby {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioa 14 GPIO_ACTIVE_HIGH>;
+		regulator-name = "CAN0_STBY";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	reg_gnss_antenna: regulator-gnss-antenna {
+		/* not expected to be used by default: enable if required */
+		status = "broken";
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 11 GPIO_ACTIVE_HIGH>;
+		regulator-name = "GNSS_ANTENNA";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	flexcan0: can@0 {
+		compatible = "fsl,imx-rpmsg-can";
+		xceiver-supply = <&reg_can0_stby>;
+		suspend_wakeup_gpio = <PIN_PTA13>; /* rx pin selected in iomuxc */
+		status = "okay";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_leds>;
+
+		f30_led {
+			label = "app";
+			gpios = <&gpiof 30 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+		};
+
+		f31_led {
+			label = "wwan";
+			gpios = <&gpiof 31 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		gpio_keys_sw1: sw1 {
+			label = "SW1";
+			gpios = <&rpmsg_gpiob 2 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_PROG1>;
+			wakeup-source;
+		};
+	};
+
+//power
+	reg_vdd_3p3v: regulator-vdd-3p3v {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 7 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_3P3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	reg_vdd_1p8v: regulator-vdd-1p8v {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 8 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_1P8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	reg_usb1_host_vbus: regulator-usb1-vbus {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioa 24 GPIO_ACTIVE_HIGH>;
+		regulator-name = "usb1_host_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+};
+
+// USB hub, RTC, eeprom
+&i2c_rpbus_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	i2c_type = <I2C_TYPE_LPI2C>;
+	i2c_index = <LPI2C1>;
+	i2c_baudrate = <100000>;
+
+	usb2422_usbhub: usb2422@2c {
+		compatible = "microchip,usb2422";
+		reg = <0x2c>;
+		reset-gpios = <&rpmsg_gpioa 19 GPIO_ACTIVE_LOW>;
+	};
+
+	rv8803_rtc: rtc@32 {
+		compatible = "microcrystal,rv8803";
+		reg = <0x32>;
+		interrupt-parent = <&rpmsg_gpiob>;
+		interrupts = <13 GPIO_ACTIVE_LOW>;
+		wakeup-source;
+	};
+};
+
+// fixed expansion interface i2c
+&lpi2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <384000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpi2c7>;
+	status = "okay";
+};
+
+&gpioa_iomuxc {
+	flexcan0 {
+		imx-rpmsg,pins = <
+			IOMUXC_PTA12_CAN0_TX	(IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK)
+			IOMUXC_PTA13_CAN0_RX	(IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK)
+		>;
+	};
+	lpi2c1 {
+		imx-rpmsg,pins = <
+			IOMUXC_PTA4_LPI2C1_SCL	(IOMUXC_PCR_ODE_MASK | IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK | IOMUXC_PCR_SRE_MASK)
+			IOMUXC_PTA5_LPI2C1_SDA	(IOMUXC_PCR_ODE_MASK | IOMUXC_PCR_PE_MASK | IOMUXC_PCR_PS_MASK | IOMUXC_PCR_SRE_MASK)
+		>;
+	};
+};
+
+&gpiob_iomuxc {
+	do {
+		imx-rpmsg,pins = <
+			IOMUXC_PTB0_PTB0	IOMUXC_PCR_SRE_MASK
+			IOMUXC_PTB1_PTB1	IOMUXC_PCR_SRE_MASK
+		>;
+	};
+	sw1_gpio_keys {
+		imx-rpmsg,pins = <
+			IOMUXC_PTB2_PTB2	IOMUXC_PCR_IBE_MASK
+		>;
+	};
+};
+
+&iomuxc1 {
+	/*
+	 * append pinctrl_con10_gpio.
+	 * pinctrl_customize is already defined in armadillo_900.dts
+	 * and can be customized here or in other dtbos if necessary.
+	 */
+	pinctrl-0 = <&pinctrl_customize>, <&pinctrl_con10_gpio>;
+
+	/* pinctrl memo
+	 * 0x7c00000 deglitch window
+	 * 0x200000 digital filter clock select (0=PCTL*, 1=RTC 1kHz)
+	 * 0x100000 digital filter
+	 * 0x20000 output buffer enable
+	 * 0x10000 input buffer enable
+	 * 0x40 high drive strength
+	 * 0x20 open drain
+	 * 0x4 slew rate
+	 * 0x2 pull-up enable
+	 * 0x1 pull-up selection (0=pull down)
+	 */
+
+	/* overriden by at-dtweb */
+	pinctrl_con10_gpio: con10gpiogrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF6__PTF6	0x0
+			MX8ULP_PAD_PTF7__PTF7	0x0
+		>;
+	};
+
+	pinctrl_leds: ledgrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF30__PTF30	0x0
+			MX8ULP_PAD_PTF31__PTF31	0x0
+		>;
+	};
+
+	/* con 10 i2c */
+	pinctrl_lpi2c7: i2c7grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF4__LPI2C7_SCL	0x24
+			MX8ULP_PAD_PTF5__LPI2C7_SDA	0x24
+		>;
+	};
+};
+
+&rpmsg_gpioa {
+	gpio-line-names =
+		/* PTA0 - 3 */ "", "", "", "",
+		/* PTA4 - 7 */ "", "", "", "",
+		/* PTA8 - 11 */ "CON16_5", "CON16_7", "CON16_9", "CON16_11",
+		/* PTA12 - 15 */ "", "", "", "CON16_13",
+		/* PTA16 - 19 */ "CON16_17", "CON16_19", "CON16_15", "",
+		/* PTA20 - 23 */ "", "", "", "",
+		/* PTA24 */ "";
+};
+
+&rpmsg_gpiob {
+	gpio-line-names =
+		/* PTB0 - 3 */ "CON9_11", "CON9_12", "SW1", "CON10_18",
+		/* PTB4 - 7 */ "CON16_21", "CON16_23", "", "",
+		/* PTB8 - 11 */ "", "", "", "",
+		/* PTB12 - 15 */ "CON16_25", "", "CON16_27", "";
+	wakeup-source;
+};
+
+&rpmsg_gpioc {
+	gpio-line-names =
+		/* PTC0 - 3 */ "", "", "", "",
+		/* PTC4 - 7 */ "", "LED_SYS", "", "",
+		/* PTC8 - 11 */ "", "", "CON10_17", "",
+		/* PTC12 - 15 */ "", "CON16_6", "CON16_8", "CON16_10",
+		/* PTC16 - 19 */ "CON16_12", "CON16_14", "CON16_16", "CON16_18",
+		/* PTC20 - 23 */ "CON16_20", "CON16_22", "CON16_24", "CON16_26";
+};
+
+&gpiof {
+	gpio-line-names =
+		/* PTF0 - 3 */ "", "", "", "",
+		/* PTF4 - 7 */ "", "", "CON16_28", "CON16_30",
+		/* PTF8 - 11 */ "", "", "", "",
+		/* PTF12 - 15 */ "", "", "", "",
+		/* PTF16 - 19 */ "", "", "", "",
+		/* PTF20 - 23 */ "", "", "", "",
+		/* PTF24 - 27 */ "CON16_32", "", "", "",
+		/* PTF28 - 31 */ "", "", "LED_APP", "LED_WWAN";
+ };
