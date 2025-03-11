@@ -28,6 +28,13 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_leds>;
 
+		c5_led {
+			label = "sys";
+			gpios = <&rpmsg_gpioc 5 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+			default-state = "on";
+		};
+
 		f30_led {
 			label = "app";
 			gpios = <&gpiof 30 GPIO_ACTIVE_HIGH>;
@@ -338,4 +345,45 @@
 			MX8ULP_PAD_PTE11__LPUART6_RX	0x3
 		>;
 	};
+};
+
+&rpmsg_gpioa {
+	gpio-line-names =
+		/* PTA0 - 3 */ "", "", "", "",
+		/* PTA4 - 7 */ "", "", "", "",
+		/* PTA8 - 11 */ "CON10_25", "CON10_27", "CON10_29", "CON10_28",
+		/* PTA12 - 15 */ "CON10_30", "CON10_32", "CON10_34", "",
+		/* PTA16 - 19 */ "", "", "", "",
+		/* PTA20 - 23 */ "", "", "", "",
+		/* PTA24 */ "";
+};
+
+&rpmsg_gpiob {
+	gpio-line-names =
+		/* PTB0 - 3 */ "DO1", "DO2", "SW1", "",
+		/* PTB4 - 7 */ "", "", "", "",
+		/* PTB8 - 11 */ "", "", "", "",
+		/* PTB12 - 15 */ "DI1", "", "DI2", "";
+};
+
+&rpmsg_gpioc {
+	gpio-line-names =
+		/* PTC0 - 3 */ "", "", "", "",
+		/* PTC4 - 7 */ "", "LED_SYS", "", "",
+		/* PTC8 - 11 */ "", "", "", "",
+		/* PTC12 - 15 */ "", "CON10_11", "CON10_13", "CON10_15",
+		/* PTC16 - 19 */ "CON10_17", "CON10_19", "CON10_21", "CON10_23",
+		/* PTC20 - 23 */ "CON10_20", "CON10_22", "CON10_24", "CON10_26";
+};
+
+&gpiof {
+	gpio-line-names =
+		/* PTF0 - 3 */ "", "", "", "",
+		/* PTF4 - 7 */ "", "", "CON10_16", "CON10_18",
+		/* PTF8 - 11 */ "", "", "", "",
+		/* PTF12 - 15 */ "", "", "", "",
+		/* PTF16 - 19 */ "", "", "", "",
+		/* PTF20 - 23 */ "", "", "", "",
+		/* PTF24 - 27 */ "", "", "", "",
+		/* PTF28 - 31 */ "", "", "LED_APP", "LED_WWAN";
 };
