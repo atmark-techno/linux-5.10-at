@@ -125,6 +125,11 @@
 			adc_average = <kLPADC_HardwareAverageCount4>;
 		};
 	};
+
+	moal-params {
+		// disable wifi direct, untested
+		drv_mode = <0x3>;
+	};
 };
 
 // USB hub, RTC, eeprom
