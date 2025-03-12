@@ -1684,7 +1684,7 @@ static void woal_setup_handle_from_dev_tree(moal_handle *handle)
 
 	dt_node = of_find_node_by_name(NULL, "moal-params");
 	if (!dt_node) {
-		PRINTM(MERROR, "No moal_params node\n");
+		PRINTM(MMSG, "No moal-params dt node\n");
 		LEAVE();
 		return;
 	}
