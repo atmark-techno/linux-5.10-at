@@ -222,6 +222,18 @@
 };
 
 &gpiob_iomuxc {
+	di {
+		/*
+		 * These pins are intended to be used as input, but can
+		 * also be configured as output.
+		 * To avoid breaking if accidentally configured as
+		 * output, set these pins as open-drain.
+		 */
+		imx-rpmsg,pins = <
+			IOMUXC_PTB12_PTB12	IOMUXC_PCR_ODE_MASK
+			IOMUXC_PTB14_PTB14	IOMUXC_PCR_ODE_MASK
+		>;
+	};
 	do {
 		imx-rpmsg,pins = <
 			IOMUXC_PTB0_PTB0	IOMUXC_PCR_SRE_MASK
