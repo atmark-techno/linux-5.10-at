@@ -252,16 +252,15 @@ static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 		return -EINVAL;
 	}
 
-	mutex_lock(&gpio_rpmsg.lock);
-
 	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_GET;
 
+	mutex_lock(&gpio_rpmsg.lock);
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &value);
+	mutex_unlock(&gpio_rpmsg.lock);
+
 	if (!ret)
 		ret = !!value;
-
-	mutex_unlock(&gpio_rpmsg.lock);
 
 	return ret;
 }
@@ -280,15 +279,13 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 		return -EINVAL;
 	}
 
-	mutex_lock(&gpio_rpmsg.lock);
-
 	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_INPUT_INIT;
 	msg.input_init.event = GPIO_RPMSG_TRI_IGNORE;
 	msg.input_init.wakeup = 0;
 
+	mutex_lock(&gpio_rpmsg.lock);
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
-
 	mutex_unlock(&gpio_rpmsg.lock);
 
 	return ret;
@@ -306,14 +303,12 @@ static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 		return;
 	}
 
-	mutex_lock(&gpio_rpmsg.lock);
-
 	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_OUTPUT_SET;
 	msg.output_set.value = val;
 
+	mutex_lock(&gpio_rpmsg.lock);
 	gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
-
 	mutex_unlock(&gpio_rpmsg.lock);
 }
 
@@ -331,14 +326,12 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 		return -EINVAL;
 	}
 
-	mutex_lock(&gpio_rpmsg.lock);
-
 	imx_rpmsg_gpio_msg_init(port, gpio, &msg);
 	msg.header.cmd = GPIO_RPMSG_OUTPUT_INIT;
 	msg.output_init.value = val;
 
+	mutex_lock(&gpio_rpmsg.lock);
 	ret = gpio_send_message(port, &msg, &gpio_rpmsg, &wait);
-
 	mutex_unlock(&gpio_rpmsg.lock);
 
 	return ret;
@@ -694,7 +687,7 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 		ngpio = 32;
 	}
 
-	port = devm_kzalloc(&pdev->dev, sizeof(*port) + ngpio * sizeof(*port->gpio_pins),
+	port = devm_kzalloc(dev, sizeof(*port) + ngpio * sizeof(*port->gpio_pins),
 			    GFP_KERNEL);
 	if (!port)
 		return -ENOMEM;
@@ -704,7 +697,7 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 		return ret;
 
 	if (port->idx >= IMX_RPMSG_GPIO_PORT_PER_SOC_MAX) {
-		dev_err(&pdev->dev, "port_idx %d too large\n", port->idx);
+		dev_err(dev, "port_idx %d too large\n", port->idx);
 		return -EINVAL;
 	}
 
