@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2025 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx8ulp-pinfunc.h"
+#include "imx8ulp-pinfunc-m33.h"
+#include <dt-bindings/clock/imx8ulp-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+
+&lpi2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ox01f10_cam0: rbpcv2_ox01f10@36 {
+		compatible = "nvidia,ox01f10";
+		/* I2C device address */
+		reg = <0x36>;
+
+		pwdn-gpios = <&rpmsg_gpiob 0 GPIO_ACTIVE_HIGH>;
+
+		clocks = <&cgc2 IMX8ULP_CLK_DSI_PHY_REF>;
+		clock-names = "xclk"; // 24000000 Hz fixed clock rate
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>; // unused
+		mipi_csi;
+		status = "okay";
+
+		port {
+			ox01f10_mipi_0_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+				bus-type = <4>;
+				max-pixel-frequency = /bits/ 64 <224000000>;
+			};
+		};
+	};
+};
+
+&mipi_csi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&ox01f10_mipi_0_ep>;
+			data-lanes = <1 2>;
+			bus-type = <4>;
+		};
+	};
+};
+
+&cameradev {
+	status = "okay";
+};
+
+&isi_0 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
