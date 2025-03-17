@@ -16,16 +16,21 @@
 #include <linux/bitops.h>
 #include <linux/err.h>
 #include <linux/gpio.h>
+#include <linux/gpio/machine.h>
 #include <linux/imx_rpmsg.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/irqdomain.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/parser.h>
 #include <linux/platform_device.h>
 #include <linux/pm_qos.h>
 #include <linux/rpmsg.h>
 #include <linux/virtio.h>
 #include <linux/workqueue.h>
+
+#include "gpiolib.h"
 
 #define RPMSG_TIMEOUT	1000
 #define IMX_RPMSG_GPIO_PORT_PER_SOC_MAX	3
@@ -91,7 +96,10 @@ struct imx_rpmsg_gpio_pin {
 	u8 irq_unmask;
 	u8 irq_mask;
 	u8 irq_wake;
+	bool user_wakeup;
 	u32 irq_type;
+	int irq;
+	struct gpio_desc *desc;
 	struct work_struct rpmsg_ack_work;
 };
 
@@ -99,6 +107,7 @@ struct imx_rpmsg_gpio_port {
 	struct gpio_chip gc;
 	struct irq_chip chip;
 	int idx;
+	int wakeup_source;
 	struct imx_rpmsg_gpio_pin gpio_pins[];
 };
 
@@ -667,6 +676,85 @@ static int imx_rpmsg_gpio_get_pinctrl(struct imx_rpmsg_gpio_port *port)
 	return 0;
 }
 
+static const match_table_t irq_types = {
+	{ IRQ_TYPE_NONE, "disable" },
+	{ IRQ_TYPE_EDGE_RISING, "rising" },
+	{ IRQ_TYPE_EDGE_FALLING, "falling" },
+	{ IRQ_TYPE_EDGE_BOTH, "both" },
+	{ IRQ_TYPE_LEVEL_LOW, "low"},
+	{ IRQ_TYPE_LEVEL_HIGH, "high"},
+	{ IRQ_TYPE_DEFAULT, NULL },
+};
+
+static ssize_t setwake_store(struct device *dev, struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	struct imx_rpmsg_gpio_port *port = dev_get_drvdata(dev);
+	int ret = count, tmp;
+	char *dup, *parse, *word;
+	u32 irq_type = IRQ_TYPE_NONE, cur_irq_type;
+
+	dup = kstrdup(buf, GFP_KERNEL);
+	if (!dup)
+		return -ENOMEM;
+
+	parse = dup;
+	/* format: list of words with either irq_type description or pin number.
+	 * pin is set to the previous irq_type word.
+	 * Anything not recognized is skipped
+	 */
+	while ((word = strsep(&parse, " \n")) != NULL) {
+		substring_t args[MAX_OPT_ARGS];
+		struct gpio_desc *desc;
+		unsigned int pin;
+
+		if (!word[0])
+			continue;
+
+		cur_irq_type = match_token(word, irq_types, args);
+
+		/* irq_type word? */
+		if (cur_irq_type != IRQ_TYPE_DEFAULT) {
+			irq_type = cur_irq_type;
+			continue;
+		}
+
+		if (irq_type == IRQ_TYPE_DEFAULT) {
+			dev_warn(dev, "setwake: first word %s not one of disabled|rising|falling|both|low|high\n",
+				 word);
+			continue;
+		}
+
+		/* must be pin */
+		tmp = kstrtouint(word, 10, &pin);
+		if (tmp || pin >= port->gc.ngpio) {
+			dev_warn(dev, "setwake: ignored word %s\n", word);
+			/* keep first error */
+			ret = (ret < 0) ? ret : -EINVAL;
+			continue;
+		}
+
+		desc = gpiochip_get_desc(&port->gc, pin);
+		if (IS_ERR(desc))
+			continue;
+		/* refuse if currently set as output.. */
+		if (test_bit(FLAG_IS_OUT, &desc->flags)) {
+			dev_warn(dev, "setwake: tried to set wake on gpio%d pin %d which was output\n",
+				 port->idx, pin);
+			ret = (ret < 0) ? ret : -EINVAL;
+			continue;
+		}
+
+		port->gpio_pins[pin].user_wakeup = (irq_type != IRQ_TYPE_NONE);
+		port->gpio_pins[pin].irq_type = irq_type;
+	}
+
+	kfree(dup);
+	return ret;
+}
+
+static DEVICE_ATTR_WO(setwake);
+
 static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -700,6 +788,8 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 		dev_err(dev, "port_idx %d too large\n", port->idx);
 		return -EINVAL;
 	}
+
+	port->wakeup_source = of_property_read_bool(np, "wakeup-source");
 
 	gpio_rpmsg.port_store[port->idx] = port;
 
@@ -735,8 +825,147 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	girq->default_type = IRQ_TYPE_NONE;
 	girq->handler = handle_bad_irq;
 
+	if (port->wakeup_source) {
+		ret = device_create_file(dev, &dev_attr_setwake);
+		if (ret < 0)
+			return ret;
+
+		device_init_wakeup(dev, 1);
+	}
+
 	return devm_gpiochip_add_data(dev, gc, port);
 }
+
+static int imx_rpmsg_gpio_remove(struct platform_device *pdev)
+{
+	struct imx_rpmsg_gpio_port *port = dev_get_drvdata(&pdev->dev);
+
+	if (port->wakeup_source)
+		device_remove_file(&pdev->dev, &dev_attr_setwake);
+
+	return 0;
+}
+
+static int __maybe_unused
+imx_rpmsg_gpio_enable_wakeup(struct imx_rpmsg_gpio_port *port)
+{
+	struct gpio_desc *desc;
+	int err = 0;
+	int i, irq;
+
+	for (i = 0; i < port->gc.ngpio; i++) {
+		if (!port->gpio_pins[i].user_wakeup)
+			continue;
+
+		desc = gpiochip_request_own_desc(&port->gc, i, "imx_rpmsg_gpio_wakeup",
+						 GPIO_ACTIVE_HIGH, GPIOD_IN);
+
+		if (IS_ERR(desc)) {
+			dev_warn(port->gc.parent,
+				 "GPIO pin %d, failed to request GPIO for pin: err %ld\n",
+				 i, PTR_ERR(desc));
+			goto fail_null_desc;
+		}
+
+		err = gpiochip_lock_as_irq(&port->gc, i);
+		if (err) {
+			dev_warn(port->gc.parent,
+				 "GPIO pin %d, failed to lock as interrupt: err %d\n",
+				 i, err);
+			goto fail_free_desc;
+		}
+
+		irq = gpiod_to_irq(desc);
+		if (irq < 0) {
+			dev_warn(port->gc.parent,
+				 "GPIO pin %d, failed to translate to IRQ: err %d\n",
+				 i, irq);
+			goto fail_unlock_irq;
+		}
+
+		err = enable_irq_wake(irq);
+		if (err) {
+			dev_warn(port->gc.parent,
+				 "GPIO pin %d, failed to configure IRQ %d as wakeup source: err %d\n",
+				 i, irq, err);
+			goto fail_unlock_irq;
+		}
+
+		err = irq_set_irq_type(irq, port->gpio_pins[i].irq_type);
+		if (err) {
+			dev_warn(port->gc.parent,
+				 "GPIO pin %d, failed to set wakeup trigger %d for IRQ %d: err %d\n",
+				 i, port->gpio_pins[i].irq_type, irq, err);
+			goto fail_disable_irq_type;
+		}
+
+		port->gpio_pins[i].desc = desc;
+		port->gpio_pins[i].irq = irq;
+
+		continue;
+
+fail_disable_irq_type:
+		disable_irq_wake(irq);
+fail_unlock_irq:
+		gpiochip_unlock_as_irq(&port->gc, i);
+fail_free_desc:
+		gpiochip_free_own_desc(desc);
+fail_null_desc:
+		port->gpio_pins[i].desc = NULL;
+	}
+
+	return 0;
+}
+
+static void __maybe_unused
+imx_rpmsg_gpio_disable_wakeup(struct imx_rpmsg_gpio_port *port)
+{
+	int i;
+
+	for (i = 0; i < port->gc.ngpio; i++) {
+		if (!port->gpio_pins[i].user_wakeup)
+			continue;
+
+		if (port->gpio_pins[i].desc == NULL)
+			continue;
+
+		if (irqd_is_wakeup_set(irq_get_irq_data(port->gpio_pins[i].irq))) {
+			disable_irq_wake(port->gpio_pins[i].irq);
+			gpiochip_unlock_as_irq(&port->gc, i);
+			gpiochip_free_own_desc(port->gpio_pins[i].desc);
+		}
+	}
+}
+
+static int __maybe_unused imx_rpmsg_gpio_suspend(struct device *dev)
+{
+	struct imx_rpmsg_gpio_port *port = dev_get_drvdata(dev);
+	int err;
+
+	if (!device_may_wakeup(dev))
+		return 0;
+
+	err = imx_rpmsg_gpio_enable_wakeup(port);
+	if (err)
+		dev_warn(dev,
+			 "could not enable wakeup of one or more pins for suspend\n");
+
+	return 0;
+}
+
+static int __maybe_unused imx_rpmsg_gpio_resume(struct device *dev)
+{
+	struct imx_rpmsg_gpio_port *port = dev_get_drvdata(dev);
+
+	if (!device_may_wakeup(dev))
+		return 0;
+
+	imx_rpmsg_gpio_disable_wakeup(port);
+
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(imx_rpmsg_gpio_pm_ops, imx_rpmsg_gpio_suspend, imx_rpmsg_gpio_resume);
 
 static const struct of_device_id imx_rpmsg_gpio_dt_ids[] = {
 	{ .compatible = "fsl,imx-rpmsg-gpio" },
@@ -746,9 +975,11 @@ static const struct of_device_id imx_rpmsg_gpio_dt_ids[] = {
 static struct platform_driver imx_rpmsg_gpio_driver = {
 	.driver	= {
 		.name = "gpio-imx-rpmsg",
+		.pm = &imx_rpmsg_gpio_pm_ops,
 		.of_match_table = imx_rpmsg_gpio_dt_ids,
 	},
 	.probe = imx_rpmsg_gpio_probe,
+	.remove = imx_rpmsg_gpio_remove,
 };
 
 static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
