@@ -19,7 +19,9 @@
 #include <sys/utsname.h>
 #include <linux/time64.h>
 #include <dirent.h>
+#ifdef HAVE_LIBBPF_SUPPORT
 #include <bpf/libbpf.h>
+#endif
 #include <perf/cpumap.h>
 
 #include "dso.h"
@@ -996,13 +998,6 @@ out:
 	up_read(&env->bpf_progs.lock);
 	return ret;
 }
-#else // HAVE_LIBBPF_SUPPORT
-static int write_bpf_prog_info(struct feat_fd *ff __maybe_unused,
-			       struct evlist *evlist __maybe_unused)
-{
-	return 0;
-}
-#endif // HAVE_LIBBPF_SUPPORT
 
 static int write_bpf_btf(struct feat_fd *ff,
 			 struct evlist *evlist __maybe_unused)
@@ -1036,6 +1031,7 @@ out:
 	up_read(&env->bpf_progs.lock);
 	return ret;
 }
+#endif // HAVE_LIBBPF_SUPPORT
 
 static int cpu_cache_level__sort(const void *a, const void *b)
 {
@@ -1647,6 +1643,7 @@ static void print_dir_format(struct feat_fd *ff, FILE *fp)
 	fprintf(fp, "# directory data version : %"PRIu64"\n", data->dir.version);
 }
 
+#ifdef HAVE_LIBBPF_SUPPORT
 static void print_bpf_prog_info(struct feat_fd *ff, FILE *fp)
 {
 	struct perf_env *env = &ff->ph->env;
@@ -1692,6 +1689,7 @@ static void print_bpf_btf(struct feat_fd *ff, FILE *fp)
 
 	up_read(&env->bpf_progs.lock);
 }
+#endif // HAVE_LIBBPF_SUPPORT
 
 static void free_event_desc(struct evsel *events)
 {
@@ -2936,7 +2934,10 @@ static int process_bpf_prog_info(struct feat_fd *ff, void *data __maybe_unused)
 		/* after reading from file, translate offset to address */
 		bpf_program__bpil_offs_to_addr(info_linear);
 		info_node->info_linear = info_linear;
-		__perf_env__insert_bpf_prog_info(env, info_node);
+		if (!__perf_env__insert_bpf_prog_info(env, info_node)) {
+			free(info_linear);
+			free(info_node);
+		}
 	}
 
 	up_write(&env->bpf_progs.lock);
@@ -2947,12 +2948,6 @@ out:
 	up_write(&env->bpf_progs.lock);
 	return err;
 }
-#else // HAVE_LIBBPF_SUPPORT
-static int process_bpf_prog_info(struct feat_fd *ff __maybe_unused, void *data __maybe_unused)
-{
-	return 0;
-}
-#endif // HAVE_LIBBPF_SUPPORT
 
 static int process_bpf_btf(struct feat_fd *ff, void *data __maybe_unused)
 {
@@ -2989,7 +2984,8 @@ static int process_bpf_btf(struct feat_fd *ff, void *data __maybe_unused)
 		if (__do_read(ff, node->data, data_size))
 			goto out;
 
-		__perf_env__insert_btf(env, node);
+		if (!__perf_env__insert_btf(env, node))
+			free(node);
 		node = NULL;
 	}
 
@@ -2999,6 +2995,7 @@ out:
 	free(node);
 	return err;
 }
+#endif // HAVE_LIBBPF_SUPPORT
 
 static int process_compressed(struct feat_fd *ff,
 			      void *data __maybe_unused)
@@ -3129,8 +3126,10 @@ const struct perf_header_feature_ops feat_ops[HEADER_LAST_FEATURE] = {
 	FEAT_OPR(MEM_TOPOLOGY,	mem_topology,	true),
 	FEAT_OPR(CLOCKID,	clockid,	false),
 	FEAT_OPN(DIR_FORMAT,	dir_format,	false),
+#ifdef HAVE_LIBBPF_SUPPORT
 	FEAT_OPR(BPF_PROG_INFO, bpf_prog_info,  false),
 	FEAT_OPR(BPF_BTF,       bpf_btf,        false),
+#endif
 	FEAT_OPR(COMPRESSED,	compressed,	false),
 	FEAT_OPR(CPU_PMU_CAPS,	cpu_pmu_caps,	false),
 	FEAT_OPR(CLOCK_DATA,	clock_data,	false),
