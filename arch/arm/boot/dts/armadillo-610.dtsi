@@ -41,6 +41,14 @@
 		gpio = <&gpio4 10 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
+
+	se_en: se-enable {
+		compatible = "gpio-reset";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_se_reset_n>;
+		reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
+		reset-assert-in-suspend;
+	};
 };
 
 #include "armadillo-600-onboard-usdhc2.dtsi"
@@ -203,14 +211,6 @@
 			clock-names = "rmii-ref";
 			smsc,disable-energy-detect;
 		};
-	};
-
-	se_en: se-enable {
-		compatible = "gpio-reset";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_se_reset_n>;
-		reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
-		reset-assert-in-suspend;
 	};
 };
 
