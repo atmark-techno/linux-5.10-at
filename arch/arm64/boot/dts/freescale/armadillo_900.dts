@@ -148,6 +148,7 @@
 
 &mu {
 	status = "okay";
+	fsl,mu-disable-wakeup;
 };
 
 // emmc
