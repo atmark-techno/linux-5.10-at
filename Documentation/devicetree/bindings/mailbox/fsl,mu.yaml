@@ -76,6 +76,11 @@ properties:
     description: boolean, if present, means it is for side B MU.
     type: boolean
 
+  fsl,mu-disable-wakeup:
+    description: |
+      if present, disables wakeup if a message comes in during suspend
+    type: boolean
+
   power-domains:
     maxItems: 1
 
