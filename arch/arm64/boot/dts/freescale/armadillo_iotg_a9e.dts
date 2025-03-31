@@ -28,13 +28,6 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_leds>;
 
-		c5_led {
-			label = "sys";
-			gpios = <&rpmsg_gpioc 5 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "none";
-			default-state = "on";
-		};
-
 		f30_led {
 			label = "app";
 			gpios = <&gpiof 30 GPIO_ACTIVE_HIGH>;
