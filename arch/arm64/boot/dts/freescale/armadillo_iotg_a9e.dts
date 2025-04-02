@@ -240,8 +240,7 @@
 	};
 	sw1_gpio_keys {
 		imx-rpmsg,pins = <
-			IOMUXC_PTB2_PTB2	(IOMUXC_PCR_DFE_MASK|IOMUXC_PCR_IBE_MASK
-						|IOMUXC_PCR_PE_MASK|IOMUXC_PCR_PS_MASK)
+			IOMUXC_PTB2_PTB2	IOMUXC_PCR_IBE_MASK
 		>;
 	};
 };
