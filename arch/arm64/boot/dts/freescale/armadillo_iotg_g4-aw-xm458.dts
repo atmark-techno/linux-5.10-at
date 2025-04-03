@@ -10,6 +10,8 @@
 
 #include "imx8mp-pinfunc.h"
 
+// wlan itself is automatically probed from PCI and is
+// configured in armadillo_iotg_g4.dts directly
 &uart1 {
 	// pinctrl and status already set in default console
 	bluetooth {

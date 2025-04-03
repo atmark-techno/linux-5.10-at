@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2025 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+#include "imx8mp-pinfunc.h"
+
+// wlan itself is automatically probed from SDIO and is
+// configured in armadillo_iotg_a6e.dts directly
+&lpuart6 {
+	// pinctrl/status also already set
+	bluetooth {
+		compatible = "nxp,88w8987-bt";
+		btnxpuart,required-netdev = "mlan0";
+	};
+};
