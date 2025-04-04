@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211 vendor.
  *
  *
- * Copyright 2015-2022, 2024 NXP
+ * Copyright 2015-2022, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -1967,7 +1967,7 @@ int woal_ring_event_logger(moal_private *priv, int ring_id, pmlan_event pmevent)
 
 			tlv = (tlv_log *)pos;
 			tlv->tag = WIFI_TAG_SSID;
-			tlv->length = strlen(pbss_desc->ssid);
+			tlv->length = pbss_desc->ssid_len;
 			moal_memcpy_ext(priv->phandle, tlv->value,
 					pbss_desc->ssid, tlv->length,
 					sizeof(event_buf) -
@@ -2442,6 +2442,7 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 			pkt_filter->packet_filter_len =
 				(t_u8)MIN(packet_filter_len, nla_len(iter));
 			pkt_filter->state = PACKET_FILTER_STATE_START;
+			// coverity[double_unlock:SUPPRESS]
 			spin_unlock_irqrestore(&pkt_filter->lock, flags);
 			DBG_HEXDUMP(MDAT_D, "packet_filter_program",
 				    pkt_filter->packet_filter_program,
@@ -2838,11 +2839,13 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	if (pkt_filter->state != PACKET_FILTER_STATE_START)
 		goto done;
 
+	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	DBG_HEXDUMP(MDAT_D, "packet_filter_program",
 		    pkt_filter->packet_filter_program,
 		    pkt_filter->packet_filter_len);
 	DBG_HEXDUMP(MDAT_D, "packet_filter_data", data, len);
 	spin_lock_irqsave(&pkt_filter->lock, flags);
+	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	ret = process_packet(pkt_filter->packet_filter_program,
 			     pkt_filter->packet_filter_len, data, len,
 			     filter_age);

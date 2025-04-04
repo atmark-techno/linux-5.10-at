@@ -4,7 +4,7 @@
  *  @brief This file contains the handling of CMD/EVENT in MLAN
  *
  *
- *  Copyright 2009-2024 NXP
+ *  Copyright 2009-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -457,7 +457,7 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 				    pcmd_node->cmdbuf->data_len) {
 					for (i = 0; i < 16; i++)
 						PRINTM(MERROR, "%02x ",
-						       *pcmd_buf++);
+						       *(pcmd_buf + i));
 					PRINTM(MERROR, "\n");
 				}
 			}
@@ -626,23 +626,15 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 			wlan_dump_ralist(pmadapter->priv[i]);
 	}
 	if (reason != REASON_CODE_CMD_TIMEOUT) {
-		if ((pmadapter->dbg.num_no_cmd_node >= 5) ||
-		    (pmadapter->pm_wakeup_card_req &&
-		     pmadapter->pm_wakeup_fw_try) ||
-		    (reason == REASON_CODE_EXT_SCAN_TIMEOUT)) {
+		if (pmpriv) {
+			wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP,
+					MNULL);
+		} else {
+			pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
 			if (pmpriv)
 				wlan_recv_event(pmpriv,
 						MLAN_EVENT_ID_DRV_DBG_DUMP,
 						MNULL);
-			else {
-				pmpriv = wlan_get_priv(pmadapter,
-						       MLAN_BSS_ROLE_ANY);
-				if (pmpriv)
-					wlan_recv_event(
-						pmpriv,
-						MLAN_EVENT_ID_DRV_DBG_DUMP,
-						MNULL);
-			}
 		}
 	}
 	PRINTM(MERROR, "-------- Dump info End---------\n", reason);
@@ -1257,7 +1249,7 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 				       cmd_ctrl_node *pcmd_node)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
-	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
+	mlan_callbacks *pcb = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_COMMAND *pcmd;
 	mlan_ioctl_req *pioctl_buf = MNULL;
@@ -1433,6 +1425,7 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 		goto done;
 	}
 
+	pcb = (mlan_callbacks *)&pmadapter->callbacks;
 	/* Setup the timer after transmit command */
 	pcb->moal_start_timer(pmadapter->pmoal_handle,
 			      pmadapter->pmlan_cmd_timer, MFALSE, timeout);
@@ -2307,6 +2300,13 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 
 	ENTER();
 
+	/* Checks if cmd timeout occured, returns without cmd_resp processing */
+	if (pmadapter->num_cmd_timeout) {
+		PRINTM(MERROR,
+		       "CMD_RESP: Ignore cmd resp processing, as cmd timeout has happened\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	if (pmadapter->curr_cmd)
 		if (pmadapter->curr_cmd->pioctl_buf != MNULL) {
 			pioctl_buf = (mlan_ioctl_req *)
@@ -2347,7 +2347,6 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		/* Cancel command timeout timer */
 		pmadapter->cmd_timer_is_set = MFALSE;
 	}
-	pmadapter->num_cmd_timeout = 0;
 	wlan_request_cmd_lock(pmadapter);
 	if (pmadapter->curr_cmd->cmd_flag & CMD_F_CANCELED) {
 		cmd_ctrl_node *free_cmd = pmadapter->curr_cmd;
@@ -2620,7 +2619,7 @@ t_void wlan_cmd_timeout_func(t_void *function_context)
 		if ((pmadapter->ops.intf_header_len + 16) <
 		    pcmd_node->cmdbuf->data_len) {
 			for (i = 0; i < 16; i++)
-				PRINTM(MERROR, "%02x ", *pcmd_buf++);
+				PRINTM(MERROR, "%02x ", *(pcmd_buf + i));
 			PRINTM(MERROR, "\n");
 		}
 	}
@@ -3223,9 +3222,8 @@ mlan_status wlan_fill_hal_rtt_results(pmlan_private pmpriv,
 				      Event_WLS_FTM_t *event_ftm,
 				      t_u32 event_ftm_len, mlan_event *pevent)
 {
-	/** For input buffer Event_WLS_FTM_t */
-	t_u8 *tlv = event_ftm->u.rtt_results.tlv_buffer;
-	int event_left_len = event_ftm_len - (tlv - (t_u8 *)event_ftm);
+	t_u8 *tlv = MNULL;
+	int event_left_len = 0;
 	MrvlIEtypes_RTTResult_t *tlv_rtt_result = MNULL;
 	t_u16 tlv_rtt_result_len = 0;
 	IEEEtypes_Header_t *tlv_ie = MNULL;
@@ -3239,6 +3237,19 @@ mlan_status wlan_fill_hal_rtt_results(pmlan_private pmpriv,
 	t_u32 i = 0;
 
 	ENTER();
+
+	if (!event_ftm || !pevent) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	/** For input buffer Event_WLS_FTM_t */
+	tlv = event_ftm->u.rtt_results.tlv_buffer;
+	if (event_ftm_len < (tlv - (t_u8 *)event_ftm)) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	event_left_len = event_ftm_len - (tlv - (t_u8 *)event_ftm);
 	PRINTM(MCMND,
 	       "wlan_fill_hal_rtt_results event_ftm_len=%d event_left_len=%d event_ftm=%p tlv=%p\n",
 	       event_ftm_len, event_left_len, event_ftm, tlv);
@@ -5272,6 +5283,17 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 		}
 	}
 #endif
+	if (pmpriv && (pmadapter->init_para.disable_11h_tpc)) {
+		/* Send command to FW to disable 11h tpc */
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_SNMP_MIB,
+				       HostCmd_ACT_GEN_SET,
+				       Dot11h_disable_tpc_i, MNULL,
+				       &pmadapter->init_para.disable_11h_tpc);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+	}
 #ifdef STA_SUPPORT
 	if (pmpriv_sta && (pmadapter->ps_mode == Wlan802_11PowerModePSP)) {
 		ret = wlan_prepare_cmd(pmpriv_sta,
@@ -5405,6 +5427,7 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+
 	ret = MLAN_STATUS_PENDING;
 done:
 	LEAVE();
@@ -7748,6 +7771,10 @@ mlan_status wlan_cmd_802_11_rf_antenna(pmlan_private pmpriv,
 			sizeof(HostCmd_DS_802_11_RF_ANTENNA) + S_DS_GEN);
 
 	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		if (!pdata_buf) {
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
 		if (IS_STREAM_2X2(pmpriv->adapter->feature_control)) {
 			pantenna->action_tx =
 				wlan_cpu_to_le16(HostCmd_ACT_SET_TX);

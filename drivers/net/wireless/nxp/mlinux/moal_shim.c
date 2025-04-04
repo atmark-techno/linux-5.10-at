@@ -3,7 +3,7 @@
  * @brief This file contains the callback functions registered to MLAN
  *
  *
- * Copyright 2008-2024 NXP
+ * Copyright 2008-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -922,7 +922,9 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 	moal_handle *handle = (moal_handle *)pmoal;
 	int i;
 	t_u32 drv_mode = handle->params.drv_mode;
-
+#ifdef PCIE9098
+	size_t drv_ver_len = strlen(driver_version);
+#endif
 	ENTER();
 	if (status == MLAN_STATUS_SUCCESS) {
 		PRINTM(MCMND, "Get Hw Spec done, fw_cap=0x%x\n", phw->fw_cap);
@@ -935,6 +937,7 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 			moal_memcpy_ext(handle, driver_version, CARD_PCIEAW690,
 					strlen(CARD_PCIEAW690),
 					strlen(driver_version));
+			// coverity[string_null:SUPPRESS]
 			moal_memcpy_ext(handle,
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
@@ -942,9 +945,15 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 					strlen(driver_version) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
+			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
+				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
+			}
+			// coverity[overrun-buffer-arg:SUPPRESS]
+			// coverity[cert_arr30_c_violation:SUPPRESS]
 			moal_memcpy_ext(handle, handle->driver_version,
-					driver_version, strlen(driver_version),
+					driver_version, drv_ver_len,
 					MLAN_MAX_VER_STR_LEN - 1);
+			handle->driver_version[drv_ver_len] = '\0';
 		}
 #endif
 		if (phw->fw_cap & FW_CAPINFO_DISABLE_NAN)
@@ -1065,11 +1074,12 @@ mlan_status moal_ioctl_complete(t_void *pmoal, pmlan_ioctl_req pioctl_req,
 			       pioctl_req->req_id);
 		else
 			PRINTM(MERROR,
-			       "IOCTL failed: %p id=0x%x, sub_id=0x%x action=%d, status_code=0x%x\n",
+			       "IOCTL failed: %p id=0x%x, sub_id=0x%x action=%d, status_code=0x%x [%s]\n",
 			       pioctl_req, pioctl_req->req_id,
 			       (*(t_u32 *)pioctl_req->pbuf),
-			       (int)pioctl_req->action,
-			       pioctl_req->status_code);
+			       (int)pioctl_req->action, pioctl_req->status_code,
+			       wlan_errorcode_get_name(
+				       pioctl_req->status_code));
 	else
 		PRINTM(MIOCTL,
 		       "IOCTL completed: %p id=0x%x sub_id=0x%x, action=%d,  status=%d, status_code=0x%x\n",
@@ -3089,7 +3099,12 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		woal_wake_queue(priv->netdev);
 		moal_connection_status_check_pmqos(pmoal);
 		break;
-
+	case MLAN_EVENT_ID_DRV_ASSOC_FAILURE:
+		PRINTM(MERROR, "wlan:MLAN_EVENT_ASSOC_FAILURE\n");
+#ifdef STA_CFG80211
+		priv->cfg_disconnect = MTRUE;
+#endif
+		break;
 	case MLAN_EVENT_ID_DRV_ASSOC_SUCC_LOGGER:
 	case MLAN_EVENT_ID_DRV_ASSOC_FAILURE_LOGGER:
 	case MLAN_EVENT_ID_DRV_DISCONNECT_LOGGER:
@@ -3763,10 +3778,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					// optimized delay
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
 					timeout =
-						(priv->wdev->links[0].cac_start_time +
+						(priv->wdev->links[0]
+							 .cac_start_time +
 						 msecs_to_jiffies(
-							 priv->wdev
-								 ->links[0].cac_time_ms));
+							 priv->wdev->links[0]
+								 .cac_time_ms));
 #else
 					timeout =
 						(priv->wdev->cac_start_time +
@@ -3980,8 +3996,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			    || priv->uap_host_based
 #endif
 #ifdef STA_CFG80211
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			    || priv->wdev->connected
 #else
 			    || priv->wdev->current_bss
@@ -4132,12 +4148,12 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0,
 						  0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) &&                    \
-	IMX_ANDROID_13)) &&                                                    \
+	(defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))) &&       \
 	CFG80211_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0,
 						  0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                  \
-       IMX_ANDROID_13 || IMX_ANDROID_12_BACKPORT)
+       (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #else
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan);
@@ -4486,8 +4502,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						PRINTM(MEVENT,
 						       "HostMlme %s: Receive deauth/disassociate\n",
 						       priv->netdev->name);
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 						if (!priv->wdev->connected) {
 #else
 						if (!priv->wdev->current_bss) {
@@ -4919,8 +4935,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		roam_info =
 			kzalloc(sizeof(struct cfg80211_roam_info), GFP_ATOMIC);
 		if (roam_info) {
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13 ||   \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			roam_info->links[0].bssid = priv->cfg_bssid;
 #else
 			roam_info->bssid = priv->cfg_bssid;

@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2018-2022, 2024 NXP
+ * Copyright 2018-2022, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -73,6 +73,10 @@ static int pref_dbc;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int host_mlme = 1;
 #endif
+#endif
+
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+static int cfg80211_eapol_offload = 0;
 #endif
 
 static int roamoffload_in_hs;
@@ -336,6 +340,9 @@ static int mon_filter = DEFAULT_NETMON_FILTER;
 
 int dual_nb;
 
+/** disable 802.11h tpc configuration */
+static int disable_11h_tpc = 0;
+
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
 #define DEFAULT_DEBUG_MASK (0xffffffff)
@@ -562,16 +569,35 @@ static mlan_status parse_line_read_string(t_u8 *line, char **out_str)
 		ret = MLAN_STATUS_FAILURE;
 		goto out;
 	}
+	if ((p - line) >= (MAX_LINE_LEN - 1)) {
+		PRINTM(MERROR,
+		       "err(1):input data size exceeds the dest buff limit\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto out;
+	}
 	p++;
 	pstr = p;
-	while (*pstr) {
-		if (*pstr == '\"')
-			*pstr = '\0';
-		pstr++;
+	if ((pstr - line) >= (MAX_LINE_LEN - 1)) {
+		PRINTM(MERROR,
+		       "err(2):input data size exceeds the dest buff limit\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto out;
+	} else {
+		while (*pstr) {
+			if (*pstr == '\"')
+				*pstr = '\0';
+			pstr++;
+			if ((pstr - line) >= (MAX_LINE_LEN - 1)) {
+				PRINTM(MERROR,
+				       "err(3):input data size exceeds the dest buff limit\n");
+				ret = MLAN_STATUS_FAILURE;
+				goto out;
+			}
+		}
+		if (*p == '\0')
+			p++;
+		*out_str = p;
 	}
-	if (*p == '\0')
-		p++;
-	*out_str = p;
 out:
 	return ret;
 }
@@ -1568,8 +1594,24 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "chan_track= %s\n",
 			       moal_extflg_isset(handle, EXT_PMQOS) ? "on" :
 								      "off");
-		} else if (strncmp(line, "keep_previous_scan",
-				   strlen("keep_previous_scan")) == 0) {
+		}
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+		else if (strncmp(line, "cfg80211_eapol_offload",
+				 strlen("cfg80211_eapol_offload")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle,
+						EXT_CFG80211_EAPOL_OFFLOAD);
+
+			PRINTM(MMSG, "cfg80211_eapol_offload= %d\n",
+			       moal_extflg_isset(handle,
+						 EXT_CFG80211_EAPOL_OFFLOAD));
+		}
+#endif
+		else if (strncmp(line, "keep_previous_scan",
+				 strlen("keep_previous_scan")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1597,6 +1639,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->reject_addba_req = out_data;
 			PRINTM(MMSG, "reject_addba_req=%x\n",
 			       params->reject_addba_req);
+		} else if (strncmp(line, "disable_11h_tpc",
+				   strlen("disable_11h_tpc")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->disable_11h_tpc = out_data;
+			PRINTM(MMSG, "disable_11h_tpc=%x\n",
+			       params->disable_11h_tpc);
 		}
 	}
 
@@ -1932,6 +1982,11 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (chan_track)
 		moal_extflg_set(handle, EXT_CHAN_TRACK);
 
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+	if (cfg80211_eapol_offload)
+		moal_extflg_set(handle, EXT_CFG80211_EAPOL_OFFLOAD);
+#endif
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
 		moal_extflg_set(handle, EXT_DFS_OFFLOAD);
@@ -2000,6 +2055,13 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.dual_nb = dual_nb;
 	if (params)
 		handle->params.dual_nb = params->dual_nb;
+
+	handle->params.disable_11h_tpc = disable_11h_tpc;
+	/* Ignore country IE when 11h tpc is disabled */
+	if (disable_11h_tpc)
+		moal_extflg_set(handle, EXT_COUNTRY_IE_IGNORE);
+	if (params)
+		handle->params.disable_11h_tpc = params->disable_11h_tpc;
 }
 
 /**
@@ -2548,8 +2610,19 @@ void woal_init_from_dev_tree(void)
 				chan_track = data;
 				PRINTM(MIOCTL, "chan_track=%d\n", chan_track);
 			}
-		} else if (!strncmp(prop->name, "keep_previous_scan",
-				    strlen("keep_previous_scan"))) {
+		}
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+		else if (!strncmp(prop->name, "cfg80211_eapol_offload",
+				  strlen("cfg80211_eapol_offload"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				cfg80211_eapol_offload = data;
+				PRINTM(MIOCTL, "cfg80211_eapol_offload=%d\n",
+				       cfg80211_eapol_offload);
+			}
+		}
+#endif
+		else if (!strncmp(prop->name, "keep_previous_scan",
+				  strlen("keep_previous_scan"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MERROR, "keep_previous_scan=0x%x\n",
 				       data);
@@ -2567,6 +2640,12 @@ void woal_init_from_dev_tree(void)
 				PRINTM(MERROR, "rej_addba_req_cfg=0x%x\n",
 				       data);
 				reject_addba_req = data;
+			}
+		} else if (!strncmp(prop->name, "disable_11h_tpc",
+				    strlen("disable_11h_tpc"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MERROR, "disable_11h_tpc=0x%x\n", data);
+				disable_11h_tpc = data;
 			}
 		}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -3163,6 +3242,15 @@ MODULE_PARM_DESC(
 	chan_track,
 	"1: Set channel tracking; 0: Restore channel tracking for 9098 only");
 
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+// coverity[misra_c_2012_rule_21_2_violation:SUPPRESS]
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
+module_param(cfg80211_eapol_offload, int, 0);
+// coverity[misra_c_2012_rule_21_2_violation:SUPPRESS]
+MODULE_PARM_DESC(cfg80211_eapol_offload,
+		 "0: Disable eapol offload (default); 1: Enable eapol offload");
+#endif
+
 module_param(keep_previous_scan, int, 0);
 MODULE_PARM_DESC(
 	keep_previous_scan,
@@ -3187,3 +3275,7 @@ module_param(reject_addba_req, int, 0);
 MODULE_PARM_DESC(
 	reject_addba_req,
 	"Bit1: Reject the addba request when FW auto re-connect enabled (STA BSS only); Bit0: Reject the addba request when HS activated");
+
+module_param(disable_11h_tpc, int, 0);
+MODULE_PARM_DESC(disable_11h_tpc,
+		 "0: Enable 802.11h tpc; 1: Disable 802.11h tpc");

@@ -5,7 +5,7 @@
  *  it is ready.
  *
  *
- *  Copyright 2008-2024 NXP
+ *  Copyright 2008-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -232,6 +232,18 @@ static mlan_status wlan_cmd_802_11_snmp_mib(pmlan_private pmpriv,
 		break;
 	case Dot11H_i:
 		psnmp_mib->oid = wlan_cpu_to_le16((t_u16)Dot11H_i);
+		if (cmd_action == HostCmd_ACT_GEN_SET) {
+			psnmp_mib->query_type =
+				wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+			psnmp_mib->buf_size = wlan_cpu_to_le16(sizeof(t_u16));
+			ul_temp = *(t_u32 *)pdata_buf;
+			*((t_u16 *)(psnmp_mib->value)) =
+				wlan_cpu_to_le16((t_u16)ul_temp);
+			cmd->size += sizeof(t_u16);
+		}
+		break;
+	case Dot11h_disable_tpc_i:
+		psnmp_mib->oid = wlan_cpu_to_le16((t_u16)Dot11h_disable_tpc_i);
 		if (cmd_action == HostCmd_ACT_GEN_SET) {
 			psnmp_mib->query_type =
 				wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
@@ -689,7 +701,7 @@ static mlan_status wlan_cmd_tx_power_cfg(pmlan_private pmpriv,
 	switch (cmd_action) {
 	case HostCmd_ACT_GEN_SET:
 		ptxp = (HostCmd_DS_TXPWR_CFG *)pdata_buf;
-		if (ptxp->mode) {
+		if (ptxp && ptxp->mode) {
 			ppg_tlv = (MrvlTypes_Power_Group_t
 					   *)((t_u8 *)pdata_buf +
 					      sizeof(HostCmd_DS_TXPWR_CFG));

@@ -4,7 +4,7 @@
  *  related functions.
  *
  *
- * Copyright 2008-2022, 2024 NXP
+ * Copyright 2008-2022, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -226,6 +226,7 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE9098;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE9098,
 				strlen(CARD_PCIE9098), strlen(driver_version));
+		// coverity[string_null:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -814,10 +815,10 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 	}
 	woal_flush_workqueue(handle);
 	if (!keep_power) {
+		handle->surprise_removed = MTRUE;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 		woal_do_flr(handle, true, false);
 #endif
-		handle->surprise_removed = MTRUE;
 		handle->is_suspended = MTRUE;
 	}
 #ifdef IMX_SUPPORT
@@ -884,6 +885,11 @@ static int woal_pcie_resume(struct pci_dev *pdev)
 		handle->surprise_removed = MFALSE;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 		woal_do_flr(handle, false, false);
+#endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+		handle->cfg80211_suspend = MFALSE;
+#endif
 #endif
 	} else {
 		if (woal_check_driver_status(handle)) {
@@ -2547,8 +2553,10 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 	moal_private *priv = NULL;
 #ifdef DUMP_TO_PROC
 	if (phandle->fw_dump_buf) {
-		PRINTM(MERROR, "FW dump already exist\n");
-		return;
+		PRINTM(MMSG, "FW dump already exist, free existing dump\n");
+		moal_vfree(phandle, phandle->fw_dump_buf);
+		phandle->fw_dump_buf = NULL;
+		phandle->fw_dump_len = 0;
 	}
 #endif
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);

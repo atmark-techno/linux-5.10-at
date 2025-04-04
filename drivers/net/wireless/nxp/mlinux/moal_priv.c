@@ -124,10 +124,11 @@ static int woal_associate_ssid_bssid(moal_private *priv, struct iwreq *wrq)
 		if (buf[i] == ':') {
 			mac_idx++;
 		} else {
-			if (mac_idx < ETH_ALEN)
+			if (mac_idx < ETH_ALEN) {
+				// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 				ssid_bssid->bssid[mac_idx] =
 					(t_u8)woal_atox(buf + i);
-
+			}
 			while ((i < buflen) && (isxdigit(buf[i + 1]))) {
 				/* Skip entire hex value */
 				i++;
@@ -4221,6 +4222,8 @@ static int woal_set_get_ip_addr(moal_private *priv, struct iwreq *wrq)
 		misc->param.ipaddr_cfg.ip_addr_num = 1;
 		misc->param.ipaddr_cfg.ip_addr_type = IPADDR_TYPE_IPV4;
 	}
+
+	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	if (woal_atoi(&op_code, buf) != MLAN_STATUS_SUCCESS) {
 		ret = -EINVAL;
 		goto done;

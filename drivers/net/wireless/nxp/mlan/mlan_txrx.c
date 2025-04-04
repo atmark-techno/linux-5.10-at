@@ -4,7 +4,7 @@
  *  @brief This file contains the handling of TX/RX in MLAN
  *
  *
- *  Copyright 2009-2021, 2024 NXP
+ *  Copyright 2009-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -70,6 +70,7 @@ mlan_status wlan_handle_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	ENTER();
 
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
+
 	/* Get the BSS number from RxPD, get corresponding priv */
 	priv = wlan_get_priv_by_id(pmadapter, prx_pd->bss_num & BSS_NUM_MASK,
 				   prx_pd->bss_type);
@@ -79,6 +80,7 @@ mlan_status wlan_handle_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+
 	pmbuf->bss_index = priv->bss_index;
 	PRINTM_GET_SYS_TIME(MDATA, &sec, &usec);
 	PRINTM_NETINTF(MDATA, priv);
@@ -143,7 +145,7 @@ static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 			gmcast_stats.spent_time_over_3000usec++;
 	}
 	/* Process the start cycle data */
-	cycle_delta = (pmbuf->in_ts_sec - prev_mcast_sec) * 1000000;
+	cycle_delta = (t_u64)(pmbuf->in_ts_sec - prev_mcast_sec) * 1000000;
 	cycle_delta += (t_s32)(pmbuf->in_ts_usec - prev_mcast_usec);
 
 	/* If start cycle delta is more than 5 sec ignore*/

@@ -749,6 +749,22 @@ typedef enum _mlan_buf_type {
 #endif
 } mlan_buf_type;
 
+/** assoc_logger_data */
+typedef struct _assoc_logger {
+	/** vendor specific */
+	t_u8 oui[3];
+	/** bssid */
+	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
+	/** ssid length */
+	t_u8 ssid_len;
+	/** ssid */
+	t_u8 ssid[MLAN_MAX_SSID_LENGTH];
+	/** rssi */
+	t_s32 rssi;
+	/** channel */
+	t_u32 channel;
+} assoc_logger_data;
+
 #define SCAN_STATE_SCAN_START MBIT(0)
 #define SCAN_STATE_EXT_SCAN MBIT(1)
 #define SCAN_STATE_EXT_SCAN_ENH MBIT(2)
@@ -897,6 +913,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE = 0x80000036,
 #endif
 	MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH = 0x80000037,
+	MLAN_EVENT_ID_DRV_ASSOC_FAILURE = 0x80000039,
 } mlan_event_id;
 
 /** Data Structures */
@@ -2782,6 +2799,7 @@ typedef struct _mlan_device {
 	t_u32 max_tx_pending;
 	t_u16 tx_budget;
 	t_u8 mclient_scheduling;
+	t_u8 disable_11h_tpc;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

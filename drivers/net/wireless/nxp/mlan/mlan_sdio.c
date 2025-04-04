@@ -292,6 +292,10 @@ static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.fw_dnld_status_0_reg = 0xE8,
 	.fw_dnld_status_1_reg = 0xE9,
 	.winner_check_reg = 0xFC,
+	.fw_stuck_code_reg = 0xEB,
+	.fw_heart_beat_1_reg = 0xEA,
+	.fw_heart_beat_2_reg = 0xEC,
+	.fw_sleep_state_reg = 0xF0,
 };
 #endif
 
@@ -3484,7 +3488,7 @@ static mlan_status wlan_pm_sdio_wakeup_card(pmlan_adapter pmadapter,
 	if (timeout) {
 		pmadapter->callbacks.moal_start_timer(
 			pmadapter->pmoal_handle, pmadapter->pwakeup_fw_timer,
-			MFALSE, MRVDRV_TIMER_5S);
+			MFALSE, MRVDRV_TIMER_3S);
 		pmadapter->wakeup_fw_timer_is_set = MTRUE;
 	}
 
@@ -3494,6 +3498,96 @@ static mlan_status wlan_pm_sdio_wakeup_card(pmlan_adapter pmadapter,
 		ret = pcb->moal_write_reg(pmadapter->pmoal_handle,
 					  HOST_TO_CARD_EVENT_REG,
 					  HOST_POWER_UP);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function handles wakeup timeout recovery.
+ *
+ *  @param pmadapter		A pointer to mlan_adapter structure
+ *
+ *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status wlan_pm_sdio_wakeup_timeout_recovery(pmlan_adapter pmadapter)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u8 fw_stuck_reg = pmadapter->pcard_sd->reg->fw_stuck_code_reg;
+	t_u8 fw_hb_1_reg = pmadapter->pcard_sd->reg->fw_heart_beat_1_reg;
+	t_u8 fw_hb_2_reg = pmadapter->pcard_sd->reg->fw_heart_beat_2_reg;
+	t_u8 fw_slp_reg = pmadapter->pcard_sd->reg->fw_sleep_state_reg;
+	t_u32 fw_stuck = 0, hb1_0 = 0, hb1_1 = 0, hb2_0 = 0, hb2_1 = 0,
+	      slp_state = 0;
+
+	ENTER();
+
+	/* If FW status read failed, retry device wakeup */
+	ret = wlan_sdio_check_fw_status(pmadapter, 1);
+	if (ret) {
+		PRINTM(MERROR,
+		       "FW status read failed, retry device wakeup...\n");
+		LEAVE();
+		return ret;
+	}
+
+	if (fw_stuck_reg && fw_hb_1_reg && fw_hb_2_reg && fw_slp_reg) {
+		/* Check FW stuck code and reset if FW in debug mode */
+		ret = pcb->moal_read_reg(pmadapter->pmoal_handle, fw_stuck_reg,
+					 &fw_stuck);
+		if (ret || fw_stuck) {
+			PRINTM(MERROR,
+			       "Register (0x%x) read failed (%d) or FW in debug mode (0x%x), reset...",
+			       fw_stuck_reg, ret, fw_stuck);
+			pmadapter->pm_wakeup_timeout = 0xff;
+			ret = MLAN_STATUS_FAILURE;
+		} else {
+			/* Check FW heart beats and continue handling if device
+			 * in active */
+			pcb->moal_read_reg(pmadapter->pmoal_handle, fw_hb_1_reg,
+					   &hb1_0);
+			pcb->moal_read_reg(pmadapter->pmoal_handle, fw_hb_2_reg,
+					   &hb2_0);
+			wlan_mdelay(pmadapter, 10);
+			pcb->moal_read_reg(pmadapter->pmoal_handle, fw_hb_1_reg,
+					   &hb1_1);
+			pcb->moal_read_reg(pmadapter->pmoal_handle, fw_hb_2_reg,
+					   &hb2_1);
+			pcb->moal_read_reg(pmadapter->pmoal_handle, fw_slp_reg,
+					   &slp_state);
+			PRINTM(MERROR,
+			       "FW heart beats: (0x%x) 0x%x - 0x%x, (0x%x) 0x%x - 0x%x\n",
+			       fw_hb_1_reg, hb1_0, hb1_1, fw_hb_2_reg, hb2_0,
+			       hb2_1);
+			PRINTM(MERROR, "FW sleep state: (0x%x) 0x%x\n",
+			       fw_slp_reg, slp_state);
+			if (hb1_0 != hb1_1 && hb2_0 != hb2_1) {
+				PRINTM(MERROR,
+				       "Device in active, change driver state and continue...\n");
+				wlan_sdio_interrupt(0, pmadapter);
+				pmadapter->pm_wakeup_timeout = 0;
+				pmadapter->pm_wakeup_fw_try = MFALSE;
+				pmadapter->ps_state = PS_STATE_AWAKE;
+				pmadapter->pm_wakeup_card_req = MFALSE;
+				ret = MLAN_STATUS_SUCCESS;
+			} else {
+				/* Check FW sleep state, reset if device in
+				 * awake; otherwise retry wakeup */
+				if ((slp_state & MBIT(0)) == 0) {
+					PRINTM(MERROR,
+					       "Device in awake state, but no heart beats, reset...\n");
+					pmadapter->pm_wakeup_timeout = 0xff;
+
+				} else {
+					PRINTM(MERROR,
+					       "Device in sleep state, retry device wakeup...\n");
+				}
+				ret = MLAN_STATUS_FAILURE;
+			}
+		}
+	} else
+		ret = MLAN_STATUS_FAILURE;
 
 	LEAVE();
 	return ret;
@@ -3775,6 +3869,7 @@ mlan_adapter_operations mlan_sdio_ops = {
 	.process_int_status = wlan_process_sdio_int_status,
 	.host_to_card = wlan_sdio_host_to_card_ext,
 	.wakeup_card = wlan_pm_sdio_wakeup_card,
+	.wakeup_timeout_recovery = wlan_pm_sdio_wakeup_timeout_recovery,
 	.reset_card = wlan_pm_sdio_reset_card,
 	.event_complete = wlan_sdio_evt_complete,
 	.data_complete = wlan_sdio_data_cmd_complete,

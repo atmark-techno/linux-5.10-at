@@ -3,7 +3,7 @@
  * @brief This file contains functions for proc file.
  *
  *
- * Copyright 2008-2022, 2024 NXP
+ * Copyright 2008-2022, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -731,6 +731,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 	if (!strncmp(databuf, "drop_point=", strlen("drop_point="))) {
 		line += strlen("drop_point") + 1;
+		// coverity[string_null:SUPPRESS]
 		config_data = (t_u32)woal_string_to_number(line);
 		if (config_data) {
 			handle->tp_acnt.on = 1;
@@ -947,7 +948,7 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			for (i = 3; i < 13; i++)
 				seq_printf(sfp, " %u",
 					   handle->rf_data->tx_frame_data[i]);
-			for (i = 13; i < 20; i++)
+			for (i = 13; i < 21; i++)
 				seq_printf(sfp, " %d",
 					   handle->rf_data->tx_frame_data[i]);
 			seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x",

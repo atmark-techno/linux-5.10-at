@@ -240,20 +240,6 @@ typedef struct {
 	 */
 } __attribute__((packed)) wifi_ring_buffer_driver_connectivity_event;
 
-/** Assoc logger data structure */
-typedef struct _assoc_logger {
-	/** vendor specific */
-	t_u8 oui[3];
-	/** BSSID */
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-	/** SSID */
-	t_u8 ssid[MLAN_MAX_SSID_LENGTH];
-	/** RSSI */
-	t_s32 rssi;
-	/** Channel */
-	t_u32 channel;
-} assoc_logger_data;
-
 int woal_ring_event_logger(moal_private *priv, int ring_id,
 			   pmlan_event pmevent);
 

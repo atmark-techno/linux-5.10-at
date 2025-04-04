@@ -6101,13 +6101,19 @@ mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 #ifdef STA_CFG80211
 	unsigned long flags;
 #endif
+
+#ifdef STA_CFG80211
+	// cancel scan timeout
+	if (IS_STA_CFG80211(handle->params.cfg80211_wext) &&
+	    handle->scan_request)
+		cancel_delayed_work(&handle->scan_timeout_work);
+#endif
 	/* If scan is in process, cancel the scan command */
 	if (!handle->scan_pending_on_block || !scan_priv) {
 #ifdef STA_CFG80211
 		spin_lock_irqsave(&handle->scan_req_lock, flags);
 		if (IS_STA_CFG80211(handle->params.cfg80211_wext) &&
 		    handle->scan_request) {
-			cancel_delayed_work(&handle->scan_timeout_work);
 			/* some supplicant cannot handle SCAN abort event */
 			if (scan_priv &&
 			    (scan_priv->bss_type == MLAN_BSS_TYPE_STA))
@@ -6138,7 +6144,6 @@ mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	spin_lock_irqsave(&handle->scan_req_lock, flags);
 	if (IS_STA_CFG80211(handle->params.cfg80211_wext) &&
 	    handle->scan_request) {
-		cancel_delayed_work(&handle->scan_timeout_work);
 		/** some supplicant can not handle SCAN abort event */
 		if (scan_priv->bss_type == MLAN_BSS_TYPE_STA)
 			woal_cfg80211_scan_done(handle->scan_request, MTRUE);
@@ -8654,7 +8659,7 @@ done:
  *  @param d        A pointer to mfg_cmd_tx_frame2 struct
  *  @return         0 on success, -EINVAL otherwise
  */
-static int parse_tx_frame_string(const char *s, size_t len,
+static int parse_tx_frame_string(moal_handle *handle, const char *s, size_t len,
 				 struct mfg_cmd_tx_frame2 *d)
 {
 	int ret = MLAN_STATUS_SUCCESS;
@@ -8663,6 +8668,8 @@ static int parse_tx_frame_string(const char *s, size_t len,
 	char *pos = NULL;
 	int i;
 	gfp_t flag;
+	t_u8 card_type;
+	BOOLEAN dot11ax = MFALSE;
 
 	ENTER();
 	if (!s || !d) {
@@ -8673,6 +8680,10 @@ static int parse_tx_frame_string(const char *s, size_t len,
 	string = kzalloc(TX_FRAME_STR_LEN, flag);
 	if (string == NULL)
 		return -ENOMEM;
+
+	card_type = (handle->card_type) & 0xff;
+	if ((card_type >= CARD_TYPE_9098) && (card_type != CARD_TYPE_8801))
+		dot11ax = MTRUE;
 
 	/*Initialize the parameters to default values to be used*/
 	d->data_rate = 0x1100;
@@ -8765,33 +8776,36 @@ static int parse_tx_frame_string(const char *s, size_t len,
 	if (pos)
 		d->signal_bw = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->NumPkt = (t_u32)woal_string_to_number(pos);
+	/* DOT 11AX parameters*/
+	if (dot11ax) {
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->NumPkt = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->MaxPE = (t_u32)woal_string_to_number(pos);
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->MaxPE = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->BeamChange = (t_u32)woal_string_to_number(pos);
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->BeamChange = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->Dcm = (t_u32)woal_string_to_number(pos);
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->Dcm = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->Doppler = (t_u32)woal_string_to_number(pos);
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->Doppler = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->MidP = (t_u32)woal_string_to_number(pos);
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->MidP = (t_u32)woal_string_to_number(pos);
 
-	pos = strsep(&string, " \t");
-	if (pos)
-		d->QNum = (t_u32)woal_string_to_number(pos);
+		pos = strsep(&string, " \t");
+		if (pos)
+			d->QNum = (t_u32)woal_string_to_number(pos);
+	}
 
 	pos = strsep(&string, " \t");
 	if (pos) {
@@ -9120,7 +9134,7 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 		break;
 	case MFG_CMD_TX_FRAME:
 		misc->sub_command = MLAN_OID_MISC_RF_TEST_TX_FRAME;
-		if (parse_tx_frame_string(buffer, len,
+		if (parse_tx_frame_string(handle, buffer, len,
 					  &misc->param.mfg_tx_frame2))
 			err = MTRUE;
 		break;

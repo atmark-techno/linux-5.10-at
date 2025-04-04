@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211.
  *
  *
- * Copyright 2011-2024 NXP
+ * Copyright 2011-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -352,6 +352,36 @@ t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band)
 	LEAVE();
 	return radio_type;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+/**
+ *  @brief Request kernelt to stop AP interface
+ *
+ *  @param handle           A pointer to moal_handle structure
+ *
+ *  @return                 N/A
+ */
+void woal_cfg80211_stop_iface(moal_handle *handle)
+{
+	int i = 0;
+
+	ENTER();
+
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i] &&
+		    (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_UAP) &&
+		    handle->priv[i]->bss_started == MTRUE) {
+			PRINTM(MMSG, "stop iface, bss role:%d %s\n",
+			       GET_BSS_ROLE(handle->priv[i]),
+			       handle->priv[i]->netdev->name);
+			cfg80211_stop_iface(handle->priv[i]->wdev->wiphy,
+					    handle->priv[i]->wdev, GFP_KERNEL);
+		}
+	}
+
+	LEAVE();
+}
+#endif
 
 /**
  *  @brief Set/Enable encryption key
@@ -1322,8 +1352,8 @@ int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 #endif /* WIFI_DIRECT_SUPPORT */
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			woal_cfg80211_del_beacon(wiphy, dev, 0);
 #else
 			woal_cfg80211_del_beacon(wiphy, dev);
@@ -1562,7 +1592,8 @@ fail:
  */
 #endif
 int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
-#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -1638,7 +1669,8 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
  */
 #endif
 int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
-#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -1655,13 +1687,9 @@ int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 		LEAVE();
 		return -EFAULT;
 	}
-	/* del_key will be trigger from cfg80211_rx_mlme_mgmt funtion
-	 * where we receive deauth/disassoicate packet in rx_work
-	 * use MOAL_NO_WAIT to avoid dead lock
-	 */
 	if (MLAN_STATUS_FAILURE ==
 	    woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0, key_index,
-				  mac_addr, 1, 0, MOAL_NO_WAIT)) {
+				  mac_addr, 1, 0, MOAL_IOCTL_WAIT)) {
 		PRINTM(MERROR, "Error deleting the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -1697,7 +1725,8 @@ int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 #endif
 int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 				  struct net_device *netdev,
-#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 				  int link_id,
 #endif
 				  t_u8 key_index
@@ -1736,7 +1765,8 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(2, 6, 30) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       struct net_device *netdev,
-#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 				       int link_id,
 #endif
 				       t_u8 key_index)
@@ -1750,7 +1780,8 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
 					 struct net_device *netdev,
-#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 					 int link_id,
 #endif
 					 t_u8 key_index)
@@ -2337,8 +2368,8 @@ done:
  * @return                0 -- success, otherwise fail
  */
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 				   unsigned int link_id,
 #endif
 				   const u8 *peer,
@@ -3425,6 +3456,9 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 	if (beacon_ies_data) {
 		len = sizeof(*beacon_ies_data) - MAX_IE_SIZE +
 		      beacon_ies_data->ie_length;
+		if (len > MAX_IE_SIZE) {
+			len = MAX_IE_SIZE;
+		}
 		moal_memcpy_ext(priv->phandle, pos, beacon_ies_data, len,
 				remain_len);
 		pos += len;
@@ -3435,6 +3469,9 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 	if (proberesp_ies_data) {
 		len = sizeof(*proberesp_ies_data) - MAX_IE_SIZE +
 		      proberesp_ies_data->ie_length;
+		if (len > MAX_IE_SIZE) {
+			len = MAX_IE_SIZE;
+		}
 		moal_memcpy_ext(priv->phandle, pos, proberesp_ies_data, len,
 				remain_len);
 		pos += len;
@@ -3445,6 +3482,9 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 	if (assocresp_ies_data) {
 		len = sizeof(*assocresp_ies_data) - MAX_IE_SIZE +
 		      assocresp_ies_data->ie_length;
+		if (len > MAX_IE_SIZE) {
+			len = MAX_IE_SIZE;
+		}
 		moal_memcpy_ext(priv->phandle, pos, assocresp_ies_data, len,
 				remain_len);
 		pos += len;
@@ -3455,6 +3495,9 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 	if (probereq_ies_data) {
 		len = sizeof(*probereq_ies_data) - MAX_IE_SIZE +
 		      probereq_ies_data->ie_length;
+		if (len > MAX_IE_SIZE) {
+			len = MAX_IE_SIZE;
+		}
 		moal_memcpy_ext(priv->phandle, pos, probereq_ies_data, len,
 				remain_len);
 		pos += len;
@@ -5484,11 +5527,11 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 	CFG80211_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0, 0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) &&                    \
-	IMX_ANDROID_13)) &&                                                    \
+	(defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))) &&       \
 	CFG80211_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0, 0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                  \
-       IMX_ANDROID_13 || IMX_ANDROID_12_BACKPORT)
+       (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0);
 #else
 		cfg80211_ch_switch_notify(priv->netdev, &chandef);

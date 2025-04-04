@@ -331,7 +331,8 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 
 	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
 		endian_convert_RxPD_extra_header(
-			(rxpd_extra_info *)((t_u8 *)prx_pd + sizeof(*prx_pd)));
+			(rxpd_extra_info *)((t_u8 *)prx_pd +
+					    Rx_PD_SIZEOF(pmadapter)));
 	}
 
 	if (priv->adapter->pcard_info->v14_fw_api) {

@@ -4,7 +4,7 @@
  *  transmission in MLAN module.
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -293,7 +293,7 @@ mlan_status wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	ptx_pd->bss_type = priv->bss_type;
 
 	endian_convert_TxPD(ptx_pd);
-
+	// coverity[cert_exp34_c_violation:SUPPRESS]
 	ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf, MNULL);
 
 	switch (ret) {

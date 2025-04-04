@@ -1437,15 +1437,6 @@ typedef struct _mlan_private {
 	t_u16 rx_quality;
 } mlan_private, *pmlan_private;
 
-typedef struct _assoc_logger {
-	/** vendor specific */
-	t_u8 oui[3];
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-	t_u8 ssid[MLAN_MAX_SSID_LENGTH];
-	t_s32 rssi;
-	t_u32 channel;
-} assoc_logger_data;
-
 /** Tx BA stream table */
 struct _TxBAStreamTbl {
 	/** TxBAStreamTbl previous node */
@@ -2042,6 +2033,7 @@ typedef struct _mlan_init_para {
 	t_u16 tx_budget;
 	t_u8 mclient_scheduling;
 	t_u32 reject_addba_req;
+	t_u8 disable_11h_tpc;
 } mlan_init_para, *pmlan_init_para;
 
 #ifdef SDIO
@@ -2107,6 +2099,10 @@ typedef struct _mlan_sdio_card_reg {
 	t_u8 fw_dnld_status_0_reg;
 	t_u8 fw_dnld_status_1_reg;
 	t_u8 winner_check_reg;
+	t_u8 fw_stuck_code_reg;
+	t_u8 fw_heart_beat_1_reg;
+	t_u8 fw_heart_beat_2_reg;
+	t_u8 fw_sleep_state_reg;
 } mlan_sdio_card_reg, *pmlan_sdio_card_reg;
 
 typedef struct _mlan_sdio_card {
@@ -2412,9 +2408,11 @@ typedef struct _adapter_operations {
 	mlan_status (*host_to_card)(pmlan_private pmpriv, t_u8 type,
 				    mlan_buffer *pmbuf,
 				    mlan_tx_param *tx_param);
-	/*wakeup card*/
+	/** wakeup card */
 	mlan_status (*wakeup_card)(pmlan_adapter pmadapter, t_u8 timeout);
-	/*reset the PM setting of card*/
+	/** wakeup timeout recovery */
+	mlan_status (*wakeup_timeout_recovery)(pmlan_adapter pmadapter);
+	/** reset the PM setting of card */
 	mlan_status (*reset_card)(pmlan_adapter adapter);
 	/** Handle event/cmd complete*/
 	mlan_status (*event_complete)(mlan_adapter *pmlan_adapter,

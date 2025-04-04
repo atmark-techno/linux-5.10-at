@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n Aggregation.
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -182,7 +182,7 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 	mlan_adapter *pmadapter = priv->adapter;
 	TxPD *ptx_pd;
 	t_u8 *head_ptr = MNULL;
-	t_u16 data_len = pmbuf->data_len;
+	t_u32 data_len = pmbuf->data_len;
 	ENTER();
 
 	head_ptr = pmbuf->pbuf + pmbuf->data_offset - Tx_PD_SIZEOF(pmadapter) -
@@ -328,12 +328,14 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
  *  @brief check if UAP AMSDU packet need forward out to connected peers
  *
  *  @param priv       A pointer to mlan_private
+ *  @param data       A pointer to 802.3 eth header data
  *
  *  @return			  MTRUE--packet need forward
  *
  */
-static t_u8 wlan_uap_check_forward(mlan_private *priv, Eth803Hdr_t *hdr)
+static t_u8 wlan_uap_check_forward(mlan_private *priv, t_u8 *data)
 {
+	Eth803Hdr_t *hdr = (Eth803Hdr_t *)data;
 	/** include multicast packet */
 	if (hdr->dest_addr[0] & 0x01)
 		return MTRUE;
@@ -362,9 +364,14 @@ static int wlan_11n_get_num_aggrpkts(mlan_private *priv, t_u8 *data,
 	t_u8 forward_flag = MFALSE;
 
 	ENTER();
+	if (!data) {
+		PRINTM(MERROR, "%s(): null packet data\n", __func__);
+		LEAVE();
+		return pkt_count;
+	}
 	while (total_pkt_len >= hdr_len) {
 		if (priv->bss_role == MLAN_BSS_ROLE_UAP &&
-		    wlan_uap_check_forward(priv, (Eth803Hdr_t *)data))
+		    wlan_uap_check_forward(priv, data))
 			forward_flag = MTRUE;
 		/* Length will be in network format, change it to host */
 		pkt_len = mlan_ntohs(
@@ -402,7 +409,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 {
 	t_u16 pkt_len;
 	int total_pkt_len;
-	t_u8 *data;
+	t_u8 *data = MNULL;
 	mlan_adapter *pmadapter = priv->adapter;
 	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
 	int pad;
@@ -426,6 +433,10 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	ENTER();
 
 	data = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);
+	if (!data) {
+		PRINTM(MERROR, "%s(): null rx aggr pkt data\n");
+		goto done;
+	}
 	total_pkt_len = pmbuf->data_len;
 
 	/* Sanity test */
@@ -622,6 +633,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			pmadapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
 		delay += (t_s32)(out_ts_sec - in_ts_sec) * 1000000;
 		delay += (t_s32)(out_ts_usec - in_ts_usec);
+		// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 		pmadapter->callbacks.moal_amsdu_tp_accounting(
 			pmadapter->pmoal_handle, delay, copy_delay);
 	}
@@ -817,8 +829,11 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	t_u32 msdu_in_tx_amsdu_cnt = 0;
 	ENTER();
 
+	if (ptrindex < 0) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	PRINTM(MDAT_D, "Handling Aggr packet\n");
-
 #ifdef PCIEAW693
 	if (IS_PCIEAW693(pmadapter->card_type)) {
 		return wlan_send_amsdu_subframe_list(priv, pra_list, headroom,

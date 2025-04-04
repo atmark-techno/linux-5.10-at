@@ -6,7 +6,7 @@
  *  for sending scan commands to the firmware.
  *
  *
- *  Copyright 2008-2024 NXP
+ *  Copyright 2008-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -5339,6 +5339,7 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 	rate_size = 0;
 
 	/* Allocate the beacon buffer for new entry */
+	// coverity[overflow_sink:SUPPRESS]
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle, beacon_buf_size,
 			       MLAN_MEM_DEF, (t_u8 **)&pbuf);
 	if (ret != MLAN_STATUS_SUCCESS || !pbuf) {
@@ -8062,6 +8063,10 @@ mlan_status wlan_find_best_network(mlan_private *pmpriv,
 
 	memset(pmadapter, preq_ssid_bssid, 0, sizeof(mlan_ssid_bssid));
 
+	if (!pmadapter->pscan_table) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	i = wlan_find_best_network_in_list(pmpriv);
 
 	if (i >= 0) {

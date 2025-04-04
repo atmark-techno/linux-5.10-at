@@ -1534,4 +1534,52 @@ void woal_debug_remove(moal_private *priv)
 
 	LEAVE();
 }
+
+#ifdef DEBUG_LEVEL1
+
+#define ENUM_ELEMENT(_name, _id)                                               \
+	{                                                                      \
+		.id = _id, .name = #_name                                      \
+	}
+#define ENUM_ELEMENT_LAST(name)                                                \
+	{                                                                      \
+		0xFFFF, 0                                                      \
+	}
+static const struct reflective_enum_element host_error_code_names[] = {
+#include "ioctl_error_codes.h"
+};
+#undef ENUM_ELEMENT
+#undef ENUM_ELEMENT_LAST
+
+#endif /* DEBUG_LEVEL1 */
+
+static INLINE const char *
+reflective_enum_lookup_name(const struct reflective_enum_element *elements,
+			    int id)
+{
+	const struct reflective_enum_element *elem = elements;
+
+	// coverity[overflow_sink:SUPPRESS]
+	while (elem->name && elem->id != id) {
+		elem++;
+	}
+
+	// coverity[overflow_sink:SUPPRESS]
+	return elem->name;
+}
+
+const char *wlan_errorcode_get_name(enum host_error_code_id id)
+{
+#ifdef DEBUG_LEVEL1
+	const char *name =
+		reflective_enum_lookup_name(host_error_code_names, id);
+
+	if (name) {
+		return name;
+	}
+#endif
+
+	return "???";
+}
+
 #endif

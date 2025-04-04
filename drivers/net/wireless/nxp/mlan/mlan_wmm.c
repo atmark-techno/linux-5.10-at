@@ -3,7 +3,7 @@
  *  @brief This file contains functions for WMM.
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -660,7 +660,7 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 	tid_tbl_t *tid_ptr;
 	int i, j;
 	int next_prio = 0;
-	int next_tid = 0;
+	t_u8 next_tid = 0;
 	ENTER();
 
 	PRINTM(MDAT_D, "POP\n");
@@ -753,8 +753,12 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 							next_prio = i - 1;
 						else
 							next_prio = i + 1;
-						next_tid =
-							tos_to_tid[next_prio];
+						next_prio = (next_prio < 1) ?
+								    0 :
+								    next_prio;
+						next_tid = MIN(
+							tos_to_tid[next_prio],
+							MAX_NUM_TID);
 						if (priv_tmp->wmm.pkts_queued
 							    [next_tid] &&
 						    (priv_tmp->wmm.pkts_queued
@@ -840,11 +844,12 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
  *
  *  @return                 byte budget
  */
-static t_u32 wlan_wmm_get_byte_budget(pmlan_adapter pmadapter, t_u32 time_budget_us, t_u32 phy_rate_kbps)
+static t_u32 wlan_wmm_get_byte_budget(pmlan_adapter pmadapter,
+				      t_u32 time_budget_us, t_u32 phy_rate_kbps)
 {
 	const t_u32 min_budget = MV_ETH_FRAME_LEN;
-	t_u64 byte_budget = pmadapter->callbacks.moal_do_div((t_u64)phy_rate_kbps * time_budget_us,
-		8 * 1000u);
+	t_u64 byte_budget = pmadapter->callbacks.moal_do_div(
+		(t_u64)phy_rate_kbps * time_budget_us, 8 * 1000u);
 
 	if (byte_budget > INT_MAX)
 		return INT_MAX;
@@ -900,14 +905,16 @@ wlan_wmm_allocate_sta_table(pmlan_adapter pmadapter, t_u8 *ra)
 	sta_table->budget.mpdu_no_amsdu_pps_cap =
 		pmadapter->tx_mpdu_no_amsdu_pps;
 
-	sta_table->budget.mpdu_with_amsdu_budget_init = pmadapter->callbacks.moal_do_div(
-		(t_u64)sta_table->budget.mpdu_with_amsdu_pps_cap *
-		 sta_table->budget.time_budget_init_us,
-		1000000);
-	sta_table->budget.mpdu_no_amsdu_budget_init = pmadapter->callbacks.moal_do_div(
-		(t_u64)sta_table->budget.mpdu_no_amsdu_pps_cap *
-		 sta_table->budget.time_budget_init_us,
-		1000000);
+	sta_table->budget.mpdu_with_amsdu_budget_init =
+		pmadapter->callbacks.moal_do_div(
+			(t_u64)sta_table->budget.mpdu_with_amsdu_pps_cap *
+				sta_table->budget.time_budget_init_us,
+			1000000);
+	sta_table->budget.mpdu_no_amsdu_budget_init =
+		pmadapter->callbacks.moal_do_div(
+			(t_u64)sta_table->budget.mpdu_no_amsdu_pps_cap *
+				sta_table->budget.time_budget_init_us,
+			1000000);
 
 	for (i = 0; i < NELEMENTS(sta_table->budget.bytes); ++i) {
 		sta_table->budget.bytes[i] = sta_table->budget.byte_budget_init;
@@ -1529,7 +1536,7 @@ static raListTbl *wlan_wmm_get_next_priolist_ptr(pmlan_adapter pmadapter,
 	}
 
 	pmadapter->selected_mlan_bss = MNULL;
-
+	// coverity[cert_arr30_c_violation:SUPPRESS]
 	return wlan_wmm_get_highest_priolist_ptr(pmadapter, priv, tid);
 }
 
@@ -1698,6 +1705,7 @@ static INLINE void wlan_send_processed_packet(pmlan_private priv,
 	pmlan_adapter pmadapter = priv->adapter;
 	mlan_status ret = MLAN_STATUS_FAILURE;
 
+	ptrindex = (ptrindex < 1) ? 0 : ptrindex;
 	pmbuf = (pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
 						&ptr->buf_head, MNULL, MNULL);
 	if (pmbuf) {
@@ -2594,6 +2602,7 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 	}
 
 	LEAVE();
+	// coverity[leaked_storage:SUPPRESS]
 }
 
 /**
@@ -2902,6 +2911,11 @@ int wlan_is_ralist_valid(mlan_private *priv, raListTbl *ra_list, int ptrindex)
 
 	ENTER();
 
+	if (ptrindex < 0 || ptrindex >= MAX_NUM_TID) {
+		LEAVE();
+		return MFALSE;
+	}
+
 	rlist = (raListTbl *)util_peek_list(
 		priv->adapter->pmoal_handle,
 		&priv->wmm.tid_tbl_ptr[ptrindex].ra_list, MNULL, MNULL);
@@ -3142,11 +3156,13 @@ static t_void wlan_wmm_update_queue_packets_budget(pmlan_adapter pmadapter,
 			list_entry, struct wmm_sta_table, active_sta_entry);
 		const t_u64 sta_capacity = sta->budget.byte_budget_init;
 		const t_u32 max_pkts_by_airtime =
-			wlan_wmm_get_byte_budget(pmadapter, max_pending_tx_time_us,
+			wlan_wmm_get_byte_budget(pmadapter,
+						 max_pending_tx_time_us,
 						 sta->budget.phy_rate_kbps) /
 			MV_ETH_FRAME_LEN;
-		t_u32 sta_share = pmadapter->callbacks.moal_do_div((t_u64)queue_packets_limit * sta_capacity,
-									total_capacity);
+		t_u32 sta_share = pmadapter->callbacks.moal_do_div(
+			(t_u64)queue_packets_limit * sta_capacity,
+			total_capacity);
 
 		sta_share = MAX(sta_share, min_sta_share);
 		sta_share = MIN(sta_share, queue_packets_limit * 7 / 8);
@@ -4916,6 +4932,10 @@ int wlan_get_ralist_info(mlan_private *priv, ralist_info *buf)
 				memcpy_ext(priv->adapter, plist->ra,
 					   ra_list->ra, MLAN_MAC_ADDR_LENGTH,
 					   MLAN_MAC_ADDR_LENGTH);
+
+				if (((t_u8 *)plist - (t_u8 *)buf) >=
+				    (MLAN_MAX_RALIST_NUM * sizeof(ralist_info)))
+					break;
 				plist++;
 				count++;
 				if (count >= MLAN_MAX_RALIST_NUM)

@@ -3,7 +3,7 @@
  *  @brief This file contains MLAN event handling.
  *
  *
- *  Copyright 2008-2022, 2024 NXP
+ *  Copyright 2008-2022, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -837,8 +837,9 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				   MLAN_MAC_ADDR_LENGTH)) {
 				PRINTM(MMSG, "wlan: skip link lost event\n");
 				PRINTM(MMSG, "pattempted_bssid: " MACSTR "\n",
-				       MAC2STR(&pmpriv->curr_bss_params
-							.attemp_bssid));
+				       MAC2STR((
+					       t_u8 *)(&pmpriv->curr_bss_params
+								.attemp_bssid)));
 				break;
 			}
 		} else {
@@ -851,8 +852,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				PRINTM(MMSG,
 				       "pattempted_bssid: " MACSTR
 				       " curr_bssid:" MACSTR "\n",
-				       MAC2STR(&pmpriv->curr_bss_params
-							.attemp_bssid),
+				       MAC2STR((t_u8 *)(&pmpriv->curr_bss_params
+								 .attemp_bssid)),
 				       MAC2STR(pmpriv->curr_bss_params
 						       .bss_descriptor
 						       .mac_address));
@@ -985,6 +986,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 
 	case EVENT_PORT_RELEASE:
 		PRINTM(MEVENT, "EVENT: PORT RELEASE\n");
+		pmpriv->tx_pause = MFALSE;
 		/* Open the port for e-supp mode */
 		if (pmpriv->port_ctrl_mode == MTRUE) {
 			PRINTM(MINFO, "PORT_REL: port_status = OPEN\n");
@@ -1303,10 +1305,11 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: WIFIDIRECT event %d\n", eventcause);
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-		pevent->event_len = pmbuf->data_len;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
-			   pevent->event_len);
+			   MAX_EVENT_SIZE);
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		break;
 	case EVENT_WIFIDIRECT_SERVICE_DISCOVERY:

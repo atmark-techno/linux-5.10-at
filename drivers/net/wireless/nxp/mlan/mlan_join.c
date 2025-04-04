@@ -1046,6 +1046,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	t_u32 rates_size;
 	t_u16 tmp_cap;
 	t_u8 *pos;
+	IEEEtypes_CapInfo_t *pcap_info;
 	t_u8 ft_akm = 0;
 	t_u8 oper_class;
 	t_u8 oper_class_flag = MFALSE;
@@ -1524,6 +1525,11 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	memcpy_ext(pmadapter, &tmp_cap, &pbss_desc->cap_info,
 		   sizeof(passo->cap_info), sizeof(tmp_cap));
 
+	/* retain spectrum_mgmt capability */
+	pcap_info = &passo->cap_info;
+	if (pcap_info->spectrum_mgmt)
+		SPECTRUM_MGMT_ENABLED(tmp_cap);
+
 	if (pmpriv->config_bands == BAND_B)
 		SHORT_SLOT_TIME_DISABLED(tmp_cap);
 
@@ -1680,6 +1686,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 			   ASSOC_RSP_BUF_SIZE);
 	}
 	if (passoc_rsp->status_code) {
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_ASSOC_FAILURE, MNULL);
 		if (pmpriv->media_connected == MTRUE) {
 			if (pmpriv->port_ctrl_mode == MTRUE)
 				pmpriv->port_open = pmpriv->prior_port_status;
@@ -1892,6 +1899,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	memcpy_ext(pmpriv->adapter, (t_u8 *)assoc_succ->oui,
 		   pbss_desc->mac_address, MLAN_MAC_ADDR_LENGTH / 2,
 		   MLAN_MAC_ADDR_LENGTH / 2);
+	assoc_succ->ssid_len = pbss_desc->ssid.ssid_len;
 	memcpy_ext(pmpriv->adapter, (t_u8 *)assoc_succ->ssid,
 		   pbss_desc->ssid.ssid, pbss_desc->ssid.ssid_len,
 		   MLAN_MAX_SSID_LENGTH);

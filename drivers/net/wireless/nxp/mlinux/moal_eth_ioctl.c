@@ -4,7 +4,7 @@
   * @brief This file contains private ioctl functions
 
   *
-  * Copyright 2014-2024 NXP
+  * Copyright 2014-2025 NXP
   *
   * This software file (the File) is distributed by NXP
   * under the terms of the GNU General Public License Version 2, June 1991
@@ -2898,7 +2898,7 @@ done:
 static int woal_priv_deauth(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 {
 	int ret = 0;
-	t_u8 mac[ETH_ALEN];
+	t_u8 mac[ETH_ALEN] = {0};
 
 	ENTER();
 
@@ -7873,6 +7873,12 @@ static int woal_priv_per_pkt_cfg(moal_private *priv, t_u8 *respbuf,
 	if (*pos == 0) {
 		/* GET operation */
 		pos++;
+		if ((pos - respbuf) >= respbuflen) {
+			PRINTM(MERROR,
+			       "err: Size of Respbuf(Get) is not sufficient\n");
+			ret = -EFAULT;
+			goto done;
+		}
 		if (priv->tx_protocols.protocol_num) {
 			perpkt = (mlan_per_pkt_cfg *)pos;
 			perpkt->type = TLV_TYPE_PER_PKT_CFG;
@@ -7907,6 +7913,12 @@ static int woal_priv_per_pkt_cfg(moal_private *priv, t_u8 *respbuf,
 		/* SET operation */
 		req->action = MLAN_ACT_SET;
 		pos++;
+		if ((pos - respbuf) >= respbuflen) {
+			PRINTM(MERROR,
+			       "Err: Size of Respbuf(Set) is not sufficient\n");
+			ret = -EFAULT;
+			goto done;
+		}
 		left_len--;
 		while (*pos == TLV_TYPE_PER_PKT_CFG && (left_len > 2)) {
 			perpkt = (mlan_per_pkt_cfg *)pos;
@@ -11872,11 +11884,12 @@ static int woal_priv_net_monitor_ioctl(moal_private *priv, t_u8 *respbuf,
 		data[2] = handle->mon_if->band_chan_cfg.band;
 	data[3] = net_mon->channel;
 	data[4] = net_mon->chan_bandwidth;
-	data_length = 5;
-	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
-			sizeof(int) * data_length, respbuflen);
-	ret = sizeof(int) * data_length;
-
+	data_length = (t_u32)(5 * sizeof(int));
+	if (data_length < respbuflen) {
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
+				data_length, data_length);
+		ret = data_length;
+	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -12803,7 +12816,7 @@ static t_u8 woal_get_next_dfs_chan(moal_private *priv)
 	t_u8 chan = 0;
 	ENTER();
 	idx++;
-	if (idx >= priv->auto_dfs_cfg.num_of_chan)
+	if (idx >= priv->auto_dfs_cfg.num_of_chan || idx < 0)
 		idx = 0;
 	for (i = 0; i < priv->auto_dfs_cfg.num_of_chan; i++) {
 		if (priv->chan_rpt_req.chanNum !=
@@ -18324,7 +18337,7 @@ static int woal_priv_roam_offload_cfg(moal_private *priv, t_u8 *respbuf,
 {
 	int ret = 0, user_data_len = 0, header_len = 0, data = 0;
 	char *begin = NULL, *end = NULL, *pvariable_name = NULL;
-	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH];
+	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH] = {0};
 	woal_roam_offload_cfg roam_offload_cfg;
 	t_u8 len = 0;
 	int count = 0, i = 0;

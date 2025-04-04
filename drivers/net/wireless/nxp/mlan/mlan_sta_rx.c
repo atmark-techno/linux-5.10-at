@@ -420,7 +420,7 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 
 	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
 		memcpy_ext(priv->adapter, &rt_info_tmp.extra_info,
-			   (t_u8 *)prx_pd + sizeof(*prx_pd),
+			   (t_u8 *)prx_pd + Rx_PD_SIZEOF(priv->adapter),
 			   sizeof(rt_info_tmp.extra_info),
 			   sizeof(rt_info_tmp.extra_info));
 
@@ -656,7 +656,8 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	endian_convert_RxPD(prx_pd);
 	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
 		endian_convert_RxPD_extra_header(
-			(rxpd_extra_info *)((t_u8 *)prx_pd + sizeof(*prx_pd)));
+			(rxpd_extra_info *)((t_u8 *)prx_pd +
+					    Rx_PD_SIZEOF(pmadapter)));
 	}
 	if (priv->adapter->pcard_info->v14_fw_api) {
 		t_u8 rxpd_rate_info_orig = prx_pd->rate_info;

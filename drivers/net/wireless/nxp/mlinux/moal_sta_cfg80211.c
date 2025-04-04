@@ -3,7 +3,7 @@
  * @brief This file contains the functions for STA CFG80211.
  *
  *
- * Copyright 2011-2024 NXP
+ * Copyright 2011-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -113,6 +113,10 @@ static void woal_cfg80211_abort_scan(struct wiphy *wiphy,
 static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 				 struct cfg80211_connect_params *sme);
 
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+static int woal_cfg80211_set_psk(moal_private *priv,
+				 struct cfg80211_connect_params *sme);
+#endif
 static int woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 				    t_u16 reason_code);
 
@@ -135,8 +139,8 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef);
@@ -280,6 +284,10 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 				struct cfg80211_update_ft_ies_params *ftie);
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static mlan_status woal_get_common_rates(struct net_device *dev,
+					 struct cfg80211_auth_request *req,
+					 t_u32 *tx_control);
+
 static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 				      struct net_device *dev,
 				      struct cfg80211_auth_request *req);
@@ -2322,6 +2330,105 @@ done:
 }
 
 /**
+ *  @brief This function calculates common rates supported
+ *         by AP and STA and updates tx_control
+ *         value.
+ *
+ *  @param dev         A pointer to net_device
+ *
+ *  @param req         A pointer to cfg80211_auth_request
+ *
+ *  @param tx_control  Output: Updated value of tx_control
+ *
+ *  @return            0 -- success, otherwise fail
+ */
+
+static mlan_status woal_get_common_rates(struct net_device *dev,
+					 struct cfg80211_auth_request *req,
+					 t_u32 *tx_control)
+{
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_scan_resp scan_resp;
+	BSSDescriptor_t *scan_table;
+	int i, k, j;
+	t_u8 *prate = {0};
+	t_u8 rateIndex = 0xff;
+	t_u8 baserates[] = {0x82, 0x84, 0x8b, 0x96, 0x8c, 0x98, 0xb0};
+
+	ENTER();
+	memset(&scan_resp, 0, sizeof(scan_resp));
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_scan_table(priv, MOAL_NO_WAIT, &scan_resp)) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	// Fetch supported rates of AP from scan table
+	if (scan_resp.num_in_scan_table) {
+		scan_table = (BSSDescriptor_t *)scan_resp.pscan_table;
+		for (i = 0; i < (int)scan_resp.num_in_scan_table; i++) {
+			if (req->bss) {
+				if (!memcmp(req->bss->bssid,
+					    scan_table[i].mac_address,
+					    ETH_ALEN)) {
+					prate = (t_u8 *)&(
+						scan_table[i].supported_rates);
+					break;
+				}
+			}
+		}
+	} else {
+		PRINTM(MMSG, "bssid not found in scan list\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	// Calculate rate index value for rate defined in baserates
+	// which is supported by both AP and STA
+	for (j = 0; (j < WLAN_SUPPORTED_RATES && prate[j] != 0); j++) {
+		if (prate[j] >= 0x82) {
+			for (k = 0; k < sizeof(baserates); k++) {
+				if (prate[j] == baserates[k] && k < rateIndex)
+					rateIndex = k;
+			}
+		}
+	}
+	if (rateIndex == 0xff) {
+		PRINTM(MMSG, "AP and STA have no rates as common\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	*tx_control |= 1 << 15;
+	switch (baserates[rateIndex]) {
+	case 0x82:
+		*tx_control |= 0 << 16;
+		break;
+	case 0x84:
+		*tx_control |= 1 << 16;
+		break;
+	case 0x8b:
+		*tx_control |= 2 << 16;
+		break;
+	case 0x96:
+		*tx_control |= 3 << 16;
+		break;
+	case 0x8c:
+		*tx_control |= 5 << 16;
+		break;
+	case 0x98:
+		*tx_control |= 7 << 16;
+		break;
+	case 0xb0:
+		*tx_control |= 9 << 16;
+		break;
+	default:
+		*tx_control = 0;
+		PRINTM(MMSG, "Not support the base rates");
+		break;
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+/**
  *  @brief This function is authentication handler when host MLME
  *          enable.
  *          In this case driver will prepare and send Auth Req.
@@ -2431,6 +2538,10 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	}
 	kfree(ssid_bssid);
 
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_common_rates(dev, req, &tx_control)) {
+		tx_control = 0;
+	}
 	if ((priv->auth_alg != WLAN_AUTH_SAE) &&
 	    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
 		PRINTM(MERROR, "pending auth on going\n");
@@ -2634,7 +2745,6 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 		pbuf = pmbuf->pbuf + pmbuf->data_offset;
 	}
 	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
-	tx_control = 0;
 	/* Add pkt_type and tx_control */
 	moal_memcpy_ext(priv->phandle, pbuf, &pkt_type, sizeof(pkt_type),
 			sizeof(pkt_type));
@@ -2841,15 +2951,21 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 					  struct cfg80211_bss *bss)
 {
 	/* Send Assoc Failure with Timeout to CFG80211 */
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) ||                       \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33 &&             \
+      CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 74)))
 	struct cfg80211_assoc_failure data;
 	memset(&data, 0, sizeof(struct cfg80211_assoc_failure));
 	data.timeout = 1;
 	data.bss[0] = bss;
 	PRINTM(MEVENT, "wlan: HostMlme assoc failure\n");
+	/* 100ms delay to report to CFG to sync redv_assoc and assoc_failure API
+	 * in CFG to hold/unhold BSS */
+	woal_sched_timeout(100);
 	cfg80211_assoc_failure(priv->netdev, &data);
 #else
 	PRINTM(MEVENT, "wlan: HostMlme assoc timeout\n");
+	woal_sched_timeout(100);
 	cfg80211_assoc_timeout(priv->netdev, bss);
 #endif
 	memset(priv->cfg_bssid, 0, ETH_ALEN);
@@ -2877,7 +2993,8 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 	struct cfg80211_rx_assoc_resp_data resp = {
 		.uapsd_queues = -1,
 	};
-#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                   \
+       (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	struct cfg80211_rx_assoc_resp resp = {
 		.uapsd_queues = -1,
 	};
@@ -2950,7 +3067,8 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 						}
 					}
 
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 					resp.links[0].bss = bss;
 					resp.buf = assoc_info->assoc_resp_buf;
 					resp.len = assoc_info->assoc_resp_len;
@@ -3521,6 +3639,19 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 		ret = -EFAULT;
 		goto done;
 	}
+
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+	if (conn_param && conn_param->crypto.psk &&
+	    priv->phandle->card_info->embedded_supp) {
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_cfg80211_set_psk(priv, conn_param)) {
+			PRINTM(MERROR, "Embedded supplicant: set psk failed\n");
+			ret = -EFAULT;
+			goto done;
+		}
+	}
+#endif
+
 #ifdef STA_CFG80211
 	if (IS_STA_CFG80211(priv->phandle->params.cfg80211_wext)) {
 		/** Check if current roaming support OKC offload roaming */
@@ -5021,7 +5152,9 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 			if (chan->flags & IEEE80211_CHAN_PASSIVE_SCAN)
 				scan_req->chan_list[num_chans].scan_time =
 					INIT_PASSIVE_SCAN_CHAN_TIME;
-			else if (priv->bss_type == MLAN_BSS_TYPE_STA) {
+			else if (priv->bss_type == MLAN_BSS_TYPE_STA &&
+				 scan_req->chan_list[num_chans].scan_type ==
+					 MLAN_SCAN_TYPE_PASSIVE) {
 				/*
 				 * Set passive scan time to 110ms to discover
 				 * all nearby AP's, Current 40ms passive scan
@@ -5034,20 +5167,17 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 				 * 1. STA is in connected state
 				 * 2. Scan type is passive
 				 */
-				if (scan_req->chan_list[num_chans].scan_type ==
-				    MLAN_SCAN_TYPE_PASSIVE)
-					scan_req->chan_list[num_chans]
-						.scan_time =
-						PASSIVE_SCAN_CHAN_TIME;
-			} else
+				scan_req->chan_list[num_chans].scan_time =
+					PASSIVE_SCAN_CHAN_TIME;
+			} else {
 				scan_req->chan_list[num_chans].scan_time = MIN(
 					MIN_SPECIFIC_SCAN_CHAN_TIME,
 					scan_cfg.scan_time.specific_scan_time);
+			}
 		}
 #endif
 #ifdef UAP_CFG80211
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
-			scan_req->scan_chan_gap = 0;
 			if (!woal_is_uap_scan_result_expired(priv))
 				scan_req->chan_list[num_chans].scan_time =
 					MIN_SPECIFIC_SCAN_CHAN_TIME;
@@ -5553,6 +5683,62 @@ static int woal_start_ft_roaming(moal_private *priv,
 	LEAVE();
 	return ret;
 }
+
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+/**
+ * @brief Set psk to firmware in embedded supplicant mode
+ *
+ * @param wiphy           A pointer to priv structure
+ * @param sme             A pointer to cfg80211_connect_params structure
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static int woal_cfg80211_set_psk(moal_private *priv,
+				 struct cfg80211_connect_params *sme)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_sec_cfg *sec = NULL;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!priv->phandle->card_info->embedded_supp) {
+		PRINTM(MERROR, "Not supported cmd on this card\n");
+		ret = -EOPNOTSUPP;
+		goto done;
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	req->req_id = MLAN_IOCTL_SEC_CFG;
+	sec = (mlan_ds_sec_cfg *)req->pbuf;
+	sec->sub_command = MLAN_OID_SEC_CFG_PASSPHRASE;
+	req->action = MLAN_ACT_SET;
+
+	sec->param.passphrase.ssid.ssid_len = sme->ssid_len;
+	memcpy(sec->param.passphrase.ssid.ssid, sme->ssid, sme->ssid_len);
+
+	memcpy((t_u8 *)(sec->param.passphrase.psk.pmk.pmk), sme->crypto.psk,
+	       MLAN_PMK_HEXSTR_LENGTH / 2);
+	sec->param.passphrase.psk_type = MLAN_PSK_PMK;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+#endif
+
 /**
  * @brief Request the driver to connect to the ESS with
  * the specified parameters from kernel
@@ -5850,8 +6036,8 @@ static int woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MMSG, " Already disconnected\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 		if (priv->wdev->connected &&
 #else
 		if (priv->wdev->current_bss &&
@@ -6205,8 +6391,8 @@ done:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
-     IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef)
@@ -6541,6 +6727,27 @@ int woal_cfg80211_remain_on_channel_cfg(moal_private *priv, t_u8 wait_option,
 		*status = chan_cfg.status;
 	else
 		ret = -EFAULT;
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	if (remove) {
+		if (priv->host_mlme &&
+		    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
+			/* abort the pending auth exchange */
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+			if (priv->assoc_bss) {
+				PRINTM(MEVENT,
+				       "wlan: HostMlme auth remain on channel cancelled\n");
+				cfg80211_auth_timeout(priv->netdev,
+						      priv->assoc_bss->bssid);
+			}
+#endif
+			priv->auth_flag = 0;
+			priv->host_mlme = MFALSE;
+			priv->auth_alg = 0xFFFF;
+		}
+	}
+#endif
+
 	LEAVE();
 	return ret;
 }
@@ -9277,8 +9484,8 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 			passoc_rsp = (IEEEtypes_AssocRsp_t *)
 					     assoc_rsp->assoc_resp_buf;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13 ||   \
-     IMX_ANDROID_14 || IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			roam_info.links[0].bssid = priv->cfg_bssid;
 #else
 			roam_info.bssid = priv->cfg_bssid;
@@ -9757,8 +9964,8 @@ void woal_start_roaming(moal_private *priv)
 		}
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13 ||   \
-     IMX_ANDROID_14 || IMX_ANDROID_12_BACKPORT)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 		roam_info.links[0].bssid = priv->cfg_bssid;
 #else
 		roam_info.bssid = priv->cfg_bssid;
@@ -9839,7 +10046,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 	if (params->ext_capab_len)
 		req_len += sizeof(MrvlIEtypesHeader_t) + params->ext_capab_len;
 #endif
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.supported_rates_len)
 		req_len += sizeof(MrvlIEtypesHeader_t) +
 			   params->link_sta_params.supported_rates_len;
@@ -9850,14 +10058,16 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 #endif
 	if (params->uapsd_queues || params->max_sp)
 		req_len += sizeof(MrvlIEtypesHeader_t) + sizeof(qosinfo);
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.ht_capa)
 #else
 	if (params->ht_capa)
 #endif
 		req_len += sizeof(MrvlIEtypesHeader_t) +
 			   sizeof(struct ieee80211_ht_cap);
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.vht_capa)
 #else
 	if (params->vht_capa)
@@ -9865,7 +10075,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		req_len += sizeof(MrvlIEtypesHeader_t) +
 			   sizeof(struct ieee80211_vht_cap);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.opmode_notif_used)
 		req_len += sizeof(MrvlIEtypesHeader_t) + sizeof(u8);
 #else
@@ -9875,7 +10086,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 #endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.he_capa_len)
 		req_len += sizeof(MrvlExtIEtypesHeader_t) +
 			   params->link_sta_params.he_capa_len;
@@ -9931,20 +10143,23 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		tlv = (MrvlIEtypes_Data_t *)pos;
 	}
 #endif
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.supported_rates_len) {
 #else
 	if (params->supported_rates_len) {
 #endif
 		tlv = (MrvlIEtypes_Data_t *)pos;
 		tlv->header.type = SUPPORTED_RATES;
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 		tlv->header.len = params->link_sta_params.supported_rates_len;
 #else
 		tlv->header.len = params->supported_rates_len;
 #endif
 		moal_memcpy_ext(priv->phandle, tlv->data,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 				params->link_sta_params.supported_rates,
 				tlv->header.len,
 #else
@@ -9968,7 +10183,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 			sizeof(MrvlIEtypesHeader_t) + tlv->header.len;
 		tlv = (MrvlIEtypes_Data_t *)pos;
 	}
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.ht_capa) {
 #else
 	if (params->ht_capa) {
@@ -9976,7 +10192,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		tlv = (MrvlIEtypes_Data_t *)pos;
 		tlv->header.type = HT_CAPABILITY;
 		tlv->header.len = sizeof(struct ieee80211_ht_cap);
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 		moal_memcpy_ext(priv->phandle, tlv->data,
 				params->link_sta_params.ht_capa,
 #else
@@ -9988,7 +10205,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 			sizeof(MrvlIEtypesHeader_t) + tlv->header.len;
 		tlv = (MrvlIEtypes_Data_t *)pos;
 	}
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.vht_capa) {
 #else
 	if (params->vht_capa) {
@@ -9996,7 +10214,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		tlv = (MrvlIEtypes_Data_t *)pos;
 		tlv->header.type = VHT_CAPABILITY;
 		tlv->header.len = sizeof(struct ieee80211_vht_cap);
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 		moal_memcpy_ext(priv->phandle, tlv->data,
 				params->link_sta_params.vht_capa,
 #else
@@ -10009,7 +10228,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		tlv = (MrvlIEtypes_Data_t *)pos;
 	}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.opmode_notif_used) {
 #else
 	if (params->opmode_notif_used) {
@@ -10017,7 +10237,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		tlv = (MrvlIEtypes_Data_t *)pos;
 		tlv->header.type = OPER_MODE_NTF;
 		tlv->header.len = sizeof(u8);
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 		moal_memcpy_ext(priv->phandle, tlv->data,
 				&params->link_sta_params.opmode_notif,
 #else
@@ -10030,7 +10251,8 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 		tlv = (MrvlIEtypes_Data_t *)pos;
 	}
 #endif
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_14)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 34))
 	if (params->link_sta_params.he_capa_len) {
 		ext_tlv = (MrvlExtIEtypes_Data_t *)pos;
 		ext_tlv->header.type = EXTENSION;
@@ -10763,6 +10985,16 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	wiphy->features |= NL80211_FEATURE_TDLS_CHANNEL_SWITCH;
 #endif
 
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+	/* Enable support for offloading EAPOL handshakes for WPA/WPA2. */
+	if (!moal_extflg_isset(priv->phandle, EXT_HOST_MLME) &&
+	    priv->phandle->card_info->embedded_supp &&
+	    moal_extflg_isset(priv->phandle, EXT_CFG80211_EAPOL_OFFLOAD)) {
+		wiphy_ext_feature_set(
+			wiphy, NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_PSK);
+	}
+#endif
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 #define WLAN_EXT_FEATURE_DFS_OFFLOAD 25
 	if (moal_extflg_isset(priv->phandle, EXT_DFS_OFFLOAD)) {
@@ -10925,7 +11157,12 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	wiphy->extended_capabilities_len = sizeof(priv->extended_capabilities);
 #endif
 
-	woal_cfg80211_init_wiphy(priv, wiphy, &fw_info, MOAL_IOCTL_WAIT);
+	ret = woal_cfg80211_init_wiphy(priv, wiphy, &fw_info, MOAL_IOCTL_WAIT);
+	if (ret == MLAN_STATUS_FAILURE) {
+		PRINTM(MERROR, "Wiphy device initialization failed!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto err_wiphy;
+	}
 	if (wiphy_register(wiphy) < 0) {
 		PRINTM(MERROR, "Wiphy device registration failed!\n");
 		ret = MLAN_STATUS_FAILURE;

@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -456,6 +456,14 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 	t_u16 last_seq = 0;
 
 	ENTER();
+
+	if (tid < 0 || tid >= MAX_NUM_TID) {
+		PRINTM(MERROR,
+		       "wlan_11n_create_rxreorder_tbl: invalid tid = %d\n",
+		       tid);
+		LEAVE();
+		return;
+	}
 
 	/*
 	 * If we get a TID, ta pair which is already present dispatch all the
