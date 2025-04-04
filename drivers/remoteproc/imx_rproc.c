@@ -116,11 +116,9 @@ struct imx_rproc {
 	void				*rsc_va;
 	struct mbox_client		cl;
 	struct mbox_client		cl_rxdb;
-	struct mbox_client		cl_txdb;
 	struct mbox_chan		*tx_ch;
 	struct mbox_chan		*rx_ch;
 	struct mbox_chan		*rxdb_ch;
-	struct mbox_chan		*txdb_ch;
 	u32				mub_partition;
 	struct notifier_block		proc_nb;
 	u32				flags;
@@ -404,13 +402,6 @@ static int imx_rproc_rebuild_channels(struct rproc *rproc)
 		}
 	}
 
-	/* txdb is optional */
-	if (!priv->txdb_ch) {
-		priv->txdb_ch = mbox_request_channel_byname(cl, "txdb");
-		if (IS_ERR(priv->txdb_ch))
-			priv->txdb_ch = NULL;
-	}
-
 err_exit:
 	return ret;
 }
@@ -418,20 +409,14 @@ err_exit:
 static void imx_rproc_free_channels(struct rproc *rproc)
 {
 	struct imx_rproc *priv = rproc->priv;
-	__u32 mmsg;
-
-	if (priv->txdb_ch)
-		mbox_send_message(priv->txdb_ch, (void *)&mmsg);
 
 	mbox_free_channel(priv->tx_ch);
 	mbox_free_channel(priv->rx_ch);
 	mbox_free_channel(priv->rxdb_ch);
-	mbox_free_channel(priv->txdb_ch);
 
 	priv->tx_ch = NULL;
 	priv->rx_ch = NULL;
 	priv->rxdb_ch = NULL;
-	priv->txdb_ch = NULL;
 }
 
 static int imx_rproc_start(struct rproc *rproc)
@@ -502,14 +487,6 @@ static int imx_rproc_stop(struct rproc *rproc)
 	if (dcfg->method == IMX_IPC_ONLY)
 		return -ENOTSUPP;
 
-
-	if (priv->txdb_ch) {
-		ret = mbox_send_message(priv->txdb_ch, (void *)&mmsg);
-		if (ret) {
-			dev_err(dev, "txdb send fail: %d\n", ret);
-			return ret;
-		}
-	}
 
 	switch (dcfg->method) {
 	case IMX_DIRECT_MMIO:
@@ -960,19 +937,10 @@ static int imx_rproc_xtr_mbox_init(struct rproc *rproc)
 		goto err_out;
 	}
 
-	cl = &priv->cl_txdb;
 	cl->dev = dev;
 	cl->tx_block = true;
 	cl->tx_tout = 20;
 	cl->knows_txdone = false;
-
-	/* txdb is optional */
-	priv->txdb_ch = mbox_request_channel_byname(cl, "txdb");
-	if (IS_ERR(priv->txdb_ch)) {
-		ret = PTR_ERR(priv->txdb_ch);
-		dev_info(cl->dev, "No txdb, ret %d\n", ret);
-		priv->txdb_ch = NULL;
-	}
 
 	return 0;
 
