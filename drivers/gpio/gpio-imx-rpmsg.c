@@ -96,8 +96,8 @@ struct imx_rpmsg_gpio_pin {
 	u8 irq_unmask;
 	u8 irq_mask;
 	u8 irq_wake;
-	bool user_wakeup;
-	u32 irq_type;
+	u8 user_wakeup;
+	u8 irq_type;
 	int irq;
 	struct gpio_desc *desc;
 	struct work_struct rpmsg_ack_work;
@@ -692,7 +692,7 @@ static ssize_t setwake_store(struct device *dev, struct device_attribute *attr,
 	struct imx_rpmsg_gpio_port *port = dev_get_drvdata(dev);
 	int ret = count, tmp, irq;
 	char *dup, *parse, *word;
-	u32 irq_type = IRQ_TYPE_NONE, cur_irq_type;
+	u8 irq_type = IRQ_TYPE_NONE, cur_irq_type;
 
 	dup = kstrdup(buf, GFP_KERNEL);
 	if (!dup)
@@ -734,16 +734,15 @@ static ssize_t setwake_store(struct device *dev, struct device_attribute *attr,
 			continue;
 		}
 
+		/* don't bother getting irq if disabled */
+		if (irq_type == IRQ_TYPE_NONE) {
+			WRITE_ONCE(port->gpio_pins[pin].user_wakeup, irq_type);
+			continue;
+		}
+
 		desc = gpiochip_get_desc(&port->gc, pin);
 		if (IS_ERR(desc))
 			continue;
-		/* refuse if currently set as output.. */
-		if (test_bit(FLAG_IS_OUT, &desc->flags)) {
-			dev_warn(dev, "setwake: tried to set wake on gpio%d pin %d which was output\n",
-				 port->idx, pin);
-			ret = (ret < 0) ? ret : -EINVAL;
-			continue;
-		}
 
 		irq = gpiod_to_irq(desc);
 		if (irq < 0) {
@@ -753,8 +752,7 @@ static ssize_t setwake_store(struct device *dev, struct device_attribute *attr,
 			continue;
 		}
 
-		port->gpio_pins[pin].user_wakeup = (irq_type != IRQ_TYPE_NONE);
-		port->gpio_pins[pin].irq_type = irq_type;
+		WRITE_ONCE(port->gpio_pins[pin].user_wakeup, irq_type);
 		port->gpio_pins[pin].irq = irq;
 	}
 
@@ -861,9 +859,12 @@ imx_rpmsg_gpio_enable_wakeup(struct imx_rpmsg_gpio_port *port)
 	struct gpio_desc *desc;
 	int err = 0;
 	int i, irq;
+	uint8_t wakeup_type;
 
 	for (i = 0; i < port->gc.ngpio; i++) {
-		if (!port->gpio_pins[i].user_wakeup)
+		wakeup_type = READ_ONCE(port->gpio_pins[i].user_wakeup);
+
+		if (!wakeup_type)
 			continue;
 
 		desc = gpiochip_request_own_desc(&port->gc, i, "imx_rpmsg_gpio_wakeup",
@@ -894,7 +895,7 @@ imx_rpmsg_gpio_enable_wakeup(struct imx_rpmsg_gpio_port *port)
 			goto fail_unlock_irq;
 		}
 
-		err = irq_set_irq_type(irq, port->gpio_pins[i].irq_type);
+		err = irq_set_irq_type(irq, wakeup_type);
 		if (err) {
 			dev_warn(port->gc.parent,
 				 "GPIO pin %d, failed to set wakeup trigger %d for IRQ %d: err %d\n",
@@ -925,17 +926,13 @@ imx_rpmsg_gpio_disable_wakeup(struct imx_rpmsg_gpio_port *port)
 	int i;
 
 	for (i = 0; i < port->gc.ngpio; i++) {
-		if (!port->gpio_pins[i].user_wakeup)
-			continue;
-
 		if (port->gpio_pins[i].desc == NULL)
 			continue;
 
-		if (irqd_is_wakeup_set(irq_get_irq_data(port->gpio_pins[i].irq))) {
-			disable_irq_wake(port->gpio_pins[i].irq);
-			gpiochip_unlock_as_irq(&port->gc, i);
-			gpiochip_free_own_desc(port->gpio_pins[i].desc);
-		}
+		disable_irq_wake(port->gpio_pins[i].irq);
+		gpiochip_unlock_as_irq(&port->gc, i);
+		gpiochip_free_own_desc(port->gpio_pins[i].desc);
+		port->gpio_pins[i].desc = NULL;
 	}
 }
 
