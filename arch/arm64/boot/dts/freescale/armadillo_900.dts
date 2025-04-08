@@ -107,9 +107,9 @@
 		off-on-delay-us = <400000>;
 	};
 
-	reg_usb1_host_vbus: regulator-usb1-vbus {
+	reg_usb0_host_vbus: regulator-usb0-vbus {
 		compatible = "regulator-fixed";
-		regulator-name = "usb1_host_vbus";
+		regulator-name = "usb0_host_vbus";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		gpio = <&rpmsg_gpioa 3 GPIO_ACTIVE_HIGH>;

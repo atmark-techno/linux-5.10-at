@@ -6,6 +6,6 @@
 /dts-v1/;
 /plugin/;
 
-&reg_usb1_host_vbus {
+&reg_usb0_host_vbus {
 	status = "broken";
 };
