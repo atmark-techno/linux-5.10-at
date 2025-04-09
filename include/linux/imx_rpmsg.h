@@ -31,6 +31,7 @@
 #define IMX_RPMSG_TTY		0xf1
 #define IMX_RPMSG_WDOG		0xf2
 #define IMX_RPMSG_CAN		0xf3
+#define IMX_RPMSG_SPI		0xf4
 /* rpmsg version */
 #define IMX_RMPSG_MAJOR		1
 #define IMX_RMPSG_MINOR		0

@@ -386,6 +386,12 @@ config SPI_IMX
 	help
 	  This enables support for the Freescale i.MX SPI controllers.
 
+config SPI_RPMSG
+	tristate "SPI proxy bus over RPMSG"
+	depends on RPMSG
+	help
+	  This driver can support virtual spi-rpmsg function
+
 config SPI_JCORE
 	tristate "J-Core SPI Master"
 	depends on OF && (SUPERH || COMPILE_TEST)
