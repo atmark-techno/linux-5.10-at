@@ -99,6 +99,16 @@
 		regulator-boot-on;
 	};
 
+	reg_usb0_host_vbus: regulator-usb0-vbus {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioa 3 GPIO_ACTIVE_HIGH>;
+		regulator-name = "usb0_host_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
 	reg_usb1_host_vbus: regulator-usb1-vbus {
 		compatible = "regulator-fixed";
 		gpio = <&rpmsg_gpioa 24 GPIO_ACTIVE_HIGH>;

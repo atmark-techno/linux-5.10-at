@@ -107,16 +107,6 @@
 		off-on-delay-us = <400000>;
 	};
 
-	reg_usb0_host_vbus: regulator-usb0-vbus {
-		compatible = "regulator-fixed";
-		regulator-name = "usb0_host_vbus";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&rpmsg_gpioa 3 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-always-on;
-	};
-
 	rpmsg_console: rpmsg-console {
 		compatible = "fsl,imx-rpmsg-tty-serial";
 		port_type = <TTY_TYPE_M33_CONSOLE>;
