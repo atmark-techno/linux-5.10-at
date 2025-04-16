@@ -2270,7 +2270,7 @@ static void sdma_load_firmware(const struct firmware *fw, void *context)
 			/*add a bit delay to wait for firmware priv released */
 			msleep(20);
 			request_firmware_nowait(THIS_MODULE,
-					FW_ACTION_UEVENT, sdma->fw_name,
+					FW_ACTION_HOTPLUG, sdma->fw_name,
 					sdma->dev, GFP_KERNEL, sdma,
 					sdma_load_firmware);
 			sdma->fw_fail++;
@@ -2395,7 +2395,7 @@ static int sdma_get_firmware(struct sdma_engine *sdma,
 	int ret;
 
 	ret = request_firmware_nowait(THIS_MODULE,
-			FW_ACTION_UEVENT, fw_name, sdma->dev,
+			FW_ACTION_HOTPLUG, fw_name, sdma->dev,
 			GFP_KERNEL, sdma, sdma_load_firmware);
 
 	return ret;
