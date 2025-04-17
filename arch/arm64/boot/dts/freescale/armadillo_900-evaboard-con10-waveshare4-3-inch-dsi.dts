@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2025 Atmark Techno, Inc. All Rights Reserved.
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/leds/common.h>
+
+#include "imx8ulp-pinfunc.h"
+#include "imx8ulp-pinfunc-m33.h"
+
+&lpi2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	// touch
+	ft5406: ts@38 {
+		compatible = "edt,edt-ft5506";
+		reg = <0x38>;
+		vcc-supply = <&reg_display>;
+		//reset-gpio = <>;
+
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+		touchscreen-inverted-x;
+		touchscreen-inverted-y;
+	};
+
+	// power
+	reg_display: reg_display@45 {
+		compatible = "raspberrypi,7inch-touchscreen-panel-regulator";
+		reg = <0x45>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+};
+
+// display interface
+&dcnano {
+	status = "okay";
+};
+
+&dphy {
+	status = "okay";
+};
+
+&dsi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "okay";
+	panel@0 {
+		compatible = "waveshare,4-3-inch-dsi", "panel-dsi";
+		reg = <0>;
+		power-supply = <&reg_display>;
+		backlight = <&reg_display>;
+		dsi-color-format = "RGB888";
+		mode = "MODE_VIDEO";
+
+		// 43H-800480-IPS-CT WAVESHARE-24160
+		width-mm = <95>;  // 95.04 mm
+		height-mm = <54>; // 53.86 mm
+
+		port {
+			panel_in: endpoint {
+				data-lanes = <1>;
+				remote-endpoint = <&mipi_dsi_out>;
+			};
+		};
+
+		timing: panel-timing {
+			clock-frequency = <33000000>;
+			hactive = <800>;
+			vactive = <480>;
+			hfront-porch = <59>;
+			hsync-len = <2>;
+			hback-porch = <45>;
+			vfront-porch = <7>;
+			vsync-len = <2>;
+			vback-porch = <22>;
+		};
+	};
+
+	ports {
+		port@1 {
+			reg = <1>;
+
+			mipi_dsi_out: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
+		};
+	};
+};
