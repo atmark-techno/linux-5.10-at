@@ -4762,15 +4762,15 @@ static int panel_dsi_dt_probe(struct device *dev,
 		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_HSE"))
 			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_HSE;
 		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_NO_HFP"))
-			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_NO_HFP;
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_HFP;
 		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_NO_HBP"))
-			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_NO_HBP;
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_HBP;
 		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_NO_HSA"))
-			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_NO_HSA;
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_HSA;
 		else if (!strcmp(dsi_mode_flags, "MODE_VSYNC_FLUSH"))
 			desc_dsi->flags |= MIPI_DSI_MODE_VSYNC_FLUSH;
 		else if (!strcmp(dsi_mode_flags, "MODE_NO_EOT_PACKET"))
-			desc_dsi->flags |= MIPI_DSI_MODE_NO_EOT_PACKET;
+			desc_dsi->flags |= MIPI_DSI_MODE_EOT_PACKET;
 		else if (!strcmp(dsi_mode_flags, "CLOCK_NON_CONTINUOUS"))
 			desc_dsi->flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
 		else if (!strcmp(dsi_mode_flags, "MODE_LPM"))
