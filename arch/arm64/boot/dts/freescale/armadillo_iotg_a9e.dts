@@ -213,7 +213,7 @@
 	 * 0x1 pull-up selection (0=pull down)
 	 */
 
-	/* overriden by at-dtweb */
+	/* overridden by at-dtweb */
 	pinctrl_con10_gpio: con10gpiogrp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF6__PTF6    0x0
