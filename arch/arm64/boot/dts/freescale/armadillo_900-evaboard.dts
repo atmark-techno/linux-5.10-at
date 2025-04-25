@@ -206,10 +206,11 @@
 	 */
 
 	/* overriden by at-dtweb */
-	pinctrl_con10_gpio: con10gpiogrp {
+	pinctrl_con10_gpio: con10gpiogrp { // (CON16 on a900 evaboard)
 		fsl,pins = <
 			MX8ULP_PAD_PTF6__PTF6	0x0
 			MX8ULP_PAD_PTF7__PTF7	0x0
+			MX8ULP_PAD_PTF24__PTF24	0x0
 		>;
 	};
 
