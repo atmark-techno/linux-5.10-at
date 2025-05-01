@@ -763,6 +763,7 @@ static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 	struct snd_soc_component *component;
 	struct device_node *np;
 	struct rpmsg_info *info;
+	u32 audioindex = 0;
 	int ret, i;
 
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
@@ -792,13 +793,17 @@ static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 		info->work_list[i].info = info;
 	}
 
+	np = of_find_node_by_name(NULL, "rpmsg_audio");
+	if (np)
+		of_property_read_u32(np, "sai_index", &audioindex);
+
 	/* Initialize msg */
 	for (i = 0; i < MSG_MAX_NUM; i++) {
 		info->msg[i].s_msg.header.cate  = IMX_RPMSG_AUDIO;
 		info->msg[i].s_msg.header.major = IMX_RMPSG_MAJOR;
 		info->msg[i].s_msg.header.minor = IMX_RMPSG_MINOR;
 		info->msg[i].s_msg.header.type  = MSG_TYPE_A;
-		info->msg[i].s_msg.param.audioindex = 0;
+		info->msg[i].s_msg.param.audioindex = audioindex;
 	}
 
 	init_completion(&info->cmd_complete);
