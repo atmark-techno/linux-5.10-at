@@ -305,8 +305,9 @@
 #define GET_CODEC_VALUE 0x15
 #define	TX_POINTER	0x16
 #define	RX_POINTER	0x17
+#define	PCM_INIT	0x18
 /* Total msg numver for type A */
-#define MSG_TYPE_A_NUM  0x18
+#define MSG_TYPE_A_NUM  0x19
 
 /* RPMSG Command (TYPE C)*/
 #define	TX_PERIOD_DONE	0x0
