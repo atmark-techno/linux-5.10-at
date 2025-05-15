@@ -410,4 +410,9 @@ config VF610_DAC
 	  This driver can also be built as a module. If so, the module will
 	  be called vf610_dac.
 
+config IMX_RPMSG_DAC
+	tristate "DAC for i.MX boards over rpmsg"
+	depends on RPMSG
+	help
+	  There should be rpmsg devices defined in other core (M core)
 endmenu
