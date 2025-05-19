@@ -9,3 +9,7 @@
 &reg_usb0_host_vbus {
 	status = "broken";
 };
+
+&usb0_vbus {
+	status = "broken";
+};

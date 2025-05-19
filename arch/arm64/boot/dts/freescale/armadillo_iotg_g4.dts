@@ -29,7 +29,12 @@
 		regulator-max-microvolt = <5000000>;
 		gpio = <&gpio1 9 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	usb1_vbus: usb1-vbus {
+		compatible = "regulator-output";
+		vout-supply = <&reg_usb1_host_vbus>;
 	};
 
 	reg_usdhc2_vmmc: regulator-usdhc2 {

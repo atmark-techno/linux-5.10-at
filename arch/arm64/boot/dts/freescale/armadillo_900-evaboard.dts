@@ -129,7 +129,7 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
-		regulator-always-on;
+		regulator-boot-on;
 	};
 
 	reg_usb1_host_vbus: regulator-usb1-vbus {
@@ -139,7 +139,17 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
-		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	usb0_vbus: usb0-vbus {
+		compatible = "regulator-output";
+		vout-supply = <&reg_usb0_host_vbus>;
+	};
+
+	usb1_vbus: usb1-vbus {
+		compatible = "regulator-output";
+		vout-supply = <&reg_usb1_host_vbus>;
 	};
 
 	reg_vdd_ana_1v8: regulator-vdd-ana-1v8 {
