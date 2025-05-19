@@ -47,6 +47,29 @@
 		status = "okay";
 	};
 
+	/* DAC[0|1] is a fixed function pin. No pinmux needed. */
+	dac0 {
+		compatible = "fsl,imx-rpmsg-dac";
+		label = "vout0";
+		vref-supply = <&reg_vdd_ana_1v8>;
+
+		dac_index = <DAC0>;
+		dac_vref = <kDAC12_ReferenceVoltageSourceAlt1>;
+		dac_cref = <kDAC12_ReferenceCurrentSourceAlt0>;
+		dac_speed = <kDAC12_SpeedLowMode>;
+	};
+
+	dac1 {
+		compatible = "fsl,imx-rpmsg-dac";
+		label = "vout1";
+		vref-supply = <&reg_vdd_ana_1v8>;
+
+		dac_index = <DAC1>;
+		dac_vref = <kDAC12_ReferenceVoltageSourceAlt1>;
+		dac_cref = <kDAC12_ReferenceCurrentSourceAlt0>;
+		dac_speed = <kDAC12_SpeedLowMode>;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -117,6 +140,16 @@
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
 		regulator-always-on;
+	};
+
+	reg_vdd_ana_1v8: regulator-vdd-ana-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_ANA_1V8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
 	};
 };
 
