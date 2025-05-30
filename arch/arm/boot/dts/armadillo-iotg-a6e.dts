@@ -35,6 +35,7 @@
 			regulator-max-microvolt = <5000000>;
 			gpio = <&gpio1 19 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
+			regulator-boot-on;
 		};
 
 		reg_3p3v: regulator-3p3v {
@@ -44,6 +45,11 @@
 			regulator-max-microvolt = <3300000>;
 			regulator-always-on;
 		};
+	};
+
+	usb1_vbus: usb1-vbus {
+		compatible = "regulator-output";
+		vout-supply = <&reg_usbotg1_vbus>;
 	};
 
 	gpio-keys {
@@ -229,7 +235,6 @@
 };
 
 &usbotg1 {
-	vbus-supply = <&reg_usbotg1_vbus>;
 	dr_mode = "host";
 	disable-over-current;
 	status = "okay";
