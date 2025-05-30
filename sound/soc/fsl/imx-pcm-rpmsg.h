@@ -466,6 +466,7 @@ typedef void (*dma_callback)(void *arg);
  * @msg: array of rpmsg
  * @notify: notification msg (type C) for TX & RX
  * @notify_updated: notification flag for TX & RX
+ * @initialized: track if a pcm device has been constructed
  * @rpmsg_wq: rpmsg workqueue
  * @work_list: array of work list for workqueue
  * @work_write_index: write index of work list
@@ -492,6 +493,7 @@ struct rpmsg_info {
 	/* period done */
 	struct rpmsg_msg         notify[2];
 	bool                     notify_updated[2];
+	bool			 initialized;
 
 	struct workqueue_struct  *rpmsg_wq;
 	struct work_of_rpmsg	 work_list[WORK_MAX_NUM];
