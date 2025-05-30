@@ -91,7 +91,6 @@ struct imx_mu_priv {
 	u32 xcr[IMX_MU_xCR_MAX];
 
 	bool			side_b;
-	bool			disable_wakeup;
 };
 
 enum imx_mu_type {
@@ -539,7 +538,7 @@ static irqreturn_t imx_mu_isr(int irq, void *p)
 		return IRQ_NONE;
 	}
 
-	if (priv->suspend && !priv->disable_wakeup)
+	if (priv->suspend)
 		pm_system_irq_wakeup(priv->irq);
 
 	return IRQ_HANDLED;
@@ -835,7 +834,6 @@ static int imx_mu_probe(struct platform_device *pdev)
 	}
 
 	priv->side_b = of_property_read_bool(np, "fsl,mu-side-b");
-	priv->disable_wakeup = of_property_read_bool(np, "fsl,mu-disable-wakeup");
 
 	priv->dcfg->init(priv);
 
