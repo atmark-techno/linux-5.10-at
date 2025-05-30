@@ -525,6 +525,11 @@ static irqreturn_t imx_mu_isr(int irq, void *p)
 	if ((val == IMX_MU_xSR_TEn(priv->dcfg->type, cp->idx)) && (cp->type == IMX_MU_TYPE_TX)) {
 		imx_mu_xcr_rmw(priv, IMX_MU_TCR, 0, IMX_MU_xCR_TIEn(priv->dcfg->type, cp->idx));
 		mbox_chan_txdone(chan, 0);
+		/*
+		 * Do not attempt to wake from suspend for txdone events.
+		 * These can happen if we send a message just before suspending
+		 */
+		return IRQ_HANDLED;
 	} else if ((val == IMX_MU_xSR_RFn(priv->dcfg->type, cp->idx)) && (cp->type == IMX_MU_TYPE_RX)) {
 		priv->dcfg->rx(priv, cp);
 	} else if ((val == IMX_MU_xSR_GIPn(priv->dcfg->type, cp->idx)) && (cp->type == IMX_MU_TYPE_RXDB)) {
