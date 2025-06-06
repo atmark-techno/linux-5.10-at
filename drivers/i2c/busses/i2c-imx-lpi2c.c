@@ -1254,7 +1254,6 @@ rpm_disable:
 	pm_runtime_disable(&pdev->dev);
 
 	clk_rate_exclusive_put(lpi2c_imx->clks[0].clk);
-
 	return ret;
 }
 
