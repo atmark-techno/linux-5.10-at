@@ -23,12 +23,10 @@
 		drv_mode = <0x3>;
 	};
 
-	spi_gpio: spi_gpio {
+	lpspi2: lpspi2 {
 		compatible = "fsl,spi-rpmsg";
-		spi_type = <SPI_TYPE_GPIO>;
-		spi_MISO_pin = <PIN_PTC0>;
-		spi_MOSI_pin = <PIN_PTC1>;
-		spi_SCK_pin = <PIN_PTC2>;
+		spi_type = <SPI_TYPE_LPSPI>;
+		spi_index = <LPSPI2>;
 		// handled in generic code
 		num-chipselects = <1>;
 		cs-gpios = <&rpmsg_gpioc 3 0>;
@@ -132,9 +130,9 @@
 &gpioc_iomuxc {
 	spi {
 		imx-rpmsg,pins = <
-			IOMUXC_PTC0_PTC0	IOMUXC_PCR_PE_MASK
-			IOMUXC_PTC1_PTC1	IOMUXC_PCR_OBE_MASK
-			IOMUXC_PTC2_PTC2	IOMUXC_PCR_OBE_MASK
+			IOMUXC_PTC0_LPSPI2_SIN	IOMUXC_PCR_PE_MASK
+			IOMUXC_PTC1_LPSPI2_SOUT	IOMUXC_PCR_OBE_MASK
+			IOMUXC_PTC2_LPSPI2_SCK	IOMUXC_PCR_OBE_MASK
 			IOMUXC_PTC3_PTC3	IOMUXC_PCR_OBE_MASK
 		>;
 	};
