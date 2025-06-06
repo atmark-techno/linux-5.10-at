@@ -115,6 +115,13 @@
  *************************/
 /* spi: port_type */
 #define SPI_TYPE_GPIO		0
+#define SPI_TYPE_LPSPI		1
+
+/* spi: lpspi_index */
+#define LPSPI0			0
+#define LPSPI1			1
+#define LPSPI2			2
+#define LPSPI3			3
 
 /**************************
  * SAI

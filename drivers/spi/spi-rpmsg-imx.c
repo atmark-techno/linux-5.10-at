@@ -27,7 +27,7 @@
 
 #define SPI_RPMSG_TIMEOUT			500 /* unit: ms */
 
-#define SPI_RPMSG_VERSION			0x0001
+#define SPI_RPMSG_VERSION			0x0002
 
 #define SPI_RPMSG_TYPE_REQUEST			0x00
 #define SPI_RPMSG_TYPE_RESPONSE			0x01
@@ -45,6 +45,7 @@ enum spi_rpmsg_commands
 
 enum {
 	SPI_TYPE_GPIO,
+	SPI_TYPE_LPSPI,
 };
 
 struct spi_rpmsg_init_payload {
@@ -56,11 +57,15 @@ struct spi_rpmsg_init_payload {
 			uint32_t mosi_pin;
 			uint32_t mode;
 		} __packed gpio;
+		struct {
+			uint32_t spi_index;
+			uint32_t mode;
+		} __packed lpspi;
 	} __packed;
 } __packed;
 
 /* spi_rpmsg_msg needs to fit within RPMSG_MAX_PAYLOAD_SIZE */
-#define SPI_RPMSG_HDR_SIZE (IMX_RPMSG_HEAD_SIZE + 6)
+#define SPI_RPMSG_HDR_SIZE (IMX_RPMSG_HEAD_SIZE + 10)
 #define RPMSG_MAX_SIZE  (RPMSG_MAX_PAYLOAD_SIZE - IMX_RPMSG_HEAD_SIZE)
 #define SPI_RPMSG_MAX_BUF_SIZE	(RPMSG_MAX_PAYLOAD_SIZE - SPI_RPMSG_HDR_SIZE)
 struct spi_rpmsg_msg {
@@ -70,6 +75,7 @@ struct spi_rpmsg_msg {
 	u8 bus_id;
 	u8 ret_val;
 	u16 bits_per_word;
+	u32 speed_hz;
 	u16 len;
 	union {
 		u8 buf[SPI_RPMSG_MAX_BUF_SIZE];
@@ -199,6 +205,7 @@ static int spi_rpmsg_transfer_one(struct spi_master *master,
 	rmsg.header.cmd = SPI_RPMSG_COMMAND_TRANSFER;
 	rmsg.bus_id = master->bus_num;
 	rmsg.bits_per_word = transfer->bits_per_word;
+	rmsg.speed_hz = transfer->speed_hz;
 	rmsg.len = transfer->len;
 	memcpy(rmsg.buf, transfer->tx_buf, transfer->len);
 
@@ -261,6 +268,14 @@ static int spi_rpmsg_init_remote(struct device *dev, int bus_id)
 			return ret;
 		}
 		init.gpio.mode = 0;
+		break;
+	case SPI_TYPE_LPSPI:
+		ret = of_property_read_u32(np, "spi_index", &init.lpspi.spi_index);
+		if (ret) {
+			dev_err(dev, "%pOF: error reading spi_MOSI_pin: %d\n", np, ret);
+			return ret;
+		}
+		init.lpspi.mode = 0;
 		break;
 	default:
 		dev_err(dev, "%pOF: invalid spi_type %d\n", np, init.type);
