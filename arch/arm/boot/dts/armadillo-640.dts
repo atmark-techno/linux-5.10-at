@@ -99,6 +99,22 @@
 		otg2-vbus-reg-supply = <&reg_usbotg2_vbus>;
 	};
 
+	usb1_vbus: usb1-vbus {
+		compatible = "regulator-output";
+		vout-supply = <&reg_usbotg1_vbus>;
+		autoswitch;
+		init_on;
+		no_exclusive;
+	};
+
+	usb2_vbus: usb2-vbus {
+		compatible = "regulator-output";
+		vout-supply = <&reg_usbotg2_vbus>;
+		autoswitch;
+		init_on;
+		no_exclusive;
+	};
+
 	se_en: se-enable {
 		compatible = "gpio-reset";
 		pinctrl-names = "default";
@@ -270,7 +286,6 @@
 };
 
 &usbotg1 {
-	vbus-supply = <&reg_usbotg1_vbus>;
 	dr_mode = "host";
 	disable-over-current;
 	status = "okay";
@@ -281,7 +296,6 @@
 };
 
 &usbotg2 {
-	vbus-supply = <&reg_usbotg2_vbus>;
 	dr_mode = "host";
 	disable-over-current;
 	status = "okay";
