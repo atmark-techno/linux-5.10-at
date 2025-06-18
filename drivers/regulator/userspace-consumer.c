@@ -130,7 +130,9 @@ static int regulator_userspace_consumer_probe(struct platform_device *pdev)
 		pdata = &tmpdata;
 		memset(pdata, 0, sizeof(*pdata));
 
-		pdata->no_autoswitch = true;
+		pdata->init_on = of_property_read_bool(pdev->dev.of_node, "init-on");
+		pdata->no_autoswitch = !of_property_read_bool(pdev->dev.of_node, "autoswitch");
+		pdata->no_exclusive = of_property_read_bool(pdev->dev.of_node, "no-exclusive");
 		pdata->num_supplies = 1;
 		pdata->supplies = devm_kzalloc(&pdev->dev, sizeof(*pdata->supplies), GFP_KERNEL);
 		if (!pdata->supplies)
@@ -156,8 +158,14 @@ static int regulator_userspace_consumer_probe(struct platform_device *pdev)
 
 	mutex_init(&drvdata->lock);
 
-	ret = devm_regulator_bulk_get_exclusive(&pdev->dev, drvdata->num_supplies,
-						drvdata->supplies);
+	if (!pdata->no_exclusive) {
+		ret = devm_regulator_bulk_get_exclusive(
+			&pdev->dev, drvdata->num_supplies, drvdata->supplies);
+	} else {
+		ret = devm_regulator_bulk_get(
+			&pdev->dev, drvdata->num_supplies, drvdata->supplies);
+		dev_info(&pdev->dev, "get regulator with no-exclusive\n");
+	}
 	if (ret)
 		return dev_err_probe(&pdev->dev, ret, "Failed to get supplies\n");
 

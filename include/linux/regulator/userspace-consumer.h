@@ -22,6 +22,8 @@ struct regulator_userspace_consumer_data {
 
 	bool init_on;
 	bool no_autoswitch;
+
+	bool no_exclusive;
 };
 
 #endif /* __REGULATOR_PLATFORM_CONSUMER_H_ */
