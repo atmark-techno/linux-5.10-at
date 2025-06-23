@@ -96,6 +96,10 @@ struct spi_rpmsg_info {
 	u8 *rx_buf;
 };
 
+struct rpmsg_spi {
+	u8 id;
+};
+
 static struct spi_rpmsg_info spi_rpmsg;
 
 static int spi_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
@@ -188,6 +192,7 @@ static int spi_rpmsg_transfer_one(struct spi_master *master,
 				  struct spi_device *spi,
 				  struct spi_transfer *transfer)
 {
+	struct rpmsg_spi *devdata = spi_master_get_devdata(master);
 	struct spi_rpmsg_msg rmsg;
 	int status = 0;
 
@@ -203,7 +208,7 @@ static int spi_rpmsg_transfer_one(struct spi_master *master,
 
 	memset(&rmsg, 0, sizeof(SPI_RPMSG_HDR_SIZE));
 	rmsg.header.cmd = SPI_RPMSG_COMMAND_TRANSFER;
-	rmsg.bus_id = master->bus_num;
+	rmsg.bus_id = devdata->id;
 	rmsg.bits_per_word = transfer->bits_per_word;
 	rmsg.speed_hz = transfer->speed_hz;
 	rmsg.len = transfer->len;
@@ -297,23 +302,27 @@ static int spi_rpmsg_platform_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct spi_master *master;
+	struct rpmsg_spi *devdata;
 	int ret;
 
 	if (!spi_rpmsg.rpdev)
 		return -EPROBE_DEFER;
 
-	master = devm_spi_alloc_master(dev, 0 /* no driver data */);
+	master = devm_spi_alloc_master(dev, sizeof(*devdata));
 	if (!master)
 		return -ENOMEM;
 
 	master->dev.of_node = np;
 	master->bits_per_word_mask = SPI_BPW_RANGE_MASK(1, 32);
 	master->mode_bits = 0;
-	master->bus_num = ida_simple_get(&spi_rpmsg.ida, 0, 0, GFP_KERNEL);
+
+	/* do not store it in bus_num to allow arbitrary alias */
+	devdata = spi_master_get_devdata(master);
+	devdata->id = ida_simple_get(&spi_rpmsg.ida, 0, 0, GFP_KERNEL);
 
 	master->transfer_one = spi_rpmsg_transfer_one;
 
-	ret = spi_rpmsg_init_remote(&pdev->dev, master->bus_num);
+	ret = spi_rpmsg_init_remote(&pdev->dev, devdata->id);
 	if (ret)
 		goto error;
 
@@ -324,12 +333,13 @@ static int spi_rpmsg_platform_probe(struct platform_device *pdev)
 		goto error;
 	}
 
-	dev_info(dev, "registered SPI driver successfully\n");
+	dev_info(dev, "registered SPI%d driver successfully (%d)\n",
+		 master->bus_num, devdata->id);
 
 	return 0;
 
 error:
-	ida_free(&spi_rpmsg.ida, master->bus_num);
+	ida_free(&spi_rpmsg.ida, devdata->id);
 	return ret;
 }
 
