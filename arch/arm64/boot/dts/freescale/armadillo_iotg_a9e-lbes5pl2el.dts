@@ -13,6 +13,13 @@
 
 
 &{/} {
+	aliases {
+		// keep spi0 for backwards compatibility.
+		// spi code ensures that spi bus without alias will not
+		// use these values, so it is safe to use spi0 here.
+		spi0 = "/lpspi2";
+	};
+
 	usdhc1_pwrseq: usdhc1_pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		reset-gpios = <&rpmsg_gpioc 6 GPIO_ACTIVE_LOW>;
