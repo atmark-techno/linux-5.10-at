@@ -153,6 +153,7 @@ static const struct pci_device_id wlan_ids[] = {
 /* moal interface ops */
 static moal_if_ops pcie_ops;
 
+
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -186,6 +187,13 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE8897;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE8897,
 				strlen(CARD_PCIE8897), strlen(driver_version));
+		/* we are copying card name in middle of full version, we can
+		   not copy null termination. This was already tried and
+		   reverted as full version got terminated in middlei(See commit
+		   57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		   the coverity warning  for all card types in this function. */
+		// coverity[string_null:SUPPRESS]
+		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -199,6 +207,8 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE8997;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE8997,
 				strlen(CARD_PCIE8997), strlen(driver_version));
+		// coverity[string_null:SUPPRESS]
+		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -212,6 +222,8 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE9097;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE9097,
 				strlen(CARD_PCIE9097), strlen(driver_version));
+		// coverity[string_null:SUPPRESS]
+		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -227,6 +239,7 @@ static t_u16 woal_update_card_type(t_void *card)
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE9098,
 				strlen(CARD_PCIE9098), strlen(driver_version));
 		// coverity[string_null:SUPPRESS]
+		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -241,6 +254,8 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIEAW693;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIEAW693,
 				strlen(CARD_PCIEAW693), strlen(driver_version));
+		// coverity[string_null:SUPPRESS]
+		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -254,6 +269,8 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIEIW624;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIEIW624,
 				strlen(CARD_PCIEIW624), strlen(driver_version));
+		// coverity[string_null:SUPPRESS]
+		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -792,8 +809,10 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 			goto done;
 		}
 	}
-	for (i = 0; i < handle->priv_num; i++)
-		netif_device_detach(handle->priv[i]->netdev);
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i])
+			netif_device_detach(handle->priv[i]->netdev);
+	}
 
 	if (keep_power) {
 		woal_sched_timeout(200);
@@ -807,8 +826,11 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		} else {
 			PRINTM(MMSG, "HS not actived, suspend fail!");
 			handle->suspend_fail = MTRUE;
-			for (i = 0; i < handle->priv_num; i++)
-				netif_device_attach(handle->priv[i]->netdev);
+			for (i = 0; i < handle->priv_num; i++) {
+				if (handle->priv[i])
+					netif_device_attach(
+						handle->priv[i]->netdev);
+			}
 			ret = -EBUSY;
 			goto done;
 		}
@@ -897,8 +919,10 @@ static int woal_pcie_resume(struct pci_dev *pdev)
 			LEAVE();
 			return MLAN_STATUS_SUCCESS;
 		}
-		for (i = 0; i < handle->priv_num; i++)
-			netif_device_attach(handle->priv[i]->netdev);
+		for (i = 0; i < handle->priv_num; i++) {
+			if (handle->priv[i])
+				netif_device_attach(handle->priv[i]->netdev);
+		}
 
 		woal_cancel_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
 			       MOAL_NO_WAIT);
@@ -1673,6 +1697,14 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 			PRINTM(MERROR, "FW in debug mode (0x%x)\n", value);
 			drv_ptr += sprintf(drv_ptr, "FW in debug mode (0x%x)\n",
 					   value);
+			if (value == FW_STUCK_CODE_VERSION_MISMATCH) {
+				phandle->driver_init = MFALSE;
+				PRINTM(MERROR,
+				       "WLAN and BT FW version mismatch !! Redownload both FWs with correct and same version\n");
+				drv_ptr += sprintf(
+					drv_ptr,
+					"WLAN and BT FW version mismatch !! Redownload both FWs with correct and same version\n");
+			}
 		}
 	}
 
@@ -1835,6 +1867,11 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		value = (value & 0xff00) >> 8;
 		if (value) {
 			PRINTM(MERROR, "FW in debug mode (0x%x)\n", value);
+			if (value == FW_STUCK_CODE_VERSION_MISMATCH) {
+				phandle->driver_init = MFALSE;
+				PRINTM(MERROR,
+				       "WLAN and BT FW version mismatch !! Redownload both FWs with correct and same version\n");
+			}
 		}
 	}
 
@@ -2259,11 +2296,10 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 					       "pre-allocced buf is not enough\n");
 			}
 			if (RDWR_STATUS_DONE == stat) {
-				PRINTM(MMSG, "%s done: size=0x%x\n",
+				PRINTM(MMSG, "%s done: size=0x%lx\n",
 				       mem_type_mapping_tbl[idx].mem_name,
-				       (unsigned int)(dbg_ptr -
-						      mem_type_mapping_tbl[idx]
-							      .mem_Ptr));
+				       (dbg_ptr -
+					mem_type_mapping_tbl[idx].mem_Ptr));
 #ifdef DUMP_TO_PROC
 				woal_save_dump_info_to_buf(
 					phandle,
@@ -2576,7 +2612,8 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 		if (phandle->event_fw_dump) {
 			queue_work(phandle->workqueue, &phandle->main_work);
 			phandle->is_fw_dump_timer_set = MTRUE;
-			woal_mod_timer(&phandle->fw_dump_timer, MOAL_TIMER_5S);
+			woal_mod_timer(&phandle->fw_dump_timer,
+				       MOAL_FW_DUMP_TIMER);
 			return;
 		}
 	}
@@ -2737,6 +2774,9 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 						strcpy(handle->card_info
 							       ->fw_name,
 						       PCIEUSB9098_COMBO_V1_FW_NAME);
+				} else {
+					strcpy(handle->card_info->fw_name,
+					       PCIEUART9098_COMBO_V1_FW_NAME);
 				}
 				strcpy(handle->card_info->fw_name_wlan,
 				       PCIE9098_WLAN_V1_FW_NAME);
@@ -2787,6 +2827,9 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 				else
 					strcpy(handle->card_info->fw_name,
 					       PCIEUSB9097_COMBO_V1_FW_NAME);
+			} else {
+				strcpy(handle->card_info->fw_name,
+				       PCIEUART9097_COMBO_V1_FW_NAME);
 			}
 			strcpy(handle->card_info->fw_name_wlan,
 			       PCIE9097_WLAN_V1_FW_NAME);
@@ -2827,24 +2870,37 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 						strcpy(handle->card_info
 							       ->fw_name,
 						       PCIEAW693_COMBO_V1_FW_NAME);
+				} else {
+					strcpy(handle->card_info->fw_name,
+					       PCIEAW693_COMBO_V1_FW_NAME);
 				}
 				strcpy(handle->card_info->fw_name_wlan,
 				       PCIEAW693_WLAN_V1_FW_NAME);
 				if (boot_mode != 0x03) {
 					/* remove extension .se */
 					if (strstr(handle->card_info->fw_name,
-						   ".se"))
+						   ".se")) {
+						// strstr's output is sanitized
+						// in if condition
+						// coverity[cert_pos54_c_violation:SUPPRESS]
+						// coverity[cert_err33_c_violation:SUPPRESS]
 						memset(strstr(handle->card_info
 								      ->fw_name,
 							      ".se"),
 						       '\0', sizeof(".se"));
+					}
 					if (strstr(handle->card_info
 							   ->fw_name_wlan,
-						   ".se"))
+						   ".se")) {
+						// strstr's output is sanitized
+						// in if condition
+						// coverity[cert_pos54_c_violation:SUPPRESS]
+						// coverity[cert_err33_c_violation:SUPPRESS]
 						memset(strstr(handle->card_info
 								      ->fw_name_wlan,
 							      ".se"),
 						       '\0', sizeof(".se"));
+					}
 				}
 				break;
 			case PCIEAW693_A0:
@@ -2997,11 +3053,16 @@ done:
 static void woal_pcie_work(struct work_struct *work)
 {
 	pcie_service_card *card =
+		// Coverity violation raised for kernel's API
+		// coverity[cert_arr39_c_violation:SUPPRESS]
 		container_of(work, pcie_service_card, reset_work);
 	moal_handle *handle = NULL;
 	moal_handle *ref_handle = NULL;
-	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 	handle = card->handle;
+	if (!handle)
+		return;
+
+	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 
 	// handle-> mac0 , ref_handle->second mac
 	if (handle->pref_mac) {
@@ -3033,23 +3094,34 @@ static void woal_pcie_work(struct work_struct *work)
 	}
 	if (woal_pcie_reset_fw(handle)) {
 		PRINTM(MERROR, "PCIe In-band Reset Fail\n");
-		goto done;
+		woal_send_auto_recovery_failure_event(handle);
+		wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
+		return;
 	}
 	handle->surprise_removed = MFALSE;
+
+	woal_free_module_param(handle);
+	woal_init_module_param(handle);
+
 	if (MLAN_STATUS_SUCCESS == woal_do_flr(handle, false, true))
 		handle->fw_reseting = MFALSE;
-	else
+	else {
 		handle = NULL;
+		wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
+		return;
+	}
 	if (ref_handle) {
 		ref_handle->surprise_removed = MFALSE;
+
+		woal_free_module_param(ref_handle);
+		woal_init_module_param(ref_handle);
+
 		if (MLAN_STATUS_SUCCESS == woal_do_flr(ref_handle, false, true))
 			ref_handle->fw_reseting = MFALSE;
 	}
 	card->work_flags = MFALSE;
-done:
 	wifi_status = WIFI_STATUS_OK;
-	if (handle)
-		woal_send_auto_recovery_complete_event(handle);
+	woal_send_auto_recovery_complete_event(handle);
 	PRINTM(MMSG, "========END IN-BAND RESET===========\n");
 	return;
 }

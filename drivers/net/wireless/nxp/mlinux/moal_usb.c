@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2021, 2024 NXP
+ * Copyright 2008-2021, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -61,10 +61,6 @@ static const char usbdriver_name[] = "usbxxx";
 /** This structure contains the device signature */
 static struct usb_device_id woal_usb_table[] = {
 /* Enter the device signature inside */
-#ifdef USB8801
-	{NXP_USB_DEVICE(USB8801_VID_1, USB8801_PID_1, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8801_VID_1, USB8801_PID_2, "NXP WLAN USB Adapter")},
-#endif
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
@@ -114,9 +110,6 @@ static struct usb_device_id woal_usb_table[] = {
 /** This structure contains the device signature */
 static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 /* Enter the device signature inside */
-#ifdef USB8801
-	{NXP_USB_DEVICE(USB8801_VID_1, USB8801_PID_2, "NXP WLAN USB Adapter")},
-#endif
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
 #endif
@@ -191,8 +184,6 @@ static struct usb_driver REFDATA woal_usb_driver = {
 #endif /* CONFIG_PM */
 };
 
-MODULE_DEVICE_TABLE(usb, woal_usb_table);
-MODULE_DEVICE_TABLE(usb, woal_usb_table_skip_fwdnld);
 
 /* moal interface ops */
 static moal_if_ops usb_ops;
@@ -714,22 +705,6 @@ static t_u16 woal_update_card_type(t_void *card)
 	t_u16 card_type = 0;
 
 	/* Update card type */
-#ifdef USB8801
-	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8801_PID_1 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8801_PID_2) {
-		card_type = CARD_TYPE_USB8801;
-		moal_memcpy_ext(NULL, driver_version, CARD_USB8801,
-				strlen(CARD_USB8801), strlen(driver_version));
-		moal_memcpy_ext(NULL,
-				driver_version + strlen(INTF_CARDTYPE) +
-					strlen(KERN_VERSION),
-				V14, strlen(V14),
-				strlen(driver_version) - strlen(INTF_CARDTYPE) -
-					strlen(KERN_VERSION));
-	}
-#endif
 #ifdef USB8897
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
 		    (__force __le16)USB8897_PID_1 ||
@@ -899,9 +874,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 			       woal_cpu_to_le16(udev->descriptor.idProduct),
 			       woal_cpu_to_le16(udev->descriptor.bcdDevice));
 			switch (woal_cpu_to_le16(udev->descriptor.idProduct)) {
-#ifdef USB8801
-			case (__force __le16)USB8801_PID_1:
-#endif /* USB8801 */
 #ifdef USB8897
 			case (__force __le16)USB8897_PID_1:
 #endif /* USB8897 */
@@ -933,9 +905,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 				else
 					usb_cardp->boot_state = USB_FW_DNLD;
 				break;
-#ifdef USB8801
-			case (__force __le16)USB8801_PID_2:
-#endif /* USB8801 */
 #ifdef USB8897
 			case (__force __le16)USB8897_PID_2:
 #endif /* USB8897 */
@@ -1326,8 +1295,10 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	 * between a suspended state and a 'disconnect' one.
 	 */
 	handle->is_suspended = MTRUE;
-	for (i = 0; i < handle->priv_num; i++)
-		netif_carrier_off(handle->priv[i]->netdev);
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i])
+			netif_carrier_off(handle->priv[i]->netdev);
+	}
 
 	/* Unlink Rx cmd URB */
 	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb) {
@@ -1410,7 +1381,8 @@ static int woal_usb_resume(struct usb_interface *intf)
 	}
 
 	for (i = 0; i < handle->priv_num; i++)
-		if (handle->priv[i]->media_connected == MTRUE)
+		if (handle->priv[i] &&
+		    handle->priv[i]->media_connected == MTRUE)
 			netif_carrier_on(handle->priv[i]->netdev);
 
 	/* Disable Host Sleep */
@@ -2086,7 +2058,7 @@ static void woal_usb_dump_fw_info(moal_handle *phandle)
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 	phandle->is_fw_dump_timer_set = MTRUE;
-	woal_mod_timer(&phandle->fw_dump_timer, MOAL_TIMER_5S);
+	woal_mod_timer(&phandle->fw_dump_timer, MOAL_FW_DUMP_TIMER);
 
 done:
 	LEAVE();
@@ -2112,10 +2084,6 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 	if (cardp->boot_state == USB_FW_READY)
 		goto done;
-#ifdef USB8801
-	if (IS_USB8801(handle->card_type))
-		goto done;
-#endif
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
 	defined(USB8978) || defined(USBIW624) || defined(USBIW610)

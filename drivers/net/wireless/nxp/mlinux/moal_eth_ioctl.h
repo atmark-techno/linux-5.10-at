@@ -4,7 +4,7 @@
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2024 NXP
+ * Copyright 2008-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -127,6 +127,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_HSSETPARA "hssetpara"
 #define PRIV_CMD_MGMT_FILTER "mgmtfilter"
 #define PRIV_CMD_SCANCFG "scancfg"
+#define PRIV_CMD_6GSCANCFG "6gscancfg"
 #define PRIV_CMD_GETNLNUM "getnlnum"
 #define PRIV_CMD_AGGRCTRL "aggrctrl"
 #ifdef USB
@@ -394,6 +395,21 @@ typedef struct _ssu_params_cfg {
 
 /** Private command to get secure boot uuid */
 #define PRIV_CMD_GET_SB_UUID "getuuid"
+
+#define FILS_IP_CONFIG "FILSIPCONFIG"
+#define FILS_PSK_CONFIG "FILSPSKCONFIG"
+#define FILS_IP_STR "ip"
+#define FILS_MASK_STR "mask"
+#define FILS_BASE_IP_STR "base_ip"
+#define FILS_DNS_STR "dns"
+#define FILS_COUNT_STR "max"
+#define FILS_KEY "key"
+#define FILS_BSSID "bssid"
+
+mlan_status woal_set_fils_psk(moal_private *priv, char *data);
+#ifdef UAP_SUPPORT
+mlan_status woal_set_fils_ip_cfg(moal_private *priv, char *data);
+#endif
 
 /** Private command: 11AX Cfg */
 #define PRIV_CMD_11AXCFG "11axcfg"
