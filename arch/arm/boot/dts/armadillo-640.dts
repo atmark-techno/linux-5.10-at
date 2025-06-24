@@ -103,16 +103,16 @@
 		compatible = "regulator-output";
 		vout-supply = <&reg_usbotg1_vbus>;
 		autoswitch;
-		init_on;
-		no_exclusive;
+		init-on;
+		no-exclusive;
 	};
 
 	usb2_vbus: usb2-vbus {
 		compatible = "regulator-output";
 		vout-supply = <&reg_usbotg2_vbus>;
 		autoswitch;
-		init_on;
-		no_exclusive;
+		init-on;
+		no-exclusive;
 	};
 
 	se_en: se-enable {
