@@ -330,7 +330,13 @@ static int spi_rpmsg_platform_probe(struct platform_device *pdev)
 	ret = devm_spi_register_master(dev, master);
 	if (ret < 0) {
 		dev_err(dev, "failed to register SPI master: %d\n", ret);
-		goto error;
+		/* We leak the ida here on purpose: if we don't "deinit" the id on
+		 * the remote end then re-using the same id will fail with EBUSY,
+		 * so further devices will not init properly.
+		 * It would be cleaner to add a deinit API but this is not supposed
+		 * to happen in practice so workaround by leaking the id until we
+		 * need actually dynamic devices */
+		return ret;
 	}
 
 	dev_info(dev, "registered SPI%d driver successfully (%d)\n",
