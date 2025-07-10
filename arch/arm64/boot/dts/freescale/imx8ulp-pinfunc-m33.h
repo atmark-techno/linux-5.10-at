@@ -176,6 +176,7 @@
  * gpio pin numbers
  * (used when we do not need full pinctrl)
  *************************/
+#define PIN_PTA0		0x000
 #define PIN_PTA1		0x001
 #define PIN_PTA2		0x002
 #define PIN_PTA3		0x003
