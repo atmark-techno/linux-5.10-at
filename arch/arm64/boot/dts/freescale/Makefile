@@ -234,6 +234,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-rk055hdmipi4m.dtb imx8ulp-
 dtb-$(CONFIG_ARCH_MXC) += armadillo_900.dtb
 DTC_FLAGS_armadillo_900 := -@
 DTC_FLAGS_armadillo_iotg_a9e := -@
+DTC_FLAGS_armadillo_900-evaboard := -@
 dtb-$(CONFIG_ARCH_MXC) += armadillo_900-customize.dtbo \
 			  armadillo_900-usdhc2-alwayson.dtbo \
 			  armadillo_900-evaboard.dtbo \
