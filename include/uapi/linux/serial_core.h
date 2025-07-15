@@ -279,4 +279,7 @@
 /* Freescale LINFlexD UART */
 #define PORT_LINFLEXUART	122
 
+/* i.MX RPMSG UART */
+#define PORT_IMX_RPMSG	123
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */
