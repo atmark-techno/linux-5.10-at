@@ -474,6 +474,18 @@
 				};
 			};
 
+			tpm4: pwm@29330000 {
+				compatible = "fsl,imx7ulp-pwm";
+				reg = <0x29330000 0x1000>;
+				clocks = <&pcc3 IMX8ULP_CLK_TPM4>;
+				clock-names = "ipg";
+				assigned-clocks = <&pcc3 IMX8ULP_CLK_TPM4>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
+				assigned-clock-rates = <24000000>;
+				#pwm-cells = <3>;
+				status = "disabled";
+			};
+
 			tpm5: tpm@29340000 {
 				compatible = "fsl,imx8ulp-tpm", "fsl,imx7ulp-tpm";
 				reg = <0x29340000 0x1000>;
@@ -629,6 +641,20 @@
 				clocks = <&pcc4 IMX8ULP_CLK_FLEXSPI2>,
 					 <&pcc4 IMX8ULP_CLK_FLEXSPI2>;
 				clock-names = "fspi", "fspi_en";
+				status = "disabled";
+			};
+
+			tpm7: pwm@29830000 {
+				compatible = "fsl,imx7ulp-pwm";
+				reg = <0x29830000 0x1000>;
+				clocks = <&pcc4 IMX8ULP_CLK_TPM7>;
+				clock-names = "ipg";
+				assigned-clocks = <&pcc4 IMX8ULP_CLK_TPM7>,
+						  <&cgc1 IMX8ULP_CLK_TPM7_SEL>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>,
+							 <&cgc1 IMX8ULP_CLK_SOSC>;
+				assigned-clock-rates = <24000000>;
+				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
