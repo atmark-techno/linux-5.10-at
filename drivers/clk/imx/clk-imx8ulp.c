@@ -45,6 +45,7 @@ static const char * const ddr_sels[] = { "frosc", "pll4_pfd1", "sosc", "lvds",
 static const char * const lpav_sels[] = { "frosc", "pll4_pfd1", "sosc", "lvds", };
 static const char * const sai45_sels[] = { "spll3_pfd1_div1", "aud_clk1", "aud_clk2", "sosc", };
 static const char * const sai67_sels[] = { "spll1_pfd2_div", "spll3_pfd1_div1", "aud_clk0", "aud_clk1", "aud_clk2", "sosc", "dummy", "dummy", };
+static const char * const tpm67_sels[] = { "spll3_pfd1_div1", "aud_clk1", "aud_clk2", "sosc", };
 static const char * const aud_clk1_sels[] = { "ext_aud_mclk2", "sai4_rx_bclk", "sai4_tx_bclk", "sai5_rx_bclk", "sai5_tx_bclk", "dummy", "dummy", "dummy", };
 static const char * const aud_clk2_sels[] = { "ext_aud_mclk3", "sai6_rx_bclk", "sai6_tx_bclk", "sai7_rx_bclk", "sai7_tx_bclk", "spdif_rx", "dummy", "dummy", };
 static const char * const enet_ts_sels[] = { "ext_rmii_clk", "ext_ts_clk", "rosc", "ext_aud_mclk", "sosc", "dummy", "dummy", "dummy"};
@@ -227,6 +228,8 @@ static int imx8ulp_clk_cgc1_init(struct platform_device *pdev)
 	clks[IMX8ULP_CLK_AUD_CLK1] = imx_clk_hw_mux2("aud_clk1", base + 0x900, 0, 3, aud_clk1_sels, ARRAY_SIZE(aud_clk1_sels));
 	clks[IMX8ULP_CLK_SAI4_SEL] = imx_clk_hw_mux2("sai4_sel", base + 0x904, 0, 2, sai45_sels, ARRAY_SIZE(sai45_sels));
 	clks[IMX8ULP_CLK_SAI5_SEL] = imx_clk_hw_mux2("sai5_sel", base + 0x904, 8, 2, sai45_sels, ARRAY_SIZE(sai45_sels));
+	clks[IMX8ULP_CLK_TPM6_SEL] = imx_clk_hw_mux2("tpm6_sel", base + 0x908, 0, 2, tpm67_sels, ARRAY_SIZE(tpm67_sels));
+	clks[IMX8ULP_CLK_TPM7_SEL] = imx_clk_hw_mux2("tpm7_sel", base + 0x908, 8, 2, tpm67_sels, ARRAY_SIZE(tpm67_sels));
 	clks[IMX8ULP_CLK_ENET_TS_SEL] = imx_clk_hw_mux2("enet_ts", base + 0x700, 24, 3, enet_ts_sels, ARRAY_SIZE(enet_ts_sels));
 
 	imx_check_clk_hws(clks, clk_data->num);
