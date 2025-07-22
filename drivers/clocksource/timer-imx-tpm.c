@@ -136,7 +136,7 @@ static struct timer_of to_tpm = {
 	.flags = TIMER_OF_IRQ | TIMER_OF_BASE | TIMER_OF_CLOCK,
 	.clkevt = {
 		.name			= "i.MX7ULP TPM Timer",
-		.rating			= 200,
+		.rating			= 200, // overridden in tpm_clocksource_init
 		.features		= CLOCK_EVT_FEAT_ONESHOT,
 		.set_state_shutdown	= tpm_set_state_shutdown,
 		.set_state_oneshot	= tpm_set_state_oneshot,
@@ -207,7 +207,7 @@ static int __init tpm_timer_init(struct device_node *np)
 	counter_width = (readl(timer_base + TPM_PARAM)
 		& TPM_PARAM_WIDTH_MASK) >> TPM_PARAM_WIDTH_SHIFT;
 	/* use rating 200 for 32-bit counter and 150 for 16-bit counter */
-	to_tpm.clkevt.rating = counter_width == 0x20 ? 200 : 150;
+	to_tpm.clkevt.rating = counter_width == 0x20 ? 500 : 150;
 
 	/*
 	 * Initialize tpm module to a known state
