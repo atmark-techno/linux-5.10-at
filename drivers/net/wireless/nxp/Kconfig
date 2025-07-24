@@ -16,6 +16,8 @@ config MLAN
 	tristate "NXP mwifiex fork"
 	depends on CFG80211 && !MWIFIEX && PCI
 	select FW_LOADER
+	select WEXT_PRIV
+	select WIRELESS_EXT
 	help
 	  This adds support for some NXP wifi boards
 
