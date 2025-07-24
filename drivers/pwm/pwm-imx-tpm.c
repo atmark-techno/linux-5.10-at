@@ -125,7 +125,7 @@ static int pwm_imx_tpm_round_state(struct pwm_chip *chip,
 	else
 		real_state->duty_cycle = state->duty_cycle;
 
-	tmp = (u64)p->mod * real_state->duty_cycle;
+	tmp = ((u64)p->mod + 1) * real_state->duty_cycle;
 	p->val = DIV64_U64_ROUND_CLOSEST(tmp, real_state->period);
 
 	real_state->polarity = state->polarity;
