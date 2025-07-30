@@ -7,6 +7,7 @@
 /plugin/;
 
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx6ul-clock.h>
 #include "imx6ull-pinfunc.h"
 
 &{/} {
@@ -24,6 +25,10 @@
 };
 
 &usdhc2 {
+	assigned-clocks = <&clks IMX6UL_CLK_USDHC2_SEL>, <&clks IMX6UL_CLK_USDHC2>;
+	assigned-clock-parents = <&clks IMX6UL_CLK_PLL2_PFD2>;
+	assigned-clock-rates = <0>, <198000000>;
+
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc2>;
 	cd-gpios = <&gpio1 27 GPIO_ACTIVE_LOW>;

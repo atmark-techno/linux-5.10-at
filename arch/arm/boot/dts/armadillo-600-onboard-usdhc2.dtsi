@@ -8,6 +8,10 @@
 };
 
 &usdhc2 {
+	assigned-clocks = <&clks IMX6UL_CLK_USDHC2_SEL>, <&clks IMX6UL_CLK_USDHC2>;
+	assigned-clock-parents = <&clks IMX6UL_CLK_PLL2_PFD2>;
+	assigned-clock-rates = <0>, <198000000>;
+
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc2>;
 	vmmc-supply = <&reg_onboard_sd2_vmmc>;

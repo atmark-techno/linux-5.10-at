@@ -10,6 +10,7 @@
 #include "imx6ull-pinfunc.h"
 #include "imx6ull-pinfunc-snvs.h"
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/clock/imx6ul-clock.h>
 
 &{/} {
 	reg_sd2_vqmmc: regulator-sd2vqmmc {
@@ -79,6 +80,10 @@
 };
 
 &usdhc2 {
+	assigned-clocks = <&clks IMX6UL_CLK_USDHC2_SEL>, <&clks IMX6UL_CLK_USDHC2>;
+	assigned-clock-parents = <&clks IMX6UL_CLK_PLL2_PFD2>;
+	assigned-clock-rates = <0>, <198000000>;
+
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc2>;
 	vqmmc-supply = <&reg_sd2_vqmmc>;
