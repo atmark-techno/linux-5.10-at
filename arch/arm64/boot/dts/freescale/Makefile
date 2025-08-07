@@ -248,7 +248,8 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_900-customize.dtbo \
 			  armadillo_iotg_a9e-nousb.dtbo \
 			  armadillo_iotg_a9e-sim7672.dtbo \
 			  armadillo_iotg_a9e-stdwn-ind-con10-pin26.dtbo \
-			  armadillo_iotg_a9e-stdwn-ind-do1.dtbo
+			  armadillo_iotg_a9e-stdwn-ind-do1.dtbo \
+			  armadillo_iotg_a9e-con10-wisun.dtbo
 
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
 			  s32v234-sbc.dtb

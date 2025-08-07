@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2025 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx8ulp-pinfunc-m33.h"
+#include "imx8ulp-pinfunc.h"
+#include <dt-bindings/gpio/gpio.h>
+
+&{/} {
+	aliases {
+		ttyrpmsg2 = "/rpmsg_lpuart1";
+	};
+
+	// for firmware update
+	rpmsg_lpuart1 {
+		compatible = "fsl,imx-rpmsg-tty-serial";
+		port_type = <TTY_TYPE_LPUART_1WIRE>;
+		uart_index = <LPUART1>;
+		rpmsg-tty-no-echo;
+	};
+
+	reg_vdd_3p3v_wisun: regulator-vdd-3p3v-wisun {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 21 GPIO_ACTIVE_HIGH>;
+		regulator-name = "VDD_3P3V_WISUN";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vdd_3p3v>;
+		startup-delay-us = <100>; // to assert wisun reset
+		enable-active-high;
+	};
+
+	// the reset defined as a regulator to make relation between
+	// reg_vdd_3p3v_wisun and wisun reset.
+	reg_wisun_reset: wisun-reset-as-reg {
+		compatible = "regulator-fixed";
+		gpio = <&rpmsg_gpioc 22 GPIO_ACTIVE_HIGH>;
+		regulator-name = "WISUN_RESET_AS_REGULATOR";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+
+		// to power on while resetting, do not set regulator-boot-on
+
+		// supplier (vdd) is enalbed before reset
+		vin-supply = <&reg_vdd_3p3v_wisun>;
+
+		// the logic is inverted when used as a regulator
+		enable-active-high;
+	};
+
+	wisun_power_en_with_reset: wisun-power-en-with-reset {
+		compatible = "regulator-output";
+		vout-supply = <&reg_wisun_reset>;
+		init-on;
+		autoswitch;
+	};
+
+};
+
+&gpioa_iomuxc {
+	lpuart1 {
+		imx-rpmsg,pins = <
+			// single-wire half duplex uart, RX is not required
+			IOMUXC_PTA10_LPUART1_TX 0x0
+		>;
+	};
+};
+
+&gpioc_iomuxc {
+	wisun_module_gpio {
+		imx-rpmsg,pins = <
+			// PWR_EN (high active)
+			IOMUXC_PTC21_PTC21	IOMUXC_PCR_OBE_MASK
+
+			// RESET (low active)
+			IOMUXC_PTC22_PTC22	IOMUXC_PCR_OBE_MASK
+		>;
+	};
+};
+
+&iomuxc1 {
+	pinctrl-0 = <&pinctrl_customize>;
+
+	pinctrl_wisun_module: wisun_module_pingrp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF6__LPUART7_TX	0x0
+			MX8ULP_PAD_PTF7__LPUART7_RX	0x0
+		>;
+	};
+};
+
+&lpuart7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_wisun_module>;
+	status = "okay";
+};
