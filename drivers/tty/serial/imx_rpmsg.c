@@ -55,6 +55,7 @@ enum tty_rpmsg_init_type {
 	TTY_TYPE_CUSTOM,
 	TTY_TYPE_M33_CONSOLE,
 	TTY_TYPE_FLEXIO,
+	TTY_TYPE_LPUART_1WIRE,
 };
 
 struct srtm_tty_init_payload {
@@ -498,6 +499,8 @@ static int imx_rpmsg_uart_init_remote(struct imx_rpmsg_port *rport,
 	}
 
 	switch (init.port_type) {
+	case TTY_TYPE_LPUART_1WIRE:
+		fallthrough;
 	case TTY_TYPE_LPUART:
 		READ_PROP_OR_RETURN(lpuart, uart_index);
 		ret = of_property_read_u32(np, "rs485_flags",
