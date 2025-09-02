@@ -253,7 +253,7 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 		if (j == 4 || j == 5)
 			continue;
 		err = dpni_get_statistics(priv->mc_io, 0, priv->mc_token,
-					  j, 0, &dpni_stats);
+					  j, &dpni_stats);
 		if (err == -EINVAL)
 			/* Older firmware versions don't support all pages */
 			memset(&dpni_stats, 0, sizeof(dpni_stats));
@@ -780,44 +780,6 @@ static int dpaa2_eth_get_ts_info(struct net_device *dev,
 	return 0;
 }
 
-static int dpaa2_eth_get_tunable(struct net_device *net_dev,
-				 const struct ethtool_tunable *tuna,
-				 void *data)
-{
-	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	int err = 0;
-
-	switch (tuna->id) {
-	case ETHTOOL_RX_COPYBREAK:
-		*(u32 *)data = priv->rx_copybreak;
-		break;
-	default:
-		err = -EOPNOTSUPP;
-		break;
-	}
-
-	return err;
-}
-
-static int dpaa2_eth_set_tunable(struct net_device *net_dev,
-				 const struct ethtool_tunable *tuna,
-				 const void *data)
-{
-	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
-	int err = 0;
-
-	switch (tuna->id) {
-	case ETHTOOL_RX_COPYBREAK:
-		priv->rx_copybreak = *(u32 *)data;
-		break;
-	default:
-		err = -EOPNOTSUPP;
-		break;
-	}
-
-	return err;
-}
-
 const struct ethtool_ops dpaa2_ethtool_ops = {
 	.get_drvinfo = dpaa2_eth_get_drvinfo,
 	.nway_reset = dpaa2_eth_nway_reset,
@@ -832,6 +794,4 @@ const struct ethtool_ops dpaa2_ethtool_ops = {
 	.get_rxnfc = dpaa2_eth_get_rxnfc,
 	.set_rxnfc = dpaa2_eth_set_rxnfc,
 	.get_ts_info = dpaa2_eth_get_ts_info,
-	.get_tunable = dpaa2_eth_get_tunable,
-	.set_tunable = dpaa2_eth_set_tunable,
 };
