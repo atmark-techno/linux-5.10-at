@@ -48,7 +48,11 @@ enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_SET_WAKE,
 	TTY_RPMSG_COMMAND_INIT,
 	TTY_RPMSG_COMMAND_ACTIVATE,
+	TTY_RPMSG_COMMAND_CTRL,
 };
+
+#define TTY_RPMSG_COMMAND_CTRL_SHIFT	16	// upper 16 bits for mask, lower 16 bits for enable bit
+#define TTY_RPMSG_COMMAND_CTRL_BRK_EN	0x0001
 
 enum tty_rpmsg_init_type {
 	TTY_TYPE_LPUART,
@@ -458,6 +462,22 @@ static void imx_rpmsg_uart_config_port(struct uart_port *port, int flags)
 		rport->port.type = PORT_IMX_RPMSG;
 }
 
+static void imx_rpmsg_uart_break_ctl(struct uart_port *port, int break_state)
+{
+	struct imx_rpmsg_port *rport = (struct imx_rpmsg_port *)port;
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_CTRL,
+	};
+	u32 control;
+
+	control = TTY_RPMSG_COMMAND_CTRL_BRK_EN << TTY_RPMSG_COMMAND_CTRL_SHIFT;
+	if (break_state)
+		control |= TTY_RPMSG_COMMAND_CTRL_BRK_EN;
+
+	imx_rpmsg_uart_send_and_wait(rport, (void *)&msg, &control,
+				     sizeof(control), true);
+}
+
 static const struct uart_ops imx_rpmsg_uart_ops = {
 	.tx_empty	= imx_rpmsg_uart_tx_empty,
 	.set_mctrl	= imx_rpmsg_uart_set_mctrl,
@@ -471,6 +491,7 @@ static const struct uart_ops imx_rpmsg_uart_ops = {
 	.set_termios	= imx_rpmsg_uart_set_termios,
 	.type		= imx_rpmsg_uart_type,
 	.config_port	= imx_rpmsg_uart_config_port,
+	.break_ctl	= imx_rpmsg_uart_break_ctl,
 };
 
 #define READ_PROP_OR_RETURN(group, name)				\
