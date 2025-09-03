@@ -115,6 +115,7 @@
 };
 
 &adc1 {
+	label = "vin-di8ai4";
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_adc1_vin>;
 	vref-supply = <&extreg_3v3>;
