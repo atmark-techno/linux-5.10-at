@@ -92,7 +92,7 @@ static int disp_mix_sft_parse_resets(struct mxc_isi_dev *mxc_isi)
 	return pdata->rst_ops->parse(mxc_isi);
 }
 
-int disp_mix_sft_rstn(struct mxc_isi_dev *mxc_isi, bool enable)
+static int disp_mix_sft_rstn(struct mxc_isi_dev *mxc_isi, bool enable)
 {
 	struct mxc_isi_plat_data const *pdata = mxc_isi->pdata;
 	int ret;
@@ -109,7 +109,6 @@ int disp_mix_sft_rstn(struct mxc_isi_dev *mxc_isi, bool enable)
 		       pdata->rst_ops->deassert(mxc_isi);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(disp_mix_sft_rstn);
 
 static int disp_mix_clks_get(struct mxc_isi_dev *mxc_isi)
 {
@@ -124,7 +123,7 @@ static int disp_mix_clks_get(struct mxc_isi_dev *mxc_isi)
 	return pdata->gclk_ops->gclk_get(mxc_isi);
 }
 
-int disp_mix_clks_enable(struct mxc_isi_dev *mxc_isi, bool enable)
+static int disp_mix_clks_enable(struct mxc_isi_dev *mxc_isi, bool enable)
 {
 	struct mxc_isi_plat_data const *pdata = mxc_isi->pdata;
 	int ret;
@@ -141,7 +140,6 @@ int disp_mix_clks_enable(struct mxc_isi_dev *mxc_isi, bool enable)
 		       pdata->gclk_ops->gclk_disable(mxc_isi);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(disp_mix_clks_enable);
 
 static int mxc_imx8_clk_get(struct mxc_isi_dev *mxc_isi)
 {
@@ -628,7 +626,7 @@ static int mxc_isi_clk_get(struct mxc_isi_dev *mxc_isi)
 	return ops->clk_get(mxc_isi);
 }
 
-int mxc_isi_clk_enable(struct mxc_isi_dev *mxc_isi)
+static int mxc_isi_clk_enable(struct mxc_isi_dev *mxc_isi)
 {
 	const struct mxc_isi_dev_ops *ops = mxc_isi->pdata->ops;
 
@@ -637,9 +635,8 @@ int mxc_isi_clk_enable(struct mxc_isi_dev *mxc_isi)
 
 	return ops->clk_enable(mxc_isi);
 }
-EXPORT_SYMBOL_GPL(mxc_isi_clk_enable);
 
-void mxc_isi_clk_disable(struct mxc_isi_dev *mxc_isi)
+static void mxc_isi_clk_disable(struct mxc_isi_dev *mxc_isi)
 {
 	const struct mxc_isi_dev_ops *ops = mxc_isi->pdata->ops;
 
@@ -648,7 +645,6 @@ void mxc_isi_clk_disable(struct mxc_isi_dev *mxc_isi)
 
 	ops->clk_disable(mxc_isi);
 }
-EXPORT_SYMBOL_GPL(mxc_isi_clk_disable);
 
 static int mxc_isi_soc_match(struct mxc_isi_dev *mxc_isi,
 			     const struct soc_device_attribute *data)
@@ -687,6 +683,7 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	struct resource *res;
 	const struct of_device_id *of_id;
 	int ret = 0;
+
 
 	mxc_isi = devm_kzalloc(dev, sizeof(*mxc_isi), GFP_KERNEL);
 	if (!mxc_isi)
@@ -813,6 +810,13 @@ static int mxc_isi_remove(struct platform_device *pdev)
 
 static int mxc_isi_pm_suspend(struct device *dev)
 {
+	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+
+	if (mxc_isi->is_streaming) {
+		dev_warn(dev, "running, prevent entering suspend.\n");
+		return -EAGAIN;
+	}
+
 	return pm_runtime_force_suspend(dev);
 }
 
@@ -823,16 +827,32 @@ static int mxc_isi_pm_resume(struct device *dev)
 
 static int mxc_isi_runtime_suspend(struct device *dev)
 {
+	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+
+	disp_mix_clks_enable(mxc_isi, false);
+	mxc_isi_clk_disable(mxc_isi);
+
 	return 0;
 }
 
 static int mxc_isi_runtime_resume(struct device *dev)
 {
+	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+	int ret;
+
+	ret = mxc_isi_clk_enable(mxc_isi);
+	if (ret) {
+		dev_err(dev, "%s clk enable fail\n", __func__);
+		return ret;
+	}
+	disp_mix_sft_rstn(mxc_isi, false);
+	disp_mix_clks_enable(mxc_isi, true);
+
 	return 0;
 }
 
 static const struct dev_pm_ops mxc_isi_pm_ops = {
-	SET_LATE_SYSTEM_SLEEP_PM_OPS(mxc_isi_pm_suspend, mxc_isi_pm_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(mxc_isi_pm_suspend, mxc_isi_pm_resume)
 	SET_RUNTIME_PM_OPS(mxc_isi_runtime_suspend, mxc_isi_runtime_resume, NULL)
 };
 
