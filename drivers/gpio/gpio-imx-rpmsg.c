@@ -98,19 +98,6 @@ enum irq_state {
 	IRQ_UNMASKED, /* normal state, acks sent if irq_type is set */
 };
 
-/* used for irq_set_wake: it cannot wait directly but we do
- * the message sending & waiting in sync unlock immediately after
- * setting wake, to ensure wakeup is set before suspend.
- * We need to remember that state afterwards for any other irq
- * that might come during that time
- */
-enum irq_wake {
-	NOWAKE,
-	NOWAKE_JUSTSET,
-	WAKE,
-	WAKE_JUSTSET,
-};
-
 struct imx_rpmsg_gpio_pin {
 	u8 pin_idx;
 	/* wakeup requested in setwake (irq_type used for wakeup) */
@@ -120,8 +107,16 @@ struct imx_rpmsg_gpio_pin {
 	/* mask/shutdown lifecycle */
 	u8 irq_state; /* enum irq_state: using u8 to save space. */
 	/* wakeup enabled in irq_set_wake */
-	u8 irq_wake; /* enum irq_wake */
-	/* for irq_state/irq_wake */
+	bool irq_wake; /* wakeup */
+	/* used for irq_set_wake and irq_set_type:
+	 * it cannot wait directly but we do the message sending & waiting
+	 * in sync unlock immediately after setting wake or type, to
+	 * ensure wakeup is set before suspend.
+	 * We need to remember that state afterwards for any other irq
+	 * that might come during that time
+	 */
+	bool irq_trigger_changed;
+	/* for irq_state/irq_wake/irq_trigger_changed */
 	spinlock_t state_lock;
 	/* irq, gpio desc obtained before suspend for user wakeup */
 	int irq;
@@ -382,10 +377,12 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 static int imx_rpmsg_irq_set_type(struct irq_data *d, u32 type)
 {
 	struct imx_rpmsg_gpio_port *port = irq_data_get_irq_chip_data(d);
+	struct imx_rpmsg_gpio_pin *pin;
 	irq_flow_handler_t handler = handle_bad_irq;
 	u32 gpio_idx = d->hwirq;
 	int edge = 0;
 	int ret = 0;
+	unsigned long flags;
 
 	dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: irq %ld\n", __func__, d->hwirq);
 	switch (type) {
@@ -414,8 +411,15 @@ static int imx_rpmsg_irq_set_type(struct irq_data *d, u32 type)
 		break;
 	}
 
-	port->gpio_pins[gpio_idx].irq_type = edge;
+	pin = &port->gpio_pins[gpio_idx];
+	pin->irq_type = edge;
+
 	irq_set_handler_locked(d, handler);
+	if (ret == 0) {
+		spin_lock_irqsave(&pin->state_lock, flags);
+		pin->irq_trigger_changed = true;
+		spin_unlock_irqrestore(&pin->state_lock, flags);
+	}
 	return ret;
 }
 
@@ -436,11 +440,8 @@ static int imx_rpmsg_irq_set_wake(struct irq_data *d, u32 enable)
 	pin = &port->gpio_pins[gpio_idx];
 
 	spin_lock_irqsave(&pin->state_lock, flags);
-	if (enable) {
-		pin->irq_wake = WAKE_JUSTSET;
-	} else {
-		pin->irq_wake = NOWAKE_JUSTSET;
-	}
+	pin->irq_wake = enable;
+	pin->irq_trigger_changed = true;
 	spin_unlock_irqrestore(&pin->state_lock, flags);
 	return 0;
 }
@@ -457,8 +458,9 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	u32 gpio_idx = d->hwirq;
 	struct gpio_rpmsg_data msg = { 0 };
 	u8 wait;
-	u8 wakeup = 255;
+	u8 wakeup;
 	unsigned long flags;
+	bool irq_trigger_changed;
 
 	if (gpio_idx >= port->gc.ngpio) {
 		dev_err(&gpio_rpmsg.rpdev->dev, "index %d > max %d!\n",
@@ -470,18 +472,13 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	pin = &port->gpio_pins[gpio_idx];
 
 	spin_lock_irqsave(&pin->state_lock, flags);
-	if (pin->irq_wake == WAKE_JUSTSET) {
-		pin->irq_wake = WAKE;
-		wakeup = 1;
-	}
-	if (pin->irq_wake == NOWAKE_JUSTSET) {
-		pin->irq_wake = NOWAKE;
-		wakeup = 0;
-	}
+	wakeup = pin->irq_wake;
+	irq_trigger_changed = pin->irq_trigger_changed;
+	pin->irq_trigger_changed = false;
 	spin_unlock_irqrestore(&pin->state_lock, flags);
 
-	/* wakeup didn't just change */
-	if (wakeup == 255)
+	/* No change detected, skip update */
+	if (!irq_trigger_changed)
 		return;
 	/* also can't set wake if no type */
 	if (!pin->irq_type)
@@ -621,8 +618,7 @@ static void imx_rpmsg_gpio_send_ack(struct work_struct *work)
 		pin->irq_state = IRQ_MASKED;
 	if (state == IRQ_MASKED_JUSTSET)
 		pin->irq_state = IRQ_MASKED;
-	if (pin->irq_wake == WAKE || pin->irq_wake == WAKE_JUSTSET)
-		wakeup = 1;
+	wakeup = pin->irq_wake;
 	spin_unlock_irqrestore(&pin->state_lock, flags);
 
 	if (state == IRQ_MASKED) {
