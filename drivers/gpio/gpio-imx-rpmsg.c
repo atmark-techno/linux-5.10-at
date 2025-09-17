@@ -386,6 +386,9 @@ static int imx_rpmsg_irq_set_type(struct irq_data *d, u32 type)
 
 	dev_dbg(&gpio_rpmsg.rpdev->dev, "%s: irq %ld\n", __func__, d->hwirq);
 	switch (type) {
+	case IRQ_TYPE_NONE:
+		edge = GPIO_RPMSG_TRI_IGNORE;
+		break;
 	case IRQ_TYPE_EDGE_RISING:
 		edge = GPIO_RPMSG_TRI_RISING;
 		handler = handle_edge_irq;
@@ -481,7 +484,7 @@ static void imx_rpmsg_irq_bus_sync_unlock(struct irq_data *d)
 	if (!irq_trigger_changed)
 		return;
 	/* also can't set wake if no type */
-	if (!pin->irq_type)
+	if (wakeup && !pin->irq_type)
 		return;
 
 	imx_rpmsg_gpio_msg_init(port, gpio_idx, &msg);
@@ -1001,6 +1004,7 @@ imx_rpmsg_gpio_disable_wakeup(struct imx_rpmsg_gpio_port *port)
 			continue;
 
 		disable_irq_wake(port->gpio_pins[i].irq);
+		irq_set_irq_type(port->gpio_pins[i].irq, IRQ_TYPE_NONE);
 		gpiochip_unlock_as_irq(&port->gc, i);
 		gpiochip_free_own_desc(port->gpio_pins[i].desc);
 		port->gpio_pins[i].desc = NULL;
