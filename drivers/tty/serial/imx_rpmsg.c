@@ -682,7 +682,7 @@ static int imx_rpmsg_uart_platform_remove(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "rpmsg tty driver is removed\n");
 
-	return uart_add_one_port(&imx_rpmsg_uart_driver, &rport->port);
+	return uart_remove_one_port(&imx_rpmsg_uart_driver, &rport->port);
 }
 
 static int __maybe_unused imx_rpmsg_uart_suspend(struct device *dev)
