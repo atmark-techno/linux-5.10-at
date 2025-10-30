@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/input/input.h>
+
+#include "imx8mp-pinfunc.h"
+
+// force usb1 as peripheral
+&usb_dwc3_0 {
+	dr_mode = "peripheral";
+	hnp-disable;
+	srp-disable;
+	adp-disable;
+	usb-role-switch;
+	role-switch-default-mode = "none";
+};
+
+// disable regulator
+&reg_usb1_host_vbus {
+	status = "broken";
+};
+
+&gpio1 {
+	usb1_vbus_disable {
+		pinctrl-0 = <&pinctrl_usb1_vbus>;
+		gpio-hog;
+		gpios = <9 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "usb1-vbus";
+	};
+};

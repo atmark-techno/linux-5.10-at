@@ -125,6 +125,7 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-high-g0-no-wireless.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-aw-xm458.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-customize.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-rpmsg.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-usb1_otg.dtbo
 dtb-$(CONFIG_ARCH_MXC) += high-g1-es1.dtb
 DTC_FLAGS_high-g1-es1 := -@
 dtb-$(CONFIG_ARCH_MXC) += high-g1-es1-lbes5pl2el.dtbo
