@@ -36,7 +36,7 @@
 		pinctrl-0 = <&pinctrl_gpio_led>;
 
 		status {
-			label = "green:status";
+			label = "app";
 			gpios = <&gpio3 16 GPIO_ACTIVE_HIGH>;
 			default-state = "on"; /* LED GREEN */
 		};
