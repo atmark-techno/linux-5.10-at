@@ -17,6 +17,7 @@
 		 * within a fragment, which is not fixed at apply time.
 		 * Specify the full path of the merged node directly.
 		 */
+		gpio6 = "/soc/bus@2100000/i2c@21f8000/gpio@27";
 		iio1 = "/soc/bus@2100000/i2c@21f8000/adc@49";
 	};
 
