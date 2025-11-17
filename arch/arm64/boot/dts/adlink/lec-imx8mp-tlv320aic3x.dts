@@ -2,11 +2,17 @@
  * Copyright 2020 NXP
  */
 
-#include "lec-imx8mp.dts"
-#include <dt-bindings/sound/tlv320aic31xx-micbias.h>
+/dts-v1/;
+/plugin/;
 
-/ {
-	/delete-node/ sound-wm8960;
+#include <dt-bindings/sound/tlv320aic31xx-micbias.h>
+#include <dt-bindings/clock/imx8mp-clock.h>
+
+&{/} {
+	sound-wm8960 {
+		status = "disabled";
+	};
+
 	fixed-regulators {
 		compatible = "simple-bus";
 		device_type = "fixed-regulators";
@@ -49,8 +55,11 @@
 	};
 };
 
+&codec {
+	status = "disabled";
+};
+
 &i2c2 {
-	/delete-node/ wm8960@1a;
 	audiocodec: tlv320aic3x@18 {
 		#sound-dai-cells = <0>;
 		compatible = "ti,tlv320aic3x";

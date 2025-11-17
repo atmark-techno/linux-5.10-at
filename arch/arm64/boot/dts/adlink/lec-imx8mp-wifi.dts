@@ -6,11 +6,13 @@
  * Copyright (C) 2020 ADLINK Technology Inc. All Rights Reserved.
  */
 
-#include "lec-imx8mp.dts"
-/ {
-	model = "Adlink LEC-iMX8MP SOM module";
-	compatible = "fsl,imx8mp-evk", "fsl,imx8mp", "adlink,lec-imx8mp";
+/dts-v1/;
+/plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&{/} {
 	wifi_bt_powerdown: regulator-wifi-bt {
 		compatible = "regulator-fixed";
 		regulator-name = "WIFI_BT_PD";
@@ -46,11 +48,15 @@
 		off-on-delay-us = <12000>;
 		regulator-always-on;
 	};
-	/delete-node/ pinctrl_csi1_pwn;
-	/delete-node/ pinctrl_csi1_rst;
 };
 
+&pinctrl_csi1_pwn {
+	status = "disabled";
+};
 
+&pinctrl_csi1_rst {
+	status = "disabled";
+};
 
 &usdhc1 {
 	//vmmc-supply = <&wlan_en_reg>;
