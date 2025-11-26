@@ -1683,11 +1683,16 @@ done:
  * threshold or rts threshold or retry limit
  *
  * @param wiphy         A pointer to wiphy structure
+ * @param radio_idx     Radio index
  * @param changed       Change flags
  *
  * @return              0 -- success, otherwise fail
  */
-int woal_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
+int woal_cfg80211_set_wiphy_params(struct wiphy *wiphy,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				    int radio_idx,
+#endif
+				    u32 changed)
 {
 	moal_private *priv = NULL;
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
@@ -2668,12 +2673,17 @@ done:
  * @brief Request the driver to get antenna configuration
  *
  * @param wiphy           A pointer to wiphy structure
+ * @param radio_idx 	   Radio index
  * @param tx_ant          Bitmaps of allowed antennas to use for TX
  * @param rx_ant          Bitmaps of allowed antennas to use for RX
  *
  * @return                0 -- success, otherwise fail
  */
-int woal_cfg80211_get_antenna(struct wiphy *wiphy, u32 *tx_ant, u32 *rx_ant)
+int woal_cfg80211_get_antenna(struct wiphy *wiphy,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+			       int radio_idx,
+#endif
+			       u32 *tx_ant, u32 *rx_ant)
 {
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	moal_private *priv = NULL;
@@ -2734,12 +2744,17 @@ done:
  * @brief Request the driver to set antenna configuration
  *
  * @param wiphy           A pointer to wiphy structure
+ * @param radio_idx 	   Radio index
  * @param tx_ant          Bitmaps of allowed antennas to use for TX
  * @param rx_ant          Bitmaps of allowed antennas to use for RX
  *
  * @return                0 -- success, otherwise fail
  */
-int woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
+int woal_cfg80211_set_antenna(struct wiphy *wiphy,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+			       int radio_idx,
+#endif
+			       u32 tx_ant, u32 rx_ant)
 {
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	moal_private *priv = NULL;
@@ -3493,7 +3508,8 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	if ((ieee80211_is_action(
 		    ((const struct ieee80211_mgmt *)buf)->frame_control))
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
-	    || moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
+	    || (moal_extflg_isset(priv->phandle, EXT_HOST_MLME) &&
+		(priv->bss_type != MLAN_BSS_TYPE_STA))
 #endif
 	) {
 #ifdef WIFI_DIRECT_SUPPORT
@@ -3510,16 +3526,6 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			woal_remain_timer_func(priv->phandle);
 		}
 
-		if (ieee80211_is_auth(
-			    ((struct ieee80211_mgmt *)buf)->frame_control) &&
-		    (priv->bss_type == MLAN_BSS_TYPE_STA)) {
-			woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH,
-						 MTRUE);
-			priv->auth_flag = HOST_MLME_AUTH_PENDING;
-			priv->auth_alg = woal_cpu_to_le16(
-				((struct ieee80211_mgmt *)buf)->u.auth.auth_alg);
-			priv->host_mlme = MTRUE;
-		}
 		/* With sd8777 We have difficulty to receive response packet in
 		 * 500ms
 		 */
@@ -3613,6 +3619,18 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		}
 	}
 #endif
+
+	if (ieee80211_is_auth(
+		    ((const struct ieee80211_mgmt *)buf)->frame_control) &&
+	    (priv->bss_type == MLAN_BSS_TYPE_STA)) {
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MTRUE);
+		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
+		priv->auth_flag = HOST_MLME_AUTH_PENDING;
+		priv->auth_mgmt_tx = 1;
+		priv->auth_alg = woal_cpu_to_le16(
+			((const struct ieee80211_mgmt *)buf)->u.auth.auth_alg);
+		priv->host_mlme = MTRUE;
+	}
 
 #if KERNEL_VERSION(3, 8, 0) > LINUX_VERSION_CODE
 	*cookie = random32() | 1;
@@ -4288,8 +4306,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie,
 			if (!(priv->phandle->fw_bands & BAND_GAX) &&
 			    !(priv->phandle->fw_bands & BAND_AAX)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
-			    && (!(priv->phandle->fw_bands & BAND_6G))
-
+			    && !(priv->phandle->fw_bands & BAND_6G)
 #endif
 			)
 				break;
@@ -6474,3 +6491,82 @@ done:
 	return status;
 }
 #endif
+
+/**
+ *  @brief Process the WiFi channel list avoidance event
+ *
+ *  @param priv A pointer to the moal_private structure
+ *  @param pwifi_chan_info Pointer to the WiFi channel list
+ *                         avoidance structure
+ *
+ *  @return void
+ */
+void process_wifi_channel_avoid_list_event(
+	moal_private *priv, wifi_chan_avoid_list_t *pwifi_chan_info)
+{
+	struct ieee80211_supported_band *sband = NULL;
+	struct ieee80211_channel *channel = NULL;
+	int index = 0, i = 0, j = 0;
+
+	if (!pwifi_chan_info)
+		return;
+
+	/* Process the event */
+	if (pwifi_chan_info->bandcfg.chanBand == BAND_2GHZ) {
+		PRINTM(MEVENT, "WiFi Channel Avoidance List band=%d len=%d\n",
+		       pwifi_chan_info->bandcfg.chanBand,
+		       pwifi_chan_info->length);
+
+		for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
+			/* Reinitialize the sband for every adapter */
+			sband = NULL;
+
+			if (m_handle[index] && m_handle[index]->wiphy) {
+				sband = m_handle[index]
+						->wiphy
+						->bands[IEEE80211_BAND_2GHZ];
+
+				/* Move to next adapter with supporting band */
+				if (!sband)
+					continue;
+
+				PRINTM(MINFO,
+				       "====== Iteration=%d ======", index);
+				/* Clearing NO-IR flags for all channels */
+				for (i = 0; i < sband->n_channels; i++) {
+					channel = &sband->channels[i];
+					channel->flags &= ~IEEE80211_CHAN_NO_IR;
+				}
+
+				/* Setting NO-IR flags as per the channel list
+				 */
+				for (j = 0; j < pwifi_chan_info->length; j++) {
+					for (i = 0; i < sband->n_channels;
+					     i++) {
+						channel = &sband->channels[i];
+						if (channel->hw_value ==
+						    pwifi_chan_info
+							    ->chanList[j]) {
+							PRINTM(MMSG,
+							       "Marking channel = %d as NO-IR\n",
+							       pwifi_chan_info->chanList
+								       [j]);
+							channel->flags |=
+								IEEE80211_CHAN_NO_IR;
+							break;
+						}
+					}
+				}
+				/* Disabling beacon hints to avoid re-enabling
+				 * of channels marked as NO-IR */
+				m_handle[index]->wiphy->regulatory_flags =
+					m_handle[index]
+						->wiphy->regulatory_flags |
+					REGULATORY_DISABLE_BEACON_HINTS;
+			}
+		}
+	} else
+		PRINTM(MEVENT,
+		       "Ignoring the WiFi Channel Avoidance List Event\n");
+	return;
+}

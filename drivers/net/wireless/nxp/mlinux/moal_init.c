@@ -29,6 +29,7 @@ extern pmoal_handle m_handle[];
 static char *fw_name;
 static int req_fw_nowait;
 int fw_reload;
+static char *wifi_fw_name;
 #ifdef PCIE
 int auto_fw_reload = AUTO_FW_RELOAD_ENABLE | AUTO_FW_RELOAD_PCIE_INBAND_RESET;
 #else
@@ -90,6 +91,10 @@ static int auto_ds;
 static int net_rx = 1;
 /** amsdu deaggr mode */
 static int amsdu_deaggr = 1;
+
+/** wifi_reset_config */
+/**Default reset is after 5 EAPOL failures, 0 disables the reset */
+static int wifi_reset_config = 5;
 
 static int tx_budget = 2600;
 static int mclient_scheduling = 1;
@@ -167,9 +172,9 @@ static int tx_work = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 /**
  * RPS to steer packets to specific CPU
- * Default value of 0 keeps rps disabled by default
+ * Default value of 0xf keeps rps enabled by default
  */
-static int rps = 0;
+static int rps = 0x0F;
 
 /**
  * rps cpu mask
@@ -206,6 +211,7 @@ static int cfg_11d;
 #if defined(UAP_SUPPORT)
 static int custom_11d_bcn_country_ie_en;
 #endif
+static int amsdu_disable;
 /** fw serial download check */
 static int fw_serial = 1;
 
@@ -442,6 +448,26 @@ static int keep_previous_scan = 1;
 static int make_before_break = 0;
 static int auto_11ax = 1;
 static int reject_addba_req = 0;
+
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+mlan_status check_device_name_info(char *device_name, t_u16 *card_type)
+{
+	t_u32 tbl_size =
+		sizeof(card_type_map_tbl) / sizeof(card_type_map_tbl[0]);
+	t_u32 i;
+
+	for (i = 0; i < tbl_size; i++) {
+		if (strcmp(card_type_map_tbl[i].name, device_name) == 0) {
+			if (card_type != NULL)
+				*card_type = card_type_map_tbl[i].card_type;
+
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
+
+	return MLAN_STATUS_FAILURE;
+}
+#endif
 
 /**
  *  @brief This function read a line in module parameter file
@@ -761,6 +787,13 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->auto_fw_reload = out_data;
 			PRINTM(MMSG, "auto_fw_reload %d\n",
 			       params->auto_fw_reload);
+		} else if (strncmp(line, "wifi_fw_name",
+				   strlen("wifi_fw_name")) == 0) {
+			if (parse_line_read_string(line, &out_str) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			woal_dup_string(&params->wifi_fw_name, out_str);
+			PRINTM(MMSG, "wifi_fw_name=%s\n", params->wifi_fw_name);
 		} else if (strncmp(line, "fw_serial", strlen("fw_serial")) ==
 			   0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -915,6 +948,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->net_rx = out_data;
 			PRINTM(MMSG, "net_rx = %d\n", params->net_rx);
+		} else if (strncmp(line, "wifi_reset_config",
+				   strlen("wifi_reset_config")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->wifi_reset_config = out_data;
+			PRINTM(MMSG, "wifi_reset_config = %d\n",
+			       params->wifi_reset_config);
 		} else if (strncmp(line, "amsdu_deaggr",
 				   strlen("amsdu_deaggr")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1064,6 +1105,15 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       params->custom_11d_bcn_country_ie_en);
 		}
 #endif
+		else if (strncmp(line, "amsdu_disable",
+				 strlen("amsdu_disable")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->amsdu_disable = out_data;
+			PRINTM(MERROR, "amsdu_disable = %d\n",
+			       params->amsdu_disable);
+		}
 #if defined(SDIO)
 		else if (strncmp(line, "slew_rate", strlen("slew_rate")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1764,7 +1814,6 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 {
 	t_u8 addr[ETH_ALEN];
 	bool is_valid_mac_addr = false;
-
 	if (hw_test)
 		moal_extflg_set(handle, EXT_HW_TEST);
 #ifdef CONFIG_OF
@@ -1789,6 +1838,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.auto_fw_reload = auto_fw_reload;
 	if (params)
 		handle->params.auto_fw_reload = params->auto_fw_reload;
+
+	woal_dup_string(&handle->params.wifi_fw_name, wifi_fw_name);
+	if (params && params->wifi_fw_name)
+		woal_dup_string(&handle->params.wifi_fw_name,
+				params->wifi_fw_name);
+
 	if (fw_serial)
 		moal_extflg_set(handle, EXT_FW_SERIAL);
 	woal_dup_string(&handle->params.hw_name, hw_name);
@@ -1897,6 +1952,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.net_rx = params->net_rx;
 
+	handle->params.wifi_reset_config = wifi_reset_config;
+	if (params)
+		handle->params.wifi_reset_config = params->wifi_reset_config;
+
 	handle->params.amsdu_deaggr = amsdu_deaggr;
 	if (params)
 		handle->params.amsdu_deaggr = params->amsdu_deaggr;
@@ -1965,6 +2024,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		handle->params.custom_11d_bcn_country_ie_en =
 			params->custom_11d_bcn_country_ie_en;
 #endif
+	handle->params.amsdu_disable = amsdu_disable;
+	if (params)
+		handle->params.amsdu_disable = params->amsdu_disable;
+
 #if defined(SDIO)
 	handle->params.slew_rate = slew_rate;
 	if (params)
@@ -2212,6 +2275,11 @@ void woal_free_module_param(moal_handle *handle)
 		kfree(params->fw_name);
 		params->fw_name = NULL;
 	}
+
+	if (params->wifi_fw_name) {
+		kfree(params->wifi_fw_name);
+		params->wifi_fw_name = NULL;
+	}
 	if (params->hw_name) {
 		kfree(params->hw_name);
 		params->hw_name = NULL;
@@ -2439,6 +2507,14 @@ void woal_init_from_dev_tree(void)
 						     &string_data)) {
 				fw_name = (char *)string_data;
 				PRINTM(MIOCTL, "fw_name=%s\n", fw_name);
+			}
+		} else if (!strncmp(prop->name, "wifi_fw_name",
+				    strlen("wifi_fw_name"))) {
+			if (!of_property_read_string(dt_node, prop->name,
+						     &string_data)) {
+				wifi_fw_name = (char *)string_data;
+				PRINTM(MIOCTL, "wifi_fw_name=%s\n",
+				       wifi_fw_name);
 			}
 		} else if (!strncmp(prop->name, "hw_name", strlen("hw_name"))) {
 			if (!of_property_read_string(dt_node, prop->name,
@@ -3028,6 +3104,8 @@ module_param(fw_reload, int, 0);
 MODULE_PARM_DESC(fw_reload,
 		 "0: disable fw_reload; 1: enable fw reload feature");
 module_param(auto_fw_reload, int, 0);
+module_param(wifi_fw_name, charp, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(wifi_fw_name, "Wlan firmware name for IR");
 #ifdef PCIE
 MODULE_PARM_DESC(
 	auto_fw_reload,
@@ -3075,7 +3153,7 @@ module_param(wfd_name, charp, 0);
 MODULE_PARM_DESC(wfd_name, "WIFIDIRECT interface name");
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 module_param(max_vir_bss, int, 0);
-MODULE_PARM_DESC(max_vir_bss, "Number of Virtual interfaces (0)");
+MODULE_PARM_DESC(max_vir_bss, "Number of Virtual interfaces (1)");
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
 module_param(nan_name, charp, 0);
@@ -3146,6 +3224,11 @@ MODULE_PARM_DESC(
 	custom_11d_bcn_country_ie_en,
 	"1: Enable Custom BCN Country ie; 0: Disable Custom BCN Country ie");
 #endif
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
+module_param(amsdu_disable, int, 0);
+MODULE_PARM_DESC(amsdu_disable, "1: Disable AMSDU aggr; 0: Enable AMSDU aggr");
 
 #if defined(SDIO)
 module_param(slew_rate, int, 0);
@@ -3232,6 +3315,9 @@ MODULE_PARM_DESC(ring_size,
 module_param(pcie_int_mode, int, 0);
 MODULE_PARM_DESC(pcie_int_mode, "0: Legacy mode; 1: MSI mode");
 #endif /* PCIE */
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(low_power_mode_enable, int, 0);
 MODULE_PARM_DESC(low_power_mode_enable, "0/1: Disable/Enable Low Power Mode");
 
@@ -3246,6 +3332,10 @@ module_param(net_rx, int, 0);
 MODULE_PARM_DESC(
 	net_rx,
 	"0: use netif_rx/netif_rx_ni in rx; 1: use netif_receive_skb in rx (default)");
+module_param(wifi_reset_config, int, 0);
+MODULE_PARM_DESC(
+	wifi_reset_config,
+	"0: disable Wi-Fi reset, positive integer: max retries before reset (default 5)");
 module_param(amsdu_deaggr, int, 0);
 MODULE_PARM_DESC(
 	amsdu_deaggr,
@@ -3287,6 +3377,9 @@ module_param(indication_gpio, int, 0);
 MODULE_PARM_DESC(
 	indication_gpio,
 	"GPIO to indicate wakeup source; high four bits: level for normal wakeup; low four bits: GPIO pin number.");
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(disconnect_on_suspend, int, 0);
 MODULE_PARM_DESC(
 	disconnect_on_suspend,
@@ -3301,6 +3394,9 @@ MODULE_PARM_DESC(
 	indrstcfg,
 	"Independent reset configuration; high byte: GPIO pin number; low byte: IR mode");
 
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(fixed_beacon_buffer, int, 0);
 MODULE_PARM_DESC(
 	fixed_beacon_buffer,
@@ -3376,6 +3472,9 @@ MODULE_PARM_DESC(
 #endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(disable_regd_by_driver, int, 0);
 MODULE_PARM_DESC(
 	disable_regd_by_driver,

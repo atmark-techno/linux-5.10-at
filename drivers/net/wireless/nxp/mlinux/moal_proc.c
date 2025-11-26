@@ -650,6 +650,13 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		return 0;
 	}
 
+	if (handle->fw_reseting) {
+		PRINTM(MERROR,
+		       "Firmware reset in progress, ignore proc file write\n");
+		LEAVE();
+		return -EINVAL;
+	}
+
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
 
 	if (!woal_secure_add(&count, 1, &tmp_count, TYPE_UINT32)) {
@@ -707,9 +714,13 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		if (!IS_USB(handle->card_type))
 #endif
 			handle->driver_status = MTRUE;
+		mlan_set_driver_status(handle->pmlan_adapter,
+				       handle->driver_status);
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle) {
 			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
 				ref_handle->fw_dump_status = MTRUE;
@@ -1297,6 +1308,100 @@ static const struct file_operations fw_dump_fops = {
 	.release = single_release,
 };
 #endif
+
+#if defined(PCIE)
+static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
+{
+	moal_handle *handle = (moal_handle *)sfp->private;
+	int ret = 0;
+	t_u32 i;
+	t_u32 *tmpbuf;
+	unsigned char *sfpbuf;
+	char dw_string[10] = {0};
+
+	ENTER();
+
+	if (MODULE_GET == 0) {
+		LEAVE();
+		return 0;
+	}
+
+	if (!handle) {
+		PRINTM(MERROR, "handle is null!\n");
+		goto done;
+	}
+
+	if (!handle->ssu_dump_buf || !handle->ssu_dump_len) {
+		PRINTM(MERROR,
+		       "ssu dump buffer is NULL or total length is zero\n");
+		goto done;
+	}
+
+	if (sfp->size < ((handle->ssu_dump_len * 9) / 4)) {
+		PRINTM(MCMND,
+		       "ssu dump size too big, size=%d, ssu_dump_len=%ld\n",
+		       (int)sfp->size,
+		       (long int)((handle->ssu_dump_len * 9) / 4));
+		sfp->count = sfp->size;
+		ret = 0;
+		MODULE_PUT;
+		return ret;
+	}
+
+	tmpbuf = (t_u32 *)handle->ssu_dump_buf;
+	sfpbuf = sfp->buf;
+	for (i = 0; i < handle->ssu_dump_len / 4; i++) {
+		if ((i + 1) % 8 == 0)
+			snprintf(dw_string, sizeof(dw_string), "%08x\n",
+				 *tmpbuf);
+		else
+			snprintf(dw_string, sizeof(dw_string), "%08x ",
+				 *tmpbuf);
+
+		moal_memcpy_ext(handle, sfpbuf, dw_string, 9, 9);
+		tmpbuf++;
+		sfpbuf += 9;
+	}
+
+	sfp->count = ((handle->ssu_dump_len * 9) / 4);
+	moal_vfree(handle, handle->ssu_dump_buf);
+	handle->ssu_dump_buf = NULL;
+	handle->ssu_dump_len = 0;
+
+done:
+	MODULE_PUT;
+	LEAVE();
+	return 0;
+}
+
+static int woal_ssu_dump_proc_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_ssu_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+	return single_open(file, woal_ssu_dump_read, PDE_DATA(inode));
+#else
+	return single_open(file, woal_ssu_dump_read, PDE(inode)->data);
+#endif
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops ssu_dump_fops = {
+	.proc_open = woal_ssu_dump_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
+static const struct file_operations ssu_dump_fops = {
+	.owner = THIS_MODULE,
+	.open = woal_ssu_dump_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+#endif
 #endif
 
 /**
@@ -1456,6 +1561,9 @@ void woal_proc_init(moal_handle *handle)
 #ifdef DUMP_TO_PROC
 	char drv_dump_dir[20];
 	char fw_dump_dir[20];
+#if defined(PCIE)
+	char ssu_dump_dir[20];
+#endif
 #endif
 
 	ENTER();
@@ -1541,6 +1649,22 @@ void woal_proc_init(moal_handle *handle)
 #endif
 	if (!r)
 		PRINTM(MERROR, "Failed to create proc fw dump\n");
+
+#if defined(PCIE)
+	strncpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+	r = proc_create_data(ssu_dump_dir, 0644, handle->proc_wlan,
+			     &ssu_dump_fops, handle);
+#else
+	r = create_proc_entry(ssu_dump_dir, 0644, handle->proc_wlan);
+	if (r) {
+		r->data = handle;
+		r->proc_fops = &ssu_dump_fops;
+	}
+#endif
+	if (!r)
+		PRINTM(MERROR, "Failed to create proc ssu dump\n");
+#endif
 #endif
 
 done:
@@ -1560,6 +1684,9 @@ void woal_proc_exit(moal_handle *handle)
 #ifdef DUMP_TO_PROC
 	char drv_dump_dir[20];
 	char fw_dump_dir[20];
+#if defined(PCIE)
+	char ssu_dump_dir[20];
+#endif
 #endif
 
 	ENTER();
@@ -1573,6 +1700,10 @@ void woal_proc_exit(moal_handle *handle)
 		remove_proc_entry(drv_dump_dir, handle->proc_wlan);
 		strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
 		remove_proc_entry(fw_dump_dir, handle->proc_wlan);
+#if defined(PCIE)
+		strncpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
+		remove_proc_entry(ssu_dump_dir, handle->proc_wlan);
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
@@ -1602,6 +1733,13 @@ void woal_proc_exit(moal_handle *handle)
 		handle->drv_dump_len = 0;
 		handle->drv_dump_buf = NULL;
 	}
+#if defined(PCIE)
+	if (handle->ssu_dump_buf) {
+		moal_vfree(handle, handle->ssu_dump_buf);
+		handle->ssu_dump_buf = NULL;
+		handle->ssu_dump_len = 0;
+	}
+#endif
 #endif
 	LEAVE();
 }

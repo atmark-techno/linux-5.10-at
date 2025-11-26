@@ -255,6 +255,10 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 		max_mp_regs = pmadapter->pcard_sd->reg->max_mp_regs;
 		mp_tx_aggr_buf_size = pmadapter->pcard_sd->mp_tx_aggr_buf_size;
 		mp_rx_aggr_buf_size = pmadapter->pcard_sd->mp_rx_aggr_buf_size;
+		mp_rx_aggr_buf_size = MIN(pmadapter->pcard_sd->max_seg_size,
+					  mp_rx_aggr_buf_size);
+		mp_tx_aggr_buf_size = MIN(pmadapter->pcard_sd->max_seg_size,
+					  mp_tx_aggr_buf_size);
 	}
 #endif
 
@@ -1584,6 +1588,7 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 			goto done;
 		}
 	}
+
 	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693) {
 		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
 				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);

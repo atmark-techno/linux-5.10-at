@@ -98,16 +98,16 @@ static const u32 cfg80211_akm_suites[] = {
 mode_psd_t mode_psd_sta_FCC_6G[] = {
 	{"indoor_", "minus1"},
 	{"sp_", ""},
-	{"vlp_", "minus7"},
+	{"vlp_", "minus5"},
 };
 
 /**
  * @brief Band: 6G, Region: EU STA-Mode-PSD Table
  */
 mode_psd_t mode_psd_sta_EU_6G[] = {
-	{"indoor_", "minus1"},
+	{"indoor_", "plus10"},
 	{"sp_", ""},
-	{"vlp_", "minus10"},
+	{"vlp_", "plus1"},
 };
 
 /**
@@ -201,6 +201,9 @@ static int woal_cfg80211_get_tx_power(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				      struct wireless_dev *wdev,
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				      int radio_idx,
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 				      unsigned int link_id,
 #endif
@@ -209,6 +212,9 @@ static int woal_cfg80211_get_tx_power(struct wiphy *wiphy,
 static int woal_cfg80211_set_tx_power(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				      struct wireless_dev *wdev,
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				      int radio_idx,
 #endif
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 				      enum tx_power_setting type,
@@ -683,6 +689,9 @@ static const struct wiphy_coalesce_support coalesce_support = {
 /********************************************************
 				Global Variables
 ********************************************************/
+#define delta64(later, earlier)                                                \
+	((later >= earlier) ? later - earlier :                                \
+			      (t_u64)(-1) - earlier + later + 1)
 
 /********************************************************
 				Local Functions
@@ -1757,6 +1766,7 @@ mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason)
 	wifi_timeval ts;
 	t_u64 diff;
 	t_u8 intf_num;
+	moal_handle *ref_handle;
 
 	/* Disconnect all interfaces */
 	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
@@ -1775,6 +1785,15 @@ mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason)
 	if (reset_time.time_sec == 0 || diff >= MAX_WIFI_RESET_INTERVAL) {
 		reset_time = ts;
 		PRINTM(MERROR, "WiFi Reset due to %s cnt %d\n", reason, cnt);
+		handle->driver_status = MTRUE;
+		mlan_set_driver_status(handle->pmlan_adapter,
+				       handle->driver_status);
+		ref_handle = (moal_handle *)handle->pref_mac;
+		if (ref_handle) {
+			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
+		}
 		/* Do wifi independent reset */
 		woal_process_hang(handle);
 		return MLAN_STATUS_SUCCESS;
@@ -1943,6 +1962,20 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+
+	if (!priv) {
+		PRINTM(MERROR, "%s(): priv is NULL!\n", __func__);
+		LEAVE();
+		return 0;
+	}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	if (priv->wdev && priv->wdev->wiphy &&
+	    (priv->wdev->wiphy->regulatory_flags &
+	     REGULATORY_WIPHY_SELF_MANAGED)) {
+		LEAVE();
+		return 0;
+	}
+#endif
 	rcu_read_lock();
 	country_ie = (const u8 *)ieee80211_bss_get_ie(bss, WLAN_EID_COUNTRY);
 	if (!country_ie) {
@@ -3031,8 +3064,10 @@ void woal_host_mlme_work_queue(struct work_struct *work)
 					    (t_u8 *)&status, NULL, 0, 0)) {
 					PRINTM(MERROR,
 					       "failed to cancel remain on channel\n");
+				} else {
+					priv->phandle->remain_on_channel =
+						MFALSE;
 				}
-				priv->phandle->remain_on_channel = MFALSE;
 			}
 			PRINTM(MCMND, "wlan: HostMlme %s auth success\n",
 			       priv->netdev->name);
@@ -3041,31 +3076,24 @@ void woal_host_mlme_work_queue(struct work_struct *work)
 }
 
 /**
- *  @brief This workqueue function handles association timeout event in event
- * queue case
+ *  @brief This function handles fallback to previous AP in the event of
+ * 	    association failure.
  *
  *  @param priv         pointer to moal_private
- *  @param assoc_info   pointer to cfg80211_bss
  *
- *  @return        N/A
+ *  @return            0 -- success, otherwise fail
  */
-
-void woal_host_mlme_process_assoc_timeout(moal_private *priv,
-					  struct cfg80211_bss *bss)
-{
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) ||                       \
-     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33 &&             \
-      CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 74)))
-	struct cfg80211_assoc_failure data;
-#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+static mlan_status woal_host_mlme_fallback_to_prev_ap(moal_private *priv)
+{
 	mlan_ds_assoc_info *assoc_info;
 	struct cfg80211_roam_info roam_info;
 	chan_band_info channel;
+	mlan_status status = MLAN_STATUS_FAILURE;
 
 	assoc_info = kzalloc(sizeof(mlan_ds_assoc_info), GFP_ATOMIC);
 	if (!assoc_info)
-		return;
+		return status;
 	memset(&roam_info, 0, sizeof(roam_info));
 	memset(&channel, 0, sizeof(channel));
 
@@ -3088,6 +3116,30 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 		roam_info.resp_ie = assoc_info->assoc_resp_buf;
 		roam_info.resp_ie_len = assoc_info->assoc_resp_len;
 
+		if (priv->conn_ssid_len) {
+#if ((CFG80211_VERSION_CODE > KERNEL_VERSION(5, 19, 1)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
+			if (priv->wdev->u.client.ssid_len == 0) {
+				priv->wdev->u.client.ssid_len =
+					priv->conn_ssid_len;
+				moal_memcpy_ext(
+					priv->phandle,
+					(void *)priv->wdev->u.client.ssid,
+					priv->conn_ssid, priv->conn_ssid_len,
+					priv->wdev->u.client.ssid_len);
+			}
+#else
+			if (priv->wdev->ssid_len == 0) {
+				priv->wdev->ssid_len = priv->conn_ssid_len;
+				moal_memcpy_ext(priv->phandle,
+						(void *)priv->wdev->ssid,
+						priv->conn_ssid,
+						priv->conn_ssid_len,
+						priv->wdev->ssid_len);
+			}
+#endif
+		}
+
 		cfg80211_roamed(priv->netdev, &roam_info, GFP_KERNEL);
 		priv->cfg_disconnect = MFALSE;
 		priv->host_mlme = MTRUE;
@@ -3104,17 +3156,44 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 			if (MLAN_STATUS_FAILURE ==
 			    woal_chandef_create(priv, &priv->chan, &channel)) {
 				PRINTM(MERROR,
-				       "Asssoc timeout:create chandef failed\n");
+				       "Assoc timeout:create chandef failed\n");
 			}
 			priv->channel = channel.channel;
 			priv->bandwidth = channel.bandcfg.chanWidth;
 		}
+
 		PRINTM(MMSG, "wlan: HostMlme fallback to AP " MACSTR "\n",
 		       MAC2STR(assoc_info->bssid));
-		kfree(assoc_info);
-		return;
+		status = MLAN_STATUS_SUCCESS;
 	}
+
 	kfree(assoc_info);
+	return status;
+}
+#endif
+
+/**
+ *  @brief This workqueue function handles association timeout event in event
+ * queue case
+ *
+ *  @param priv         pointer to moal_private
+ *  @param assoc_info   pointer to cfg80211_bss
+ *
+ *  @return        N/A
+ */
+
+void woal_host_mlme_process_assoc_timeout(moal_private *priv,
+					  struct cfg80211_bss *bss)
+{
+#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) ||                       \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33 &&             \
+      CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 74)))
+	struct cfg80211_assoc_failure data;
+#endif
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+	if (woal_host_mlme_fallback_to_prev_ap(priv) == MLAN_STATUS_SUCCESS)
+		return;
 #endif
 	/* Send Assoc Failure with Timeout to CFG80211 */
 	priv->host_mlme = MFALSE;
@@ -3131,12 +3210,48 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 	 * API in CFG to hold/unhold BSS.
 	 */
 	woal_sched_timeout(100);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	wiphy_lock(priv->wdev->wiphy);
+#else
+	mutex_lock(&priv->wdev->mtx);
+#endif
 	cfg80211_assoc_failure(priv->netdev, &data);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	wiphy_unlock(priv->wdev->wiphy);
+#else
+	mutex_unlock(&priv->wdev->mtx);
+#endif
 #else
 	PRINTM(MEVENT, "wlan: HostMlme assoc timeout\n");
 	woal_sched_timeout(100);
+	mutex_lock(&priv->wdev->mtx);
 	cfg80211_assoc_timeout(priv->netdev, bss);
+	mutex_unlock(&priv->wdev->mtx);
 #endif
+
+// Issue explicit Disconnect to CFG80211, on Assoc failure.
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+	if (priv->wdev &&
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
+	    priv->wdev->connected) {
+#else
+	    priv->wdev->current_bss) {
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		if (priv->host_mlme)
+			woal_deauth_event(priv, MLAN_REASON_DEAUTH_LEAVING,
+					  priv->cfg_bssid);
+		else
+#endif
+			cfg80211_disconnected(priv->netdev, 0, NULL, 0,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+					      true,
+#endif
+					      GFP_KERNEL);
+	}
+#endif
+
 	memset(priv->cfg_bssid, 0, ETH_ALEN);
 	woal_clear_conn_params(priv);
 }
@@ -3377,6 +3492,77 @@ static void woal_assoc_resp_event(moal_private *priv,
 	}
 	kfree(assoc_req);
 	return;
+}
+
+#ifndef WLAN_AKM_SUITE_SAE
+#define WLAN_AKM_SUITE_SAE 0x000FAC08
+#endif
+
+#ifndef WLAN_AKM_SUITE_OWE
+#define WLAN_AKM_SUITE_OWE 0x000FAC12
+#endif
+
+#ifndef WLAN_AKM_SUITE_WFA_DPP
+#define WLAN_AKM_SUITE_WFA_DPP 0x506F9A02
+#endif
+
+#define WLAN_STATUS_FCG_NOT_SUPPORTED 77
+
+/**
+ *  @brief This function decides if fallback to previous AP
+ *         approach is allowed for the assoc resp failure.
+ *
+ * @param priv            A pointer to moal_private structure
+ *
+ * @param req         	  A pointer to cfg80211_assoc_request
+ *
+ * @param passoc_resp     A pointer to mlan_ds_misc_assoc_rsp structure
+ *
+ *  @return            true -- allowed, false -- not allowed
+ */
+static bool
+is_fallback_allowed_for_assoc_resp(moal_private *priv,
+				   struct cfg80211_assoc_request *req,
+				   mlan_ds_misc_assoc_rsp *passoc_resp)
+{
+	IEEEtypes_AssocRsp_t *passoc_rsp =
+		(IEEEtypes_AssocRsp_t *)(passoc_resp->assoc_resp_buf +
+					 sizeof(IEEEtypes_MgmtHdr_t));
+
+	if (priv->phandle->params.make_before_break == false)
+		return false;
+
+	// Needs PMKSA clearing for SAE.
+	if (req->crypto.n_akm_suites &&
+	    req->crypto.akm_suites[0] == WLAN_AKM_SUITE_SAE) {
+		return false;
+	}
+
+	switch (passoc_rsp->status_code) {
+	// DPP cases handling.
+	case WLAN_STATUS_ASSOC_DENIED_UNSPEC:
+	case WLAN_STATUS_INVALID_AKMP:
+		if (req->crypto.n_akm_suites &&
+		    req->crypto.akm_suites[0] == WLAN_AKM_SUITE_WFA_DPP) {
+			return false;
+		}
+		break;
+	// Results in trying next supported DH group.
+	case WLAN_STATUS_FCG_NOT_SUPPORTED:
+		if (req->crypto.n_akm_suites &&
+		    req->crypto.akm_suites[0] == WLAN_AKM_SUITE_OWE) {
+			return false;
+		}
+		break;
+	// MBO use case. Temp disallow bss in upper layer.
+	case WLAN_STATUS_ASSOC_DENIED_LOWACK:
+	// Assoc temp rejection. PMF cases.
+	case WLAN_STATUS_ASSOC_REJECTED_TEMPORARILY:
+		return false;
+	default:
+		break;
+	}
+	return true;
 }
 
 /**
@@ -3651,7 +3837,9 @@ done:
 		if (ssid_bssid->assoc_rsp.assoc_resp_len &&
 		    ssid_bssid->assoc_rsp.assoc_resp_len >
 			    (sizeof(IEEEtypes_MgmtHdr_t) +
-			     sizeof(IEEEtypes_AssocRsp_t))) {
+			     sizeof(IEEEtypes_AssocRsp_t)) &&
+		    (is_fallback_allowed_for_assoc_resp(
+			     priv, req, &ssid_bssid->assoc_rsp) == false)) {
 			// save the connection param when send assoc_resp to
 			// kernel
 			woal_save_assoc_params(priv, req, ssid_bssid);
@@ -4862,32 +5050,29 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 	moal_memcpy_ext(priv->phandle, region, request->alpha2,
 			sizeof(request->alpha2), sizeof(region));
 	region[2] = ' ';
-	if ((handle->country_code[0] != request->alpha2[0]) ||
-	    (handle->country_code[1] != request->alpha2[1])) {
-		if (handle->params.cntry_txpwr) {
-			t_u8 country_code[COUNTRY_CODE_LEN];
-			handle->country_code[0] = request->alpha2[0];
-			handle->country_code[1] = request->alpha2[1];
-			handle->country_code[2] = ' ';
-			memset(country_code, 0, sizeof(country_code));
-			if (MTRUE == is_cfg80211_special_region_code(region)) {
-				country_code[0] = 'W';
-				country_code[1] = 'W';
-			} else {
-				country_code[0] = request->alpha2[0];
-				country_code[1] = request->alpha2[1];
-			}
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_request_country_power_table(
-				    priv, country_code, MOAL_IOCTL_WAIT, 0)) {
-#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
-				return -EFAULT;
-#else
-				return;
-#endif
-			}
-			load_power_table = MTRUE;
+	if (handle->params.cntry_txpwr) {
+		t_u8 country_code[COUNTRY_CODE_LEN];
+		handle->country_code[0] = request->alpha2[0];
+		handle->country_code[1] = request->alpha2[1];
+		handle->country_code[2] = ' ';
+		memset(country_code, 0, sizeof(country_code));
+		if (MTRUE == is_cfg80211_special_region_code(region)) {
+			country_code[0] = 'W';
+			country_code[1] = 'W';
+		} else {
+			country_code[0] = request->alpha2[0];
+			country_code[1] = request->alpha2[1];
 		}
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_request_country_power_table(priv, country_code,
+						     MOAL_IOCTL_WAIT, 0)) {
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
+			return -EFAULT;
+#else
+			return;
+#endif
+		}
+		load_power_table = MTRUE;
 	}
 	if (!handle->params.cntry_txpwr) {
 		handle->country_code[0] = request->alpha2[0];
@@ -6634,9 +6819,13 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 	enum ieee80211_band band;
 	ChanStatistics_t *pchan_stats = NULL;
 	mlan_scan_resp scan_resp;
+	mlan_ds_get_stats stats;
+	t_u64 active_time = 0;
 
 	ENTER();
 	PRINTM(MIOCTL, "dump_survey idx=%d\n", idx);
+
+	moal_get_host_time_ns(&active_time);
 
 	memset(&scan_resp, 0, sizeof(scan_resp));
 	if (MLAN_STATUS_SUCCESS !=
@@ -6676,6 +6865,68 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 	survey->channel_time_busy = pchan_stats[idx].cca_busy_duration;
 #endif
 #endif
+
+	if (((priv->media_connected &&
+	      (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)) ||
+	     (priv->bss_started && (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP))) &&
+	    pchan_stats[idx].chan_num == priv->channel) {
+		memset(&stats, 0, sizeof(mlan_ds_get_stats));
+		if (MLAN_STATUS_SUCCESS ==
+		    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
+			if (stats.cca_cnt_us != 0) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+				survey->filled |= SURVEY_INFO_TIME |
+						  SURVEY_INFO_TIME_BUSY |
+						  SURVEY_INFO_TIME_RX |
+						  SURVEY_INFO_TIME_TX;
+				survey->time = moal_do_div(
+					delta64(active_time,
+						priv->bss_active_time),
+					1000000);
+				survey->time_rx = moal_do_div(
+					delta64(stats.rxAirtime_us,
+						priv->rx_airtime_base),
+					1000);
+				survey->time_tx = moal_do_div(
+					delta64(stats.txAirtime_us,
+						priv->tx_airtime_base),
+					1000);
+				survey->time_busy =
+					moal_do_div(delta64(stats.cca_cnt_us,
+							    priv->cca_cnt_base),
+						    1000) +
+					survey->time_rx + survey->time_tx;
+#else
+				survey->filled |=
+					SURVEY_INFO_CHANNEL_TIME |
+					SURVEY_INFO_CHANNEL_TIME_BUSY |
+					SURVEY_INFO_CHANNEL_TIME_RX |
+					SURVEY_INFO_CHANNEL_TIME_TX;
+				survey->channel_time = moal_do_div(
+					delta64(active_time,
+						priv->bss_active_time),
+					1000000);
+				survey->channel_time_rx = moal_do_div(
+					delta64(stats.rxAirtime_us,
+						priv->rx_airtime_base),
+					1000);
+				survey->channel_time_tx = moal_do_div(
+					delta64(stats.txAirtime_us,
+						priv->tx_airtime_base),
+					1000);
+				survey->channel_time_busy =
+					moal_do_div(delta64(stats.cca_cnt_us,
+							    priv->cca_cnt_base),
+						    1000) +
+					survey->channel_time_rx +
+					survey->channel_time_tx;
+#endif
+#endif
+			}
+		}
+	}
+
 done:
 	LEAVE();
 	return ret;
@@ -6821,6 +7072,9 @@ static int woal_cfg80211_set_power_mgmt(struct wiphy *wiphy,
 static int woal_cfg80211_get_tx_power(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				      struct wireless_dev *wdev,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				      int radio_idx,
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 				      unsigned int link_id,
 #endif
@@ -6871,6 +7125,9 @@ static int woal_cfg80211_get_tx_power(struct wiphy *wiphy,
 static int woal_cfg80211_set_tx_power(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				      struct wireless_dev *wdev,
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				      int radio_idx,
 #endif
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 				      enum tx_power_setting type,
@@ -10770,6 +11027,13 @@ void woal_host_mlme_disconnect(moal_private *priv, u16 reason_code, u8 *sa)
 		);
 #else
 		cfg80211_rx_mgmt(priv->netdev, freq, frame_buf, 26, GFP_ATOMIC);
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		// Send Deauth frame to packet fate monitor framework
+		woal_packet_fate_monitor(priv, PACKET_TYPE_RX,
+					 RX_PKT_FATE_SUCCESS,
+					 FRAME_TYPE_80211_MGMT, 0, 0, frame_buf,
+					 26);
 #endif
 	}
 

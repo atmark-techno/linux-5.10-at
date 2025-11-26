@@ -3,7 +3,7 @@
  * @brief This file contains standard ioctl functions
  *
  *
- * Copyright 2008-2024 NXP
+ * Copyright 2008-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -2618,6 +2618,8 @@ static int woal_drv_dbg(moal_private *priv, struct iwreq *wrq)
 	       (drvdbg & MREG) ? "X" : "");
 	printk(KERN_ALERT "MREG_D (%08x) %s\n", MREG_D,
 	       (drvdbg & MREG_D) ? "X" : "");
+	printk(KERN_ALERT "MLSTATS (%08x) %s\n", MLSTATS,
+	       (drvdbg & MLSTATS) ? "X" : "");
 	printk(KERN_ALERT "MIOCTL (%08x) %s\n", MIOCTL,
 	       (drvdbg & MIOCTL) ? "X" : "");
 	printk(KERN_ALERT "MINTR  (%08x) %s\n", MINTR,

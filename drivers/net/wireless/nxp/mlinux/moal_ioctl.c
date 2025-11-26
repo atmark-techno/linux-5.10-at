@@ -337,6 +337,24 @@ static inline void woal_copy_mc_addr(mlan_multicast_list *mlist,
 }
 
 /**
+ *  @brief Copy NAN network mcast addr to multicast table
+ *
+ *  @param mlist    A pointer to mlan_multicast_list structure
+ *
+ *  @return         Number of multicast addresses
+ */
+static inline int woal_copy_nan_mcast_addr(mlan_multicast_list *mlist)
+{
+	t_u8 nan_network_addr[6] = {0x51, 0x6f, 0x9a, 0x01, 0, 0};
+	ENTER();
+
+	woal_copy_mc_addr(mlist, nan_network_addr);
+
+	LEAVE();
+	return mlist->num_multicast_addr;
+}
+
+/**
  *  @brief Copy multicast table
  *
  *  @param mlist    A pointer to mlan_multicast_list structure
@@ -400,6 +418,9 @@ static int woal_copy_all_mc_list(moal_handle *handle,
 					woal_copy_mcast_addr(mlist,
 							     priv->netdev);
 			}
+			// NAN mcast addr supposed to download whatever the
+			// media_connected is
+			woal_copy_nan_mcast_addr(mlist);
 		}
 #endif
 	}
@@ -632,6 +653,7 @@ mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 	mlan_status status;
 	unsigned long flags;
 	t_u32 sub_command = 0;
+	long wait_rv;
 
 	ENTER();
 
@@ -753,10 +775,18 @@ mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 			       cac_left_jiffies / HZ);
 			/* blocking timeout set to 1.5 * CAC checking period
 			 * left time */
-			wait_event_interruptible_timeout(
+			wait_rv = wait_event_interruptible_timeout(
 				priv->phandle->meas_wait_q,
 				priv->phandle->meas_wait_q_woken,
 				cac_left_jiffies * 3 / 2);
+			if (wait_rv == 0) {
+				PRINTM(MMSG, "meas_wait_q timeout occurred\n");
+			} else if (wait_rv < 0) {
+				PRINTM(MERROR,
+				       "meas_wait_q interrupted by signal\n");
+				status = MLAN_STATUS_FAILURE;
+				goto done;
+			}
 		}
 	}
 #ifdef UAP_CFG80211
@@ -2913,9 +2943,13 @@ int woal_send_host_packet(struct net_device *dev, struct ifreq *req)
 
 	mgmt = (IEEE80211_MGMT *)(pmbuf->pbuf + pmbuf->data_offset +
 				  PACKET_HEADER_LEN + FRAME_LEN);
-
 	if (priv->phandle->cmd_tx_data &&
-	    ((mgmt->frame_control & IEEE80211_FC_MGMT_FRAME_TYPE_MASK) == 0)) {
+	    (((mgmt->frame_control & IEEE80211_FC_MGMT_FRAME_TYPE_MASK) == 0)
+// Nighthawk CSI need to send qos null packets via cmd 0x283
+#if defined(SDIW610) || defined(USBIW610)
+	     || (mgmt->frame_control == 0xc8)
+#endif
+		     )) {
 		status = woal_send_mgmt_packet(priv, pmbuf);
 		woal_free_mlan_buffer(priv->phandle, pmbuf);
 		goto done;
@@ -3405,7 +3439,7 @@ static mlan_status woal_set_wake_on_mdns(moal_handle *handle, t_u8 enable)
 	filter->type = TYPE_BYTE_EQ;
 	filter->repeat = 1;
 	filter->offset = 38;
-	filter->num_bytes = 4;
+	filter->num_byte_seq = 4;
 	moal_memcpy_ext(handle, filter->byte_seq, "\xe0\x00\x00\xfb", 4,
 			sizeof(filter->byte_seq));
 	entry->rpn[2] = RPN_TYPE_AND;
@@ -3954,11 +3988,9 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
-	if (priv->phandle->hs_auto_arp) {
-		PRINTM(MIOCTL, "Cancel Host Sleep... remove ipv6 offload\n");
-		/** Set ipv6 router advertisement message offload */
-		woal_set_ipv6_ra_offload(priv->phandle, MFALSE);
-	}
+	PRINTM(MIOCTL, "Cancel Host Sleep... remove ipv6 offload\n");
+	/** Set ipv6 router advertisement message offload */
+	woal_set_ipv6_ra_offload(priv->phandle, MFALSE);
 	/** Set Neighbor Solitation message offload */
 	woal_set_ipv6_ns_offload(priv->phandle, MFALSE);
 #endif
@@ -4303,10 +4335,12 @@ int woal_enable_hs(moal_private *priv)
 	media_connected = woal_check_media_connected(handle);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
-	if (handle->hs_auto_arp && media_connected) {
+	if (media_connected) {
 		PRINTM(MIOCTL, "Host Sleep enabled... set ipv6 offload\n");
 		/** Set ipv6 router advertisement message offload */
 		woal_set_ipv6_ra_offload(handle, MTRUE);
+	}
+	if (handle->hs_auto_arp && media_connected) {
 		/** Set Neighbor Solitation message offload */
 		woal_set_ipv6_ns_offload(handle, MTRUE);
 	}
@@ -9836,3 +9870,155 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ * @brief               get channel load
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param duration      Channel utilization sampling time, the unit is ms
+ *
+ *  @return             MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING on success,
+ *                      otherwise failure code
+ */
+mlan_status woal_get_ch_load(moal_private *priv, t_u16 duration)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_CH_LOAD;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	ioctl_req->action = MLAN_ACT_GET;
+	/* Because the duration unit of fw is 10ms, it must be divided by 10 */
+	misc->param.ch_load.duration = (duration / 10);
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_NO_WAIT);
+	if (status != MLAN_STATUS_SUCCESS && status != MLAN_STATUS_PENDING) {
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return status;
+}
+
+/**
+ * @brief               get channel load results
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             MLAN_STATUS_SUCCESS on success,
+ *                      otherwise failure code
+ */
+mlan_status woal_get_ch_load_results(moal_private *priv, t_u16 *ch_load,
+				     t_s16 *noise)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_CH_LOAD_RESULTS;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	ioctl_req->action = MLAN_ACT_GET;
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		goto done;
+	}
+
+	*ch_load = misc->param.ch_load.ch_load_param;
+	*noise = misc->param.ch_load.noise;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return status;
+}
+
+#ifdef UAP_SUPPORT
+/**
+ * @brief uap get station list handler
+ *
+ * @param priv           Pointer to moal_private structure
+ * @param sta_list       A pointer to station list
+ *
+ *  @return             MLAN_STATUS_SUCCESS on success,
+ *                      otherwise failure code
+ */
+mlan_status woal_get_sta_list(moal_private *priv, mlan_ds_sta_list *sta_list)
+{
+	mlan_ds_get_info *info = NULL;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	if (priv->media_connected == MFALSE) {
+		PRINTM(MINFO, "cfg80211: Media not connected!\n");
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	/* Allocate an IOCTL request buffer */
+	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
+	if (ioctl_req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	info = (mlan_ds_get_info *)ioctl_req->pbuf;
+	info->sub_command = MLAN_OID_UAP_STA_LIST;
+	ioctl_req->req_id = MLAN_IOCTL_GET_INFO;
+	ioctl_req->action = MLAN_ACT_GET;
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if ((status != MLAN_STATUS_SUCCESS) ||
+	    (!info->param.sta_list.sta_count))
+		goto done;
+
+	moal_memcpy_ext(priv->phandle, sta_list, &info->param.sta_list,
+			sizeof(mlan_ds_sta_list), sizeof(mlan_ds_sta_list));
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	return status;
+}
+#endif /* UAP_SUPPORT */

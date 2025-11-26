@@ -319,6 +319,11 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_do_div);
 
 	MASSERT(pcb->moal_get_host_time_ns);
+	MASSERT(pcb->moal_unaligned_access.moal_read_u16);
+	MASSERT(pcb->moal_unaligned_access.moal_read_u32);
+	MASSERT(pcb->moal_unaligned_access.moal_write_u16);
+	MASSERT(pcb->moal_unaligned_access.moal_write_u32);
+
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
@@ -363,6 +368,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		}
 		pmadapter->pcard_sd->max_blk_count = pmdevice->max_blk_count;
 		pmadapter->pcard_sd->sdio_blk_size = pmdevice->sdio_blk_size;
+		pmadapter->pcard_sd->spi_mode = pmdevice->spi_mode;
 		pmadapter->pcard_sd->max_segs = pmdevice->max_segs;
 		pmadapter->pcard_sd->max_seg_size = pmdevice->max_seg_size;
 
@@ -372,6 +378,10 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 			pmdevice->sdio_rx_aggr_enable;
 	}
 #endif
+
+	/* By default BA timeout is supported unless FW reports it as not
+	 * supported in multi-client capabilites	 */
+	pmadapter->tx_ba_timeout_support = 1;
 
 #ifdef PCIE
 	if (IS_PCIE(pmadapter->card_type)) {
@@ -479,6 +489,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.dfs_offload = pmdevice->dfs_offload;
 	pmadapter->init_para.disable_11h_tpc = pmdevice->disable_11h_tpc;
 	pmadapter->init_para.tpe_ie_ignore = pmdevice->tpe_ie_ignore;
+	pmadapter->init_para.amsdu_disable = pmdevice->amsdu_disable;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
 
@@ -578,6 +589,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto error;
 	}
+	pmadapter->driver_status = MFALSE;
 	/* Return pointer of mlan_adapter to MOAL */
 	*ppmlan_adapter = pmadapter;
 
@@ -1373,7 +1385,7 @@ process_start:
 			    (pmadapter->tx_lock_flag == MTRUE))
 				break;
 
-			if (pmadapter->data_sent ||
+			if (pmadapter->data_sent || pmadapter->driver_status ||
 			    wlan_is_tdls_link_chan_switching(
 				    pmadapter->tdls_status) ||
 			    (wlan_bypass_tx_list_empty(pmadapter) &&
@@ -1431,6 +1443,8 @@ process_start:
 				wlan_release_event_lock(pmadapter);
 		}
 #endif
+		if (pmadapter->driver_status)
+			continue;
 		/* Check if we need to confirm Sleep Request received previously
 		 */
 		if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
@@ -1649,9 +1663,9 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 
 	if (pmbuf->data_offset > UINT32_MAX - MLAN_ETHER_PKT_TYPE_OFFSET)
 		return MLAN_STATUS_FAILURE;
-	eth_type =
-		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
-						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+	eth_type = mlan_ntohs(read_u16_unaligned(
+		pmadapter,
+		&pmbuf->pbuf[pmbuf->data_offset + MLAN_ETHER_PKT_TYPE_OFFSET]));
 
 #ifdef UAP_SUPPORT
 	/** Identify ICMP packet from ETH_IP packet. ICMP packet in IP header
@@ -1854,7 +1868,8 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 	len = pmbuf->data_len;
 
 	MASSERT(len >= MLAN_TYPE_LEN);
-	recv_type = *(t_u32 *)pbuf;
+	recv_type = read_u32_unaligned(pmadapter, pbuf);
+	;
 	recv_type = wlan_le32_to_cpu(recv_type);
 	pbuf += MLAN_TYPE_LEN;
 	len -= MLAN_TYPE_LEN;
@@ -2035,9 +2050,9 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 
 	*drop = MFALSE;
 	pmpriv = pmadapter->priv[pmbuf->bss_index];
-	eth_type =
-		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
-						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+	eth_type = mlan_ntohs(read_u16_unaligned(
+		pmadapter,
+		&pmbuf->pbuf[pmbuf->data_offset + MLAN_ETHER_PKT_TYPE_OFFSET]));
 	switch (eth_type) {
 	case MLAN_ETHER_PKT_TYPE_EAPOL:
 		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");
@@ -2064,6 +2079,22 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 		break;
 	}
 	return;
+}
+
+/**
+ *  @brief Set driver status
+ *
+ *  @param padapter	A pointer to mlan_adapter structure
+ *  @param driver_status  Driver status
+ *
+ *  @return	N/A
+ */
+t_void mlan_set_driver_status(t_void *adapter, t_u8 driver_status)
+{
+	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
+	ENTER();
+	pmadapter->driver_status = driver_status;
+	LEAVE();
 }
 
 #if defined(SDIO) || defined(PCIE)
