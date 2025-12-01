@@ -1053,6 +1053,7 @@
 
 &pcie_phy{
 	ext_osc = <0>;
+	armadillo-iot-g4;
 	status = "okay";
 };
 
