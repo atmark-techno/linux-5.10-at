@@ -12,6 +12,7 @@
 
 #define PHY_PLL_LOCK_WAIT_MAX_RETRIES	2000
 #define IMX8MP_PCIE_PHY_FLAG_EXT_OSC	BIT(0)
+#define IMX8MP_PCIE_PHY_FLAG_ARMADILLO_IOT_G4	BIT(1)
 
 #define IMX8MP_PCIE_PHY_CMN_REG020	0x80
 #define  PLL_ANA_LPF_R_SEL_FINE_0_4	0x04
@@ -145,7 +146,7 @@ static int imx8_pcie_phy_cal(struct phy *phy)
 	/*
 	 * For Armadillo-IoT G4
 	 */
-	if (1) {
+	if (imx8_phy->flags & IMX8MP_PCIE_PHY_FLAG_ARMADILLO_IOT_G4) {
 		dev_info(&phy->dev, "Tuning i.MX PCIe PHY for Armadillo G4.\n");
 
 		if ((imx8_phy->flags & IMX8MP_PCIE_PHY_FLAG_EXT_OSC) == 0) {
@@ -285,6 +286,9 @@ static int imx8_pcie_phy_probe(struct platform_device *pdev)
 				ret);
 		return ret;
 	}
+
+	if (of_property_read_bool(np, "armadillo-iot-g4"))
+		imx8_phy->flags |= IMX8MP_PCIE_PHY_FLAG_ARMADILLO_IOT_G4;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	imx8_phy->base = devm_ioremap_resource(dev, res);

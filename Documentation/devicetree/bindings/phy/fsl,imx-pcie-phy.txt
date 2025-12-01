@@ -9,6 +9,7 @@ Required properties:
 - ext_osc:	Specify the reference clock source. 1: external oscilltor is
   used as PCIe reference clock. 0: internal PLL is used.
 - power-domains: Phandle to the power domain that the device is part of
+- armadillo-iot-g4: Enable tuning for armadillo-iot gateway g4
 
 Example:
 	pcie_phy: pcie-phy@32f00000 {
