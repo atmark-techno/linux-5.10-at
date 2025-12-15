@@ -243,6 +243,7 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_900-customize.dtbo \
 			  armadillo_900-evaboard-con9-ox01f10.dtbo \
 			  armadillo_900-evaboard-con10-waveshare4-3-inch-dsi.dtbo \
 			  armadillo_900-at-dtweb.dtbo \
+			  armadillo_900-i2c7.dtbo \
 			  armadillo_iotg_a9e.dtbo \
 			  armadillo_iotg_a9e-at-dtweb.dtbo \
 			  armadillo_iotg_a9e-lbes5pl2el.dtbo \
