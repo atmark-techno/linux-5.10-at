@@ -5205,8 +5205,23 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 	char *reg_alpha2 = NULL;
 #endif
 	t_u8 dfs_region = NXP_DFS_UNKNOWN;
+	struct ieee80211_supported_band *bands;
 
 	ENTER();
+
+	// channel 14 is not supported by the hardware, force disable it
+	// even if regdb would accept it
+	bands = wiphy->bands[NL80211_BAND_2GHZ];
+	if (bands) {
+		int i;
+		for (i = 0; i < bands->n_channels; i++) {
+			// channel 14 center freq has no define...
+			if (bands->channels[i].center_freq == 2484) {
+				bands->channels[i].flags |= IEEE80211_CHAN_DISABLED;
+			}
+		}
+	}
+
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 	if (!priv || handle->driver_status || handle->surprise_removed) {
 		PRINTM(MERROR, "Blocking reg_notifier in %s()\n", __func__);

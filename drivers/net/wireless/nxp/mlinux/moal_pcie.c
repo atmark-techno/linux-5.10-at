@@ -153,6 +153,7 @@ static const struct pci_device_id wlan_ids[] = {
 /* moal interface ops */
 static moal_if_ops pcie_ops;
 
+MODULE_DEVICE_TABLE(pci, wlan_ids);
 
 /********************************************************
 			Global Variables
@@ -608,6 +609,7 @@ err_init_fw:
 static int woal_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	pcie_service_card *card = NULL;
+	moal_handle *handle;
 	t_u16 card_type = 0;
 	int ret = 0;
 
@@ -645,11 +647,11 @@ static int woal_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 	INIT_WORK(&card->reset_work, woal_pcie_work);
 
-	if (woal_add_card(card, &card->dev->dev, &pcie_ops, card_type) ==
-	    NULL) {
+	handle = woal_add_card(card, &card->dev->dev, &pcie_ops, card_type);
+	if (handle == NULL || IS_ERR(handle)) {
 		woal_pcie_cleanup(card);
-		PRINTM(MERROR, "%s: failed\n", __func__);
-		ret = -EFAULT;
+		PRINTM(MMSG, "%s: failed\n", __func__);
+		ret = IS_ERR(handle) ? PTR_ERR(handle) : -EFAULT;
 		goto err;
 	}
 
