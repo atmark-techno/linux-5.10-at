@@ -281,7 +281,7 @@ mlan_status moal_malloc_cached(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 	flag = in_atomic()     ? GFP_ATOMIC :
 	       irqs_disabled() ? GFP_ATOMIC :
 				 GFP_KERNEL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	*ppbuf = dma_alloc_noncoherent(&card->dev->dev, size, &dma,
 				       DMA_BIDIRECTIONAL, flag);
 #else
@@ -321,7 +321,7 @@ mlan_status moal_mfree_cached(t_void *pmoal, t_u32 size, t_u8 *pbuf,
 	if (unlikely(!pbuf || !card))
 		return MLAN_STATUS_FAILURE;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	dma_free_noncoherent(&card->dev->dev, size, pbuf, buf_pa,
 			     DMA_BIDIRECTIONAL);
 #else
