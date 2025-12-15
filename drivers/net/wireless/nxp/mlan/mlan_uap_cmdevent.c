@@ -3353,6 +3353,11 @@ static mlan_status wlan_uap_ret_snmp_mib(pmlan_private pmpriv,
 			tlv_type = wlan_le16_to_cpu(
 				read_u16_unaligned(pmadapter, psnmp_oid));
 			psnmp_oid += sizeof(t_u16) + sizeof(t_u16);
+			/* The memcpy_ext() call copies a fixed number of bytes
+			 * (sizeof(t_u32)) from a buffer (psnmp_oid) that is
+			 * validated to have sufficient remaining length before
+			 * the copy.
+			 */
 			// coverity[cert_arr30_c_violation:SUPPRESS]
 			// coverity[overrun:SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
@@ -3493,11 +3498,8 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 
 	if (pioctl_buf) {
 		pget_info = (mlan_ds_get_info *)pioctl_buf->pbuf;
-		// coverity[bad_memset:SUPPRESS]
-		// coverity[too_many_arguments:SUPPRESS]
-		// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
-		memset(pmpriv->adapter, &pget_info->param.stats, 0,
-		       sizeof(HostCmd_DS_802_11_GET_LOG));
+		_memset(pmpriv->adapter, &pget_info->param.stats, 0,
+			sizeof(HostCmd_DS_802_11_GET_LOG));
 		memcpy_ext(pmpriv->adapter, (t_u8 *)&get_log_tmp,
 			   (t_u8 *)pget_log,
 			   ((resp->size) - (sizeof(HostCmd_DS_GEN))),
@@ -5133,6 +5135,8 @@ static mlan_status wlan_uap_ret_agcs_cfg(pmlan_private pmpriv,
 		pagcs_cfg->nf_margin = pcmd_agcs_cfg->nf_margin;
 		pagcs_cfg->nav_mitigation_th = pcmd_agcs_cfg->nav_mitigation_th;
 		pagcs_cfg->ch_th = pcmd_agcs_cfg->ch_th;
+		pagcs_cfg->min_pkt_percentage =
+			pcmd_agcs_cfg->min_pkt_percentage;
 	}
 
 	LEAVE();
@@ -5175,6 +5179,7 @@ static mlan_status wlan_cmd_apcmd_agcs_cfg(pmlan_private pmpriv,
 	pcmd_agcs_cfg->nf_margin = pagcs_cfg->nf_margin;
 	pcmd_agcs_cfg->nav_mitigation_th = pagcs_cfg->nav_mitigation_th;
 	pcmd_agcs_cfg->ch_th = pagcs_cfg->ch_th;
+	pcmd_agcs_cfg->min_pkt_percentage = pagcs_cfg->min_pkt_percentage;
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -5245,6 +5250,8 @@ static mlan_status wlan_process_agcs_event(pmlan_private priv,
 				(t_s16)wlan_le16_to_cpu(stats->nf_threshold);
 			pacs_start_event->stats.all_sta_ecs = MTRUE;
 			pacs_start_event->stats.all_sta_6g = MTRUE;
+			pacs_start_event->stats.scan_idx = 0;
+			pacs_start_event->stats.is_5g_scaned = MFALSE;
 			switch (priv->uap_bandwidth) {
 			case CHAN_BW_20MHZ:
 				bandwidth = BW_20MHZ;
@@ -5787,6 +5794,9 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		wlan_cmd_get_sensor_temp(pmpriv, cmd_ptr, cmd_action);
 		break;
+	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
+		ret = wlan_cmd_get_foundry_type(pmpriv, cmd_ptr, cmd_action);
+		break;
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:
 		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
@@ -6265,6 +6275,9 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		ret = wlan_ret_get_sensor_temp(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
+		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:
@@ -6935,6 +6948,9 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
+		/* The buffer pevent->event_buf is populated using memcpy_ext
+		 * with a known bounded length.
+		 */
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 	}

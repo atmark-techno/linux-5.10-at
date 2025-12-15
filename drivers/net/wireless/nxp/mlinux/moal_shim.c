@@ -38,6 +38,11 @@ Change log:
 #endif
 #ifdef UAP_SUPPORT
 #include "moal_uap.h"
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#include <linux/filter.h>
+#endif
+#endif
 #endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #include "moal_cfg80211_util.h"
@@ -59,6 +64,13 @@ Change log:
 
 #include <linux/crc32.h>
 
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static struct sk_buff *woal_process_xdp(moal_private *priv,
+					struct net_device *ndev,
+					pmlan_buffer pmbuf);
+#endif
+#endif
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -238,6 +250,153 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 #endif
 	*pbuf_pa = (t_u64)dma;
 	atomic_inc(&handle->malloc_cons_count);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Alloc a non-coherent block of memory
+ *
+ *  @param pmoal Pointer to the MOAL context
+ *  @param size         The size of the buffer to be allocated
+ *  @param ppbuf        Pointer to a buffer location to store memory allocated
+ *  @param pbuf_pa      Pointer to a buffer location to store physical address
+ * of above memory
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_malloc_cached(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
+			       t_pu64 pbuf_pa)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = (pcie_service_card *)handle->card;
+	dma_addr_t dma;
+	gfp_t flag;
+
+	*pbuf_pa = 0;
+
+	if (unlikely(!card))
+		return MLAN_STATUS_FAILURE;
+
+	flag = in_atomic()     ? GFP_ATOMIC :
+	       irqs_disabled() ? GFP_ATOMIC :
+				 GFP_KERNEL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	*ppbuf = dma_alloc_noncoherent(&card->dev->dev, size, &dma,
+				       DMA_BIDIRECTIONAL, flag);
+#else
+	*ppbuf = dma_alloc_attrs(&card->dev->dev, size, &dma, flag,
+				 DMA_ATTR_NON_CONSISTENT);
+#endif
+
+	if (unlikely(*ppbuf == NULL)) {
+		PRINTM(MERROR,
+		       "%s: allocate noncoherent memory (%d bytes) failed!\n",
+		       __func__, (int)size);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	*pbuf_pa = (t_u64)dma;
+	atomic_inc(&handle->malloc_cons_count);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Free a non-coherent block of memory
+ *
+ *  @param pmoal        Pointer to the MOAL context
+ *  @param size         The size of the buffer to be freed
+ *  @param pbuf         Pointer to the buffer to be freed
+ *  @param buf_pa       Physical address of the buffer to be freed
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_mfree_cached(t_void *pmoal, t_u32 size, t_u8 *pbuf,
+			      t_u64 buf_pa)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = handle->card;
+
+	if (unlikely(!pbuf || !card))
+		return MLAN_STATUS_FAILURE;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	dma_free_noncoherent(&card->dev->dev, size, pbuf, buf_pa,
+			     DMA_BIDIRECTIONAL);
+#else
+	dma_free_attrs(&card->dev->dev, size, pbuf, buf_pa,
+		       DMA_ATTR_NON_CONSISTENT);
+#endif
+
+	atomic_dec(&handle->malloc_cons_count);
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Sync DMA buffer for CPU access
+ *
+ *  @param pmoal        Pointer to the MOAL context
+ *  @param size         Size of the buffer to sync
+ *  @param buf_pa       Physical address of the buffer
+ *  @param direction    DMA sync direction
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_dma_sync_to_cpu(t_void *pmoal, t_u32 size, t_u64 buf_pa,
+				 moal_dma_sync_direction_t direction)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = handle->card;
+
+	if (unlikely(!card))
+		return MLAN_STATUS_FAILURE;
+
+	size = (size + card->cache_alignment_mask) &
+	       ~card->cache_alignment_mask;
+
+	// make sure we have one-to-one mapping to Linux`s enum
+	// dma_data_direction
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_BIDIR != (int)DMA_BIDIRECTIONAL);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_TO_DEVICE != (int)DMA_TO_DEVICE);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_FROM_DEVICE != (int)DMA_FROM_DEVICE);
+
+	dma_sync_single_range_for_cpu(&card->dev->dev, buf_pa, 0, size,
+				      (enum dma_data_direction)direction);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Sync DMA buffer for device access
+ *
+ *  @param pmoal        Pointer to the MOAL context
+ *  @param size         Size of the buffer to sync
+ *  @param buf_pa       Physical address of the buffer
+ *  @param direction    DMA sync direction
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_dma_sync_to_device(t_void *pmoal, t_u32 size, t_u64 buf_pa,
+				    moal_dma_sync_direction_t direction)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = handle->card;
+
+	if (unlikely(!card))
+		return MLAN_STATUS_FAILURE;
+
+	size = (size + card->cache_alignment_mask) &
+	       ~card->cache_alignment_mask;
+
+	// make sure we have one-to-one mapping to Linux`s enum
+	// dma_data_direction
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_BIDIR != (int)DMA_BIDIRECTIONAL);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_TO_DEVICE != (int)DMA_TO_DEVICE);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_FROM_DEVICE != (int)DMA_FROM_DEVICE);
+
+	dma_sync_single_for_device(&card->dev->dev, buf_pa, size,
+				   (enum dma_data_direction)direction);
 
 	return MLAN_STATUS_SUCCESS;
 }
@@ -964,6 +1123,14 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 						strlen(CARD_PCIEAW690),
 						strlen(driver_version));
 			}
+			/* we are copying card name in middle of full version,
+			 * we can not copy null termination. This was already
+			 * tried and reverted as full version got terminated in
+			 * middle(See commit
+			 * 57c27201f9a23562337491f3cbb9833ca348076c). thus
+			 * suppressing the coverity warning for all card types
+			 * in this function.
+			 */
 			// coverity[string_null:SUPPRESS]
 			// coverity[cert_str32_c_violation:SUPPRESS]
 			moal_memcpy_ext(handle,
@@ -976,6 +1143,11 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
 				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
 			}
+			/* drv_ver_len is explicitly capped to
+			 * MLAN_MAX_VER_STR_LEN - 1 (34 bytes), which matches
+			 * the size of driver_version. No buffer overrun is
+			 * possible.
+			 */
 			// coverity[overrun-buffer-arg:SUPPRESS]
 			// coverity[cert_arr30_c_violation:SUPPRESS]
 			moal_memcpy_ext(handle, handle->driver_version,
@@ -1247,6 +1419,17 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 #endif
 
 	ENTER();
+
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	if (pmbuf && (pmbuf->flags & MLAN_BUF_FLAG_XDP)) {
+		woal_free_mlan_buffer(handle, pmbuf);
+		atomic_dec(&handle->tx_pending);
+		return MLAN_STATUS_SUCCESS;
+	}
+#endif
+#endif
+
 	if (pmbuf && pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA) {
 		woal_free_mlan_buffer(handle, pmbuf);
 		atomic_dec(&handle->tx_pending);
@@ -1634,496 +1817,597 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 
 	skb = (struct sk_buff *)pmbuf->pdesc;
 
-	// coverity[misra_c_2012_rule_13_5_violation:SUPPRESS]
-	if ((handle->mon_if) && (handle->mon_if->mon_ndev) &&
-	    netif_running(handle->mon_if->mon_ndev)) {
-		if (handle->mon_if->radiotap_enabled) {
-			if (skb_headroom(skb) < radiotap_max_len) {
-				PRINTM(MERROR,
-				       "%s No space to add Radio TAP header\n",
-				       __func__);
-				status = MLAN_STATUS_FAILURE;
-				handle->mon_if->stats.rx_dropped++;
-				goto done;
-			}
-			dot11_hdr =
-				(struct ieee80211_hdr *)(pmbuf->pbuf +
-							 pmbuf->data_offset);
-			moal_memcpy_ext(handle, &rt_info,
+	if ((handle->mon_if) && (handle->mon_if->mon_ndev)) {
+		if (netif_running(handle->mon_if->mon_ndev)) {
+			if (handle->mon_if->radiotap_enabled) {
+				if (skb_headroom(skb) < radiotap_max_len) {
+					PRINTM(MERROR,
+					       "%s No space to add Radio TAP header\n",
+					       __func__);
+					status = MLAN_STATUS_FAILURE;
+					handle->mon_if->stats.rx_dropped++;
+					goto done;
+				}
+				dot11_hdr = (struct ieee80211_hdr
+						     *)(pmbuf->pbuf +
+							pmbuf->data_offset);
+				moal_memcpy_ext(
+					handle, &rt_info,
 					pmbuf->pbuf + pmbuf->data_offset -
 						sizeof(rt_info),
 					sizeof(rt_info), sizeof(rt_info));
-			ldpc = (rt_info.rate_info.rate_info & 0x20) >> 5;
-			format = (rt_info.rate_info.rate_info & 0x18) >> 3;
-			bw = (rt_info.rate_info.rate_info & 0x06) >> 1;
-			dcm = rt_info.rate_info.dcm;
-			if (format == MLAN_RATE_FORMAT_HE)
-				gi = (rt_info.rate_info.rate_info & 0xC0) >> 6;
-			else
+				ldpc = (rt_info.rate_info.rate_info & 0x20) >>
+				       5;
+				format = (rt_info.rate_info.rate_info & 0x18) >>
+					 3;
+				bw = (rt_info.rate_info.rate_info & 0x06) >> 1;
+				dcm = rt_info.rate_info.dcm;
+				if (format == MLAN_RATE_FORMAT_HE)
+					gi = (rt_info.rate_info.rate_info &
+					      0xC0) >>
+					     6;
+				else
 
-				gi = rt_info.rate_info.rate_info & 0x01;
-			mcs = rt_info.rate_info.mcs_index;
-			nss = rt_info.rate_info.nss_index;
+					gi = rt_info.rate_info.rate_info & 0x01;
+				mcs = rt_info.rate_info.mcs_index;
+				nss = rt_info.rate_info.nss_index;
 
-			rth_hdr = (struct ieee80211_radiotap_header *)
-				radiotap_pos;
-			rth_hdr->it_version = PKTHDR_RADIOTAP_VERSION;
-			rth_hdr->it_pad = 0;
-			rth_hdr->it_present = cpu_to_le32(
-				(1 << IEEE80211_RADIOTAP_TSFT) |
-				(1 << IEEE80211_RADIOTAP_FLAGS) |
-				(1 << IEEE80211_RADIOTAP_CHANNEL) |
-				(1 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
-				(1 << IEEE80211_RADIOTAP_DBM_ANTNOISE) |
-				(1 << IEEE80211_RADIOTAP_ANTENNA) |
-				(1 << IEEE80211_RADIOTAP_RX_FLAGS));
-			radiotap_pos +=
-				sizeof(struct ieee80211_radiotap_header);
-			radiotap_len +=
-				sizeof(struct ieee80211_radiotap_header);
-			if (rt_info.radiotap_extra) {
-				rth_hdr->it_present |= cpu_to_le32(
-					(1 << IEEE80211_RADIOTAP_TIMESTAMP) |
-					(1
-					 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
-					(1 << IEEE80211_RADIOTAP_EXT));
-				it_present_1 = cpu_to_le32(
+				rth_hdr = (struct ieee80211_radiotap_header *)
+					radiotap_pos;
+				rth_hdr->it_version = PKTHDR_RADIOTAP_VERSION;
+				rth_hdr->it_pad = 0;
+				rth_hdr->it_present = cpu_to_le32(
+					(1 << IEEE80211_RADIOTAP_TSFT) |
+					(1 << IEEE80211_RADIOTAP_FLAGS) |
+					(1 << IEEE80211_RADIOTAP_CHANNEL) |
 					(1
 					 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
+					(1 << IEEE80211_RADIOTAP_DBM_ANTNOISE) |
 					(1 << IEEE80211_RADIOTAP_ANTENNA) |
-					(1
-					 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
-					(1 << IEEE80211_RADIOTAP_EXT));
-				it_present_2 = cpu_to_le32(
-					(1
-					 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
-					(1 << IEEE80211_RADIOTAP_ANTENNA));
+					(1 << IEEE80211_RADIOTAP_RX_FLAGS));
+				radiotap_pos += sizeof(
+					struct ieee80211_radiotap_header);
+				radiotap_len += sizeof(
+					struct ieee80211_radiotap_header);
+				if (rt_info.radiotap_extra) {
+					rth_hdr->it_present |= cpu_to_le32(
+						(1
+						 << IEEE80211_RADIOTAP_TIMESTAMP) |
+						(1
+						 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
+						(1 << IEEE80211_RADIOTAP_EXT));
+					it_present_1 = cpu_to_le32(
+						(1
+						 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
+						(1
+						 << IEEE80211_RADIOTAP_ANTENNA) |
+						(1
+						 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
+						(1 << IEEE80211_RADIOTAP_EXT));
+					it_present_2 = cpu_to_le32(
+						(1
+						 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
+						(1
+						 << IEEE80211_RADIOTAP_ANTENNA));
 
-				moal_memcpy_ext(handle, radiotap_pos,
-						&it_present_1, sizeof(t_u32),
-						sizeof(t_u32));
-				radiotap_pos += sizeof(t_u32);
-				radiotap_len += sizeof(t_u32);
-				moal_memcpy_ext(handle, radiotap_pos,
-						&it_present_2, sizeof(t_u32),
-						sizeof(t_u32));
-				radiotap_pos += sizeof(t_u32);
-				radiotap_len += sizeof(t_u32);
-			}
-
-			rth_body = (struct radiotap_body *)radiotap_pos;
-			/** TSFT: bit number 0 */
-			rth_body->timestamp = woal_cpu_to_le64(jiffies);
-			/** Flags: bit number 1 */
-			rth_body->flags = (rt_info.extra_info.flags &
-					   ~(RADIOTAP_FLAGS_USE_SGI_HT |
-					     RADIOTAP_FLAGS_WITH_FRAGMENT |
-					     RADIOTAP_FLAGS_WEP_ENCRYPTION |
-					     RADIOTAP_FLAGS_FAILED_FCS_CHECK));
-			/** reverse fail fcs, 1 means pass FCS in FW, but means
-			 * fail FCS in radiotap */
-			rth_body->flags |= (~rt_info.extra_info.flags) &
-					   RADIOTAP_FLAGS_FAILED_FCS_CHECK;
-			if ((format == MLAN_RATE_FORMAT_HT) && (gi == 1))
-				rth_body->flags |= RADIOTAP_FLAGS_USE_SGI_HT;
-			if (ieee80211_is_mgmt(dot11_hdr->frame_control) ||
-			    ieee80211_is_data(dot11_hdr->frame_control)) {
-				if ((ieee80211_has_morefrags(
-					    dot11_hdr->frame_control)) ||
-				    (!ieee80211_is_first_frag(
-					    dot11_hdr->seq_ctrl))) {
-					rth_body->flags |=
-						RADIOTAP_FLAGS_WITH_FRAGMENT;
+					moal_memcpy_ext(handle, radiotap_pos,
+							&it_present_1,
+							sizeof(t_u32),
+							sizeof(t_u32));
+					radiotap_pos += sizeof(t_u32);
+					radiotap_len += sizeof(t_u32);
+					moal_memcpy_ext(handle, radiotap_pos,
+							&it_present_2,
+							sizeof(t_u32),
+							sizeof(t_u32));
+					radiotap_pos += sizeof(t_u32);
+					radiotap_len += sizeof(t_u32);
 				}
-			}
-			if (ieee80211_is_data(dot11_hdr->frame_control) &&
-			    ieee80211_has_protected(dot11_hdr->frame_control)) {
-				payload = (t_u8 *)dot11_hdr +
-					  ieee80211_hdrlen(
-						  dot11_hdr->frame_control);
-				if (!(*(payload + 3) & 0x20)) /** ExtIV bit
-								 shall be 0 for
-								 WEP frame */
+
+				rth_body = (struct radiotap_body *)radiotap_pos;
+				/** TSFT: bit number 0 */
+				rth_body->timestamp = woal_cpu_to_le64(jiffies);
+				/** Flags: bit number 1 */
+				rth_body->flags =
+					(rt_info.extra_info.flags &
+					 ~(RADIOTAP_FLAGS_USE_SGI_HT |
+					   RADIOTAP_FLAGS_WITH_FRAGMENT |
+					   RADIOTAP_FLAGS_WEP_ENCRYPTION |
+					   RADIOTAP_FLAGS_FAILED_FCS_CHECK));
+				/** reverse fail fcs, 1 means pass FCS in FW,
+				 * but means fail FCS in radiotap */
+				rth_body->flags |=
+					(~rt_info.extra_info.flags) &
+					RADIOTAP_FLAGS_FAILED_FCS_CHECK;
+				if ((format == MLAN_RATE_FORMAT_HT) &&
+				    (gi == 1))
 					rth_body->flags |=
-						RADIOTAP_FLAGS_WEP_ENCRYPTION;
+						RADIOTAP_FLAGS_USE_SGI_HT;
+				if (ieee80211_is_mgmt(
+					    dot11_hdr->frame_control) ||
+				    ieee80211_is_data(
+					    dot11_hdr->frame_control)) {
+					if ((ieee80211_has_morefrags(
+						    dot11_hdr->frame_control)) ||
+					    (!ieee80211_is_first_frag(
+						    dot11_hdr->seq_ctrl))) {
+						rth_body->flags |=
+							RADIOTAP_FLAGS_WITH_FRAGMENT;
+					}
+				}
+				if (ieee80211_is_data(
+					    dot11_hdr->frame_control) &&
+				    ieee80211_has_protected(
+					    dot11_hdr->frame_control)) {
+					payload =
+						(t_u8 *)dot11_hdr +
+						ieee80211_hdrlen(
+							dot11_hdr->frame_control);
+					if (!(*(payload + 3) & 0x20)) /** ExtIV
+									 bit
+									 shall
+									 be 0
+									 for WEP
+									 frame
+								       */
+						rth_body->flags |=
+							RADIOTAP_FLAGS_WEP_ENCRYPTION;
+				}
+				/** Rate: bit number 2, t_u8 only apply for LG
+				 * mode */
+				if (format == MLAN_RATE_FORMAT_LG) {
+					// safe constant bitmask with explicit
+					// endianness conversion
+					// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+					rth_hdr->it_present |= cpu_to_le32(
+						1 << IEEE80211_RADIOTAP_RATE);
+					rth_body->rate =
+						rt_info.rate_info.bitrate;
+				}
+				/** Channel: bit number 3 */
+				rth_body->channel.flags = 0;
+				if (rt_info.chan_num &&
+				    (handle->mon_if->band_chan_cfg.channel !=
+				     rt_info.chan_num))
+					handle->mon_if->band_chan_cfg.channel =
+						rt_info.chan_num;
+				chan_num =
+					handle->mon_if->band_chan_cfg.channel;
+
+				band = woal_radio_type_to_ieee_band(
+					handle->mon_if->band_chan_cfg.band);
+
+				rth_body->channel.frequency = woal_cpu_to_le16(
+					ieee80211_channel_to_frequency(chan_num,
+								       band));
+
+				if (band == IEEE80211_BAND_2GHZ)
+					rth_body->channel.flags |=
+						woal_cpu_to_le16(
+							CHANNEL_FLAGS_2GHZ);
+				else if (band == IEEE80211_BAND_5GHZ
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+					 || band == IEEE80211_BAND_6GHZ
+#endif
+				)
+					rth_body->channel.flags |=
+						woal_cpu_to_le16(
+							CHANNEL_FLAGS_5GHZ);
+
+				if (rth_body->channel.flags &
+				    woal_cpu_to_le16(CHANNEL_FLAGS_2GHZ))
+					rth_body->channel
+						.flags |= woal_cpu_to_le16(
+						CHANNEL_FLAGS_DYNAMIC_CCK_OFDM);
+				else
+					rth_body->channel.flags |=
+						woal_cpu_to_le16(
+							CHANNEL_FLAGS_OFDM);
+				if (handle->mon_if->chandef.chan &&
+				    (handle->mon_if->chandef.chan->flags &
+				     (IEEE80211_CHAN_PASSIVE_SCAN |
+				      IEEE80211_CHAN_RADAR)))
+					rth_body->channel
+						.flags |= woal_cpu_to_le16(
+						CHANNEL_FLAGS_ONLY_PASSIVSCAN_ALLOW);
+				/** Antenna signal: bit number 5 */
+				rth_body->antenna_signal =
+					-(rt_info.nf - rt_info.snr);
+				/** Antenna noise: bit number 6 */
+				rth_body->antenna_noise = -rt_info.nf;
+				/* Antenna: bit number 11, Convert FW antenna
+				 * value to radiotap spec */
+				rth_body->antenna = (t_u8)rt_info.antenna >> 1;
+
+				/** rx_flags: bit number 14 */
+				if (rt_info.radiotap_extra &&
+				    (rt_info.extra_info.plcp_crc_failed == 1))
+					rth_body->rx_flags = 0x0002;
+
+				radiotap_pos += sizeof(struct radiotap_body);
+				radiotap_len += sizeof(struct radiotap_body);
+				/** MCS: bit number 19 */
+				if (format == MLAN_RATE_FORMAT_HT) {
+					struct mcs_field *mcs =
+						(struct mcs_field *)radiotap_pos;
+					// safe constant bitmask with explicit
+					// endianness conversion
+					// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+					rth_hdr->it_present |= cpu_to_le32(
+						1 << IEEE80211_RADIOTAP_MCS);
+					mcs->known =
+						rt_info.extra_info.mcs_known;
+					mcs->flags =
+						rt_info.extra_info.mcs_flags;
+					/** MCS mcs */
+					mcs->known |= MCS_KNOWN_MCS_INDEX_KNOWN;
+					mcs->mcs = rt_info.rate_info.mcs_index;
+					/** MCS bw */
+					mcs->known |= MCS_KNOWN_BANDWIDTH;
+					mcs->flags &= ~(0x03); /** Clear,
+									     20MHz
+								  as default */
+					if (bw == 1)
+						mcs->flags |= RX_BW_40;
+					/** MCS gi */
+					mcs->known |= MCS_KNOWN_GUARD_INTERVAL;
+					mcs->flags &= ~(1 << 2);
+					if (gi)
+						mcs->flags |= gi << 2;
+					/** MCS FEC */
+					mcs->known |= MCS_KNOWN_FEC_TYPE;
+					mcs->flags &= ~(1 << 4);
+					if (ldpc)
+						mcs->flags |= ldpc << 4;
+
+					radiotap_pos +=
+						sizeof(struct mcs_field);
+					radiotap_len +=
+						sizeof(struct mcs_field);
+				}
+				/** VHT: bit number 21, Required Alignment is 2
+				 */
+				if (format == MLAN_RATE_FORMAT_VHT) {
+					struct vht_field *vht = NULL;
+
+					/* ensure 2 byte alignment */
+					if (radiotap_len & 1) {
+						radiotap_pos++;
+						radiotap_len++;
+					}
+					vht = (struct vht_field *)radiotap_pos;
+					vht_sig1 =
+						rt_info.extra_info.vht_he_sig1;
+					vht_sig2 =
+						rt_info.extra_info.vht_he_sig2;
+					/** Present Flag */
+					// safe constant bitmask with explicit
+					// endianness conversion
+					// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+					rth_hdr->it_present |= cpu_to_le32(
+						1 << IEEE80211_RADIOTAP_VHT);
+					/** STBC */
+					vht->known |= woal_cpu_to_le16(
+						VHT_KNOWN_STBC);
+					if (vht_sig1 & MBIT(3))
+						vht->flags |= VHT_FLAG_STBC;
+					/** TXOP_PS_NA */
+					/** TODO: Not support now */
+					/** GI */
+					vht->known |=
+						woal_cpu_to_le16(VHT_KNOWN_GI);
+					if (vht_sig2 & MBIT(0))
+						vht->flags |= VHT_FLAG_SGI;
+					/** SGI NSYM DIS */
+					vht->known |= woal_cpu_to_le16(
+						VHT_KNOWN_SGI_NSYM_DIS);
+					if (vht_sig2 & MBIT(1))
+						vht->flags |=
+							VHT_FLAG_SGI_NSYM_M10_9;
+					/** LDPC_EXTRA_OFDM_SYM */
+					/** TODO: Not support now */
+					/** BEAMFORMED */
+					vht->known |= woal_cpu_to_le16(
+						VHT_KNOWN_BEAMFORMED);
+					if (vht_sig2 & MBIT(8))
+						vht->flags |=
+							VHT_FLAG_BEAMFORMED;
+					/** BANDWIDTH */
+					vht->known |= woal_cpu_to_le16(
+						VHT_KNOWN_BANDWIDTH);
+					if (bw == 1)
+						vht->bandwidth = RX_BW_40;
+					else if (bw == 2)
+						vht->bandwidth = RX_BW_80;
+					/** GROUP_ID */
+					vht->known |= woal_cpu_to_le16(
+						VHT_KNOWN_GROUP_ID);
+					vht->group_id =
+						(vht_sig1 & (0x3F0)) >> 4;
+					/** PARTIAL_AID */
+					/** TODO: Not support now */
+					/** mcs_nss */
+					vht->mcs_nss[0] = vht_sig2 & (0xF0);
+					/* Convert FW NSS value to radiotap spec
+					 */
+					vht->mcs_nss[0] |=
+						((vht_sig1 & (0x1C00)) >> 10) +
+						1;
+					/** gi */
+					vht->known |=
+						woal_cpu_to_le16(VHT_KNOWN_GI);
+					if (gi)
+						vht->flags |= VHT_FLAG_SGI;
+					/** coding */
+					if (vht_sig2 & MBIT(2))
+						vht->coding |=
+							VHT_CODING_LDPC_USER0;
+
+					radiotap_pos +=
+						sizeof(struct vht_field);
+					radiotap_len +=
+						sizeof(struct vht_field);
+				}
+				/** Timstamp: bit number 22, Required Alignment
+				 * is 8 */
+				if (rt_info.radiotap_extra) {
+					/* ensure 8 byte alignment */
+					while (radiotap_len & 7) {
+						radiotap_pos++;
+						radiotap_len++;
+					}
+					ts_info = (radiotap_timestamp *)
+						radiotap_pos;
+					ts_info->device_timestamp = cpu_to_le64(
+						rt_info.extra_info.timestamp
+							.device_timestamp);
+					ts_info->accuracy =
+						rt_info.extra_info.timestamp
+							.accuracy;
+					ts_info->unit = rt_info.extra_info
+								.timestamp.unit;
+					ts_info->position =
+						rt_info.extra_info.timestamp
+							.position;
+					ts_info->flags =
+						rt_info.extra_info.timestamp
+							.flags;
+					radiotap_pos +=
+						sizeof(radiotap_timestamp);
+					radiotap_len +=
+						sizeof(radiotap_timestamp);
+				}
+
+				/** HE: bit number 23, Required Alignment is 2
+				 */
+				if (format == MLAN_RATE_FORMAT_HE) {
+					struct he_field *he = NULL;
+
+					/* ensure 2 byte alignment */
+					if (radiotap_len & 1) {
+						radiotap_pos++;
+						radiotap_len++;
+					}
+					he = (struct he_field *)radiotap_pos;
+					he_sig1 =
+						rt_info.extra_info.vht_he_sig1;
+					he_sig2 =
+						rt_info.extra_info.vht_he_sig2;
+					usr_idx = rt_info.extra_info.user_idx;
+					// safe constant bitmask with explicit
+					// endianness conversion
+					// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+					rth_hdr->it_present |= cpu_to_le32(
+						1 << IEEE80211_RADIOTAP_HE);
+					he->data1 |= (HE_CODING_KNOWN);
+					if (ldpc)
+						he->data3 |=
+							HE_CODING_LDPC_USER0;
+					he->data1 |= (HE_BW_KNOWN);
+					if (he_sig1)
+						he->data1 |= (HE_MU_DATA);
+					if (bw == 1) {
+						he->data5 |= RX_HE_BW_40;
+						if (he_sig2) {
+							MLAN_DECODE_RU_SIGNALING_CH1(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+							if (!tone) {
+								MLAN_DECODE_RU_SIGNALING_CH3(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (tone != 0) {
+								he->data5 &=
+									~RX_HE_BW_40;
+								he->data5 |=
+									tone;
+							}
+						}
+					} else if (bw == 2) {
+						he->data5 |= RX_HE_BW_80;
+						if (he_sig2) {
+							MLAN_DECODE_RU_SIGNALING_CH1(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+							if (!tone) {
+								MLAN_DECODE_RU_SIGNALING_CH2(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (!tone) {
+								if ((he_sig2 &
+								     MLAN_80_CENTER_RU) &&
+								    !usr_idx) {
+									tone = RU_TONE_26;
+								} else {
+									usr_idx--;
+								}
+							}
+							if (!tone) {
+								MLAN_DECODE_RU_SIGNALING_CH3(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (!tone) {
+								MLAN_DECODE_RU_SIGNALING_CH4(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (tone != 0) {
+								he->data5 &=
+									~RX_HE_BW_80;
+								he->data5 |=
+									tone;
+							}
+						}
+					} else if (bw == 3) {
+						he->data5 |= RX_HE_BW_160;
+						if (he_sig2) {
+							MLAN_DECODE_RU_SIGNALING_CH1(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+							if (!tone) {
+								MLAN_DECODE_RU_SIGNALING_CH2(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (!tone) {
+								if ((he_sig2 &
+								     MLAN_160_CENTER_RU) &&
+								    !usr_idx) {
+									tone = RU_TONE_26;
+								} else {
+									usr_idx--;
+								}
+							}
+							if (!tone) {
+								MLAN_DECODING_160_RU_CH3(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (!tone) {
+								MLAN_DECODING_160_RU_CH3(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+							}
+							if (tone != 0) {
+								he->data5 &=
+									~RX_HE_BW_160;
+								he->data5 |=
+									tone;
+							}
+						}
+					} else {
+						if (he_sig2) {
+							MLAN_DECODE_RU_SIGNALING_CH1(
+								out, he_sig1,
+								he_sig2);
+							MLAN_DECODE_RU_TONE(
+								out, usr_idx,
+								tone);
+							if (tone) {
+								he->data5 |=
+									tone;
+							}
+						}
+					}
+
+					he->data2 |= (HE_DATA_GI_KNOWN);
+					he->data5 |= ((gi & 3) << 4);
+					he->data1 |= (HE_MCS_KNOWN);
+
+					he->data3 |= (mcs << 8);
+					he->data6 |= nss;
+					he->data1 |= (HE_DCM_KNOWN);
+					he->data1 = cpu_to_le16(he->data1);
+					he->data5 |= (dcm << 12);
+					he->data5 = cpu_to_le16(he->data5);
+					he->data3 = cpu_to_le16(he->data3);
+
+					radiotap_pos += sizeof(struct he_field);
+					radiotap_len += sizeof(struct he_field);
+				}
+				if (rt_info.radiotap_extra) {
+					radiotap_pos[0] =
+						rt_info.extra_info.rssi_dbm_a;
+					radiotap_pos[1] = 0;
+					radiotap_pos[2] =
+						rt_info.extra_info.rssi_dbm_b;
+					radiotap_pos[3] = 1;
+					radiotap_pos += 4;
+					radiotap_len += 4;
+				}
+				rth_hdr->it_len = cpu_to_le16(radiotap_len);
+				skb_push(skb, radiotap_len);
+				moal_memcpy_ext(handle, skb->data, radiotap_buf,
+						radiotap_len, radiotap_len);
 			}
-			/** Rate: bit number 2, t_u8 only apply for LG mode */
-			if (format == MLAN_RATE_FORMAT_LG) {
-				// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-				rth_hdr->it_present |= cpu_to_le32(
-					1 << IEEE80211_RADIOTAP_RATE);
-				rth_body->rate = rt_info.rate_info.bitrate;
-			}
-			/** Channel: bit number 3 */
-			rth_body->channel.flags = 0;
-			if (rt_info.chan_num &&
-			    (handle->mon_if->band_chan_cfg.channel !=
-			     rt_info.chan_num))
-				handle->mon_if->band_chan_cfg.channel =
-					rt_info.chan_num;
-			chan_num = handle->mon_if->band_chan_cfg.channel;
+			skb_set_mac_header(skb, 0);
+			skb->ip_summed = CHECKSUM_UNNECESSARY;
+			skb->pkt_type = PACKET_OTHERHOST;
+			skb->protocol = htons(ETH_P_802_2);
+			memset(skb->cb, 0, sizeof(skb->cb));
+			skb->dev = handle->mon_if->mon_ndev;
 
-			band = woal_radio_type_to_ieee_band(
-				handle->mon_if->band_chan_cfg.band);
+			handle->mon_if->stats.rx_bytes += skb->len;
+			handle->mon_if->stats.rx_packets++;
 
-			rth_body->channel.frequency = woal_cpu_to_le16(
-				ieee80211_channel_to_frequency(chan_num, band));
-
-			if (band == IEEE80211_BAND_2GHZ)
-				rth_body->channel.flags |=
-					woal_cpu_to_le16(CHANNEL_FLAGS_2GHZ);
-			else if (band == IEEE80211_BAND_5GHZ ||
-				 band == IEEE80211_BAND_6GHZ)
-				rth_body->channel.flags |=
-					woal_cpu_to_le16(CHANNEL_FLAGS_5GHZ);
-
-			if (rth_body->channel.flags &
-			    woal_cpu_to_le16(CHANNEL_FLAGS_2GHZ))
-				rth_body->channel.flags |= woal_cpu_to_le16(
-					CHANNEL_FLAGS_DYNAMIC_CCK_OFDM);
+			if (in_interrupt())
+				netif_rx(skb);
 			else
-				rth_body->channel.flags |=
-					woal_cpu_to_le16(CHANNEL_FLAGS_OFDM);
-			if (handle->mon_if->chandef.chan &&
-			    (handle->mon_if->chandef.chan->flags &
-			     (IEEE80211_CHAN_PASSIVE_SCAN |
-			      IEEE80211_CHAN_RADAR)))
-				rth_body->channel.flags |= woal_cpu_to_le16(
-					CHANNEL_FLAGS_ONLY_PASSIVSCAN_ALLOW);
-			/** Antenna signal: bit number 5 */
-			rth_body->antenna_signal = -(rt_info.nf - rt_info.snr);
-			/** Antenna noise: bit number 6 */
-			rth_body->antenna_noise = -rt_info.nf;
-			/* Antenna: bit number 11, Convert FW antenna value to
-			 * radiotap spec */
-			rth_body->antenna = (t_u8)rt_info.antenna >> 1;
-
-			/** rx_flags: bit number 14 */
-			if (rt_info.radiotap_extra &&
-			    (rt_info.extra_info.plcp_crc_failed == 1))
-				rth_body->rx_flags = 0x0002;
-
-			radiotap_pos += sizeof(struct radiotap_body);
-			radiotap_len += sizeof(struct radiotap_body);
-			/** MCS: bit number 19 */
-			if (format == MLAN_RATE_FORMAT_HT) {
-				struct mcs_field *mcs =
-					(struct mcs_field *)radiotap_pos;
-
-				// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-				rth_hdr->it_present |= cpu_to_le32(
-					1 << IEEE80211_RADIOTAP_MCS);
-				mcs->known = rt_info.extra_info.mcs_known;
-				mcs->flags = rt_info.extra_info.mcs_flags;
-				/** MCS mcs */
-				mcs->known |= MCS_KNOWN_MCS_INDEX_KNOWN;
-				mcs->mcs = rt_info.rate_info.mcs_index;
-				/** MCS bw */
-				mcs->known |= MCS_KNOWN_BANDWIDTH;
-				mcs->flags &= ~(0x03); /** Clear,
-								     20MHz as
-								     default */
-				if (bw == 1)
-					mcs->flags |= RX_BW_40;
-				/** MCS gi */
-				mcs->known |= MCS_KNOWN_GUARD_INTERVAL;
-				mcs->flags &= ~(1 << 2);
-				if (gi)
-					mcs->flags |= gi << 2;
-				/** MCS FEC */
-				mcs->known |= MCS_KNOWN_FEC_TYPE;
-				mcs->flags &= ~(1 << 4);
-				if (ldpc)
-					mcs->flags |= ldpc << 4;
-
-				radiotap_pos += sizeof(struct mcs_field);
-				radiotap_len += sizeof(struct mcs_field);
-			}
-			/** VHT: bit number 21, Required Alignment is 2 */
-			if (format == MLAN_RATE_FORMAT_VHT) {
-				struct vht_field *vht = NULL;
-
-				/* ensure 2 byte alignment */
-				if (radiotap_len & 1) {
-					radiotap_pos++;
-					radiotap_len++;
-				}
-				vht = (struct vht_field *)radiotap_pos;
-				vht_sig1 = rt_info.extra_info.vht_he_sig1;
-				vht_sig2 = rt_info.extra_info.vht_he_sig2;
-				/** Present Flag */
-				// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-				rth_hdr->it_present |= cpu_to_le32(
-					1 << IEEE80211_RADIOTAP_VHT);
-				/** STBC */
-				vht->known |= woal_cpu_to_le16(VHT_KNOWN_STBC);
-				if (vht_sig1 & MBIT(3))
-					vht->flags |= VHT_FLAG_STBC;
-				/** TXOP_PS_NA */
-				/** TODO: Not support now */
-				/** GI */
-				vht->known |= woal_cpu_to_le16(VHT_KNOWN_GI);
-				if (vht_sig2 & MBIT(0))
-					vht->flags |= VHT_FLAG_SGI;
-				/** SGI NSYM DIS */
-				vht->known |= woal_cpu_to_le16(
-					VHT_KNOWN_SGI_NSYM_DIS);
-				if (vht_sig2 & MBIT(1))
-					vht->flags |= VHT_FLAG_SGI_NSYM_M10_9;
-				/** LDPC_EXTRA_OFDM_SYM */
-				/** TODO: Not support now */
-				/** BEAMFORMED */
-				vht->known |=
-					woal_cpu_to_le16(VHT_KNOWN_BEAMFORMED);
-				if (vht_sig2 & MBIT(8))
-					vht->flags |= VHT_FLAG_BEAMFORMED;
-				/** BANDWIDTH */
-				vht->known |=
-					woal_cpu_to_le16(VHT_KNOWN_BANDWIDTH);
-				if (bw == 1)
-					vht->bandwidth = RX_BW_40;
-				else if (bw == 2)
-					vht->bandwidth = RX_BW_80;
-				/** GROUP_ID */
-				vht->known |=
-					woal_cpu_to_le16(VHT_KNOWN_GROUP_ID);
-				vht->group_id = (vht_sig1 & (0x3F0)) >> 4;
-				/** PARTIAL_AID */
-				/** TODO: Not support now */
-				/** mcs_nss */
-				vht->mcs_nss[0] = vht_sig2 & (0xF0);
-				/* Convert FW NSS value to radiotap spec */
-				vht->mcs_nss[0] |=
-					((vht_sig1 & (0x1C00)) >> 10) + 1;
-				/** gi */
-				vht->known |= woal_cpu_to_le16(VHT_KNOWN_GI);
-				if (gi)
-					vht->flags |= VHT_FLAG_SGI;
-				/** coding */
-				if (vht_sig2 & MBIT(2))
-					vht->coding |= VHT_CODING_LDPC_USER0;
-
-				radiotap_pos += sizeof(struct vht_field);
-				radiotap_len += sizeof(struct vht_field);
-			}
-			/** Timstamp: bit number 22, Required Alignment is 8 */
-			if (rt_info.radiotap_extra) {
-				/* ensure 8 byte alignment */
-				while (radiotap_len & 7) {
-					radiotap_pos++;
-					radiotap_len++;
-				}
-				ts_info = (radiotap_timestamp *)radiotap_pos;
-				ts_info->device_timestamp =
-					cpu_to_le64(rt_info.extra_info.timestamp
-							    .device_timestamp);
-				ts_info->accuracy =
-					rt_info.extra_info.timestamp.accuracy;
-				ts_info->unit =
-					rt_info.extra_info.timestamp.unit;
-				ts_info->position =
-					rt_info.extra_info.timestamp.position;
-				ts_info->flags =
-					rt_info.extra_info.timestamp.flags;
-				radiotap_pos += sizeof(radiotap_timestamp);
-				radiotap_len += sizeof(radiotap_timestamp);
-			}
-
-			/** HE: bit number 23, Required Alignment is 2 */
-			if (format == MLAN_RATE_FORMAT_HE) {
-				struct he_field *he = NULL;
-
-				/* ensure 2 byte alignment */
-				if (radiotap_len & 1) {
-					radiotap_pos++;
-					radiotap_len++;
-				}
-				he = (struct he_field *)radiotap_pos;
-				he_sig1 = rt_info.extra_info.vht_he_sig1;
-				he_sig2 = rt_info.extra_info.vht_he_sig2;
-				usr_idx = rt_info.extra_info.user_idx;
-				// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-				rth_hdr->it_present |=
-					cpu_to_le32(1 << IEEE80211_RADIOTAP_HE);
-				he->data1 |= (HE_CODING_KNOWN);
-				if (ldpc)
-					he->data3 |= HE_CODING_LDPC_USER0;
-				he->data1 |= (HE_BW_KNOWN);
-				if (he_sig1)
-					he->data1 |= (HE_MU_DATA);
-				if (bw == 1) {
-					he->data5 |= RX_HE_BW_40;
-					if (he_sig2) {
-						MLAN_DECODE_RU_SIGNALING_CH1(
-							out, he_sig1, he_sig2);
-						MLAN_DECODE_RU_TONE(
-							out, usr_idx, tone);
-						if (!tone) {
-							MLAN_DECODE_RU_SIGNALING_CH3(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (tone != 0) {
-							he->data5 &=
-								~RX_HE_BW_40;
-							he->data5 |= tone;
-						}
-					}
-				} else if (bw == 2) {
-					he->data5 |= RX_HE_BW_80;
-					if (he_sig2) {
-						MLAN_DECODE_RU_SIGNALING_CH1(
-							out, he_sig1, he_sig2);
-						MLAN_DECODE_RU_TONE(
-							out, usr_idx, tone);
-						if (!tone) {
-							MLAN_DECODE_RU_SIGNALING_CH2(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (!tone) {
-							if ((he_sig2 &
-							     MLAN_80_CENTER_RU) &&
-							    !usr_idx) {
-								tone = RU_TONE_26;
-							} else {
-								usr_idx--;
-							}
-						}
-						if (!tone) {
-							MLAN_DECODE_RU_SIGNALING_CH3(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (!tone) {
-							MLAN_DECODE_RU_SIGNALING_CH4(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (tone != 0) {
-							he->data5 &=
-								~RX_HE_BW_80;
-							he->data5 |= tone;
-						}
-					}
-				} else if (bw == 3) {
-					he->data5 |= RX_HE_BW_160;
-					if (he_sig2) {
-						MLAN_DECODE_RU_SIGNALING_CH1(
-							out, he_sig1, he_sig2);
-						MLAN_DECODE_RU_TONE(
-							out, usr_idx, tone);
-						if (!tone) {
-							MLAN_DECODE_RU_SIGNALING_CH2(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (!tone) {
-							if ((he_sig2 &
-							     MLAN_160_CENTER_RU) &&
-							    !usr_idx) {
-								tone = RU_TONE_26;
-							} else {
-								usr_idx--;
-							}
-						}
-						if (!tone) {
-							MLAN_DECODING_160_RU_CH3(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (!tone) {
-							MLAN_DECODING_160_RU_CH3(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-						}
-						if (tone != 0) {
-							he->data5 &=
-								~RX_HE_BW_160;
-							he->data5 |= tone;
-						}
-					}
-				} else {
-					if (he_sig2) {
-						MLAN_DECODE_RU_SIGNALING_CH1(
-							out, he_sig1, he_sig2);
-						MLAN_DECODE_RU_TONE(
-							out, usr_idx, tone);
-						if (tone) {
-							he->data5 |= tone;
-						}
-					}
-				}
-
-				he->data2 |= (HE_DATA_GI_KNOWN);
-				he->data5 |= ((gi & 3) << 4);
-				he->data1 |= (HE_MCS_KNOWN);
-
-				he->data3 |= (mcs << 8);
-				he->data6 |= nss;
-				he->data1 |= (HE_DCM_KNOWN);
-				he->data1 = cpu_to_le16(he->data1);
-				he->data5 |= (dcm << 12);
-				he->data5 = cpu_to_le16(he->data5);
-				he->data3 = cpu_to_le16(he->data3);
-
-				radiotap_pos += sizeof(struct he_field);
-				radiotap_len += sizeof(struct he_field);
-			}
-			if (rt_info.radiotap_extra) {
-				radiotap_pos[0] = rt_info.extra_info.rssi_dbm_a;
-				radiotap_pos[1] = 0;
-				radiotap_pos[2] = rt_info.extra_info.rssi_dbm_b;
-				radiotap_pos[3] = 1;
-				radiotap_pos += 4;
-				radiotap_len += 4;
-			}
-			rth_hdr->it_len = cpu_to_le16(radiotap_len);
-			skb_push(skb, radiotap_len);
-			moal_memcpy_ext(handle, skb->data, radiotap_buf,
-					radiotap_len, radiotap_len);
-		}
-		skb_set_mac_header(skb, 0);
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		skb->pkt_type = PACKET_OTHERHOST;
-		skb->protocol = htons(ETH_P_802_2);
-		memset(skb->cb, 0, sizeof(skb->cb));
-		skb->dev = handle->mon_if->mon_ndev;
-
-		handle->mon_if->stats.rx_bytes += skb->len;
-		handle->mon_if->stats.rx_packets++;
-
-		if (in_interrupt())
-			netif_rx(skb);
-		else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
-			netif_rx(skb);
+				netif_rx(skb);
 #else
-			netif_rx_ni(skb);
+				netif_rx_ni(skb);
 #endif
 
-		status = MLAN_STATUS_PENDING;
+			status = MLAN_STATUS_PENDING;
+		}
 	}
 
 done:
@@ -2176,6 +2460,11 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	mlan_status status = MLAN_STATUS_FAILURE;
 	struct sk_buff *skb = NULL;
 	struct sk_buff *frame = NULL;
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	struct sk_buff *xdp_skb = NULL;
+#endif
+#endif
 	int remaining;
 	const struct ethhdr *eth;
 	u8 dst[ETH_ALEN], src[ETH_ALEN];
@@ -2323,6 +2612,17 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 			dev_kfree_skb(frame);
 			continue;
 		}
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+		if (priv->xdp_prog) {
+			xdp_skb = woal_process_xdp(priv, priv->netdev, &mbuf);
+			if (xdp_skb)
+				napi_gro_receive(&handle->napi_rx, xdp_skb);
+			dev_kfree_skb(frame);
+			continue;
+		}
+#endif
+#endif
 		frame->protocol = eth_type_trans(frame, netdev);
 		frame->ip_summed = CHECKSUM_NONE;
 
@@ -2402,6 +2702,74 @@ static t_u8 moal_user_priority_to_qos(t_u32 userPriority)
 	return aci;
 }
 
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+/**
+ *  @brief This function acts based on action returned by bpf program
+ *         XDP_DROP: drop packet
+ *         XDP_PASS: upload packet to network stack
+ *         XDP_REDIRECT: redirect packet to other XDP enabled interface
+ *  @param pmoal Pointer to the MOAL context
+ *  @param pmbuf Pointer to the mlan buffer structure
+ *
+ *  @return NULL or sk_buff
+ */
+static struct sk_buff *woal_process_xdp(moal_private *priv,
+					struct net_device *ndev,
+					pmlan_buffer pmbuf)
+{
+	t_u32 xdp_act;
+	struct xdp_buff xdp_buff;
+	struct sk_buff *skb = NULL;
+	struct page *page;
+	__u8 *data;
+	int ret = 0;
+
+	page = dev_alloc_page();
+	if (unlikely(!page))
+		netdev_err(ndev, "page alloc failed\n");
+
+	data = page_address(page);
+
+	memcpy(data + XDP_PACKET_HEADROOM, pmbuf->pbuf + pmbuf->data_offset,
+	       pmbuf->data_len);
+	xdp_init_buff(&xdp_buff, PAGE_SIZE - XDP_PACKET_HEADROOM,
+		      &priv->xdp_rxq);
+	xdp_prepare_buff(&xdp_buff, data, XDP_PACKET_HEADROOM, pmbuf->data_len,
+			 false);
+	xdp_buff_clear_frags_flag(&xdp_buff);
+
+	xdp_act = bpf_prog_run_xdp(priv->xdp_prog, &xdp_buff);
+	switch (xdp_act) {
+	case XDP_DROP:
+		__free_page(page);
+		break;
+	case XDP_PASS:
+		skb = build_skb(xdp_buff.data_hard_start, PAGE_SIZE);
+		skb_reserve(skb, XDP_PACKET_HEADROOM);
+		skb_put(skb, xdp_buff.data_end - xdp_buff.data);
+#if defined(CONFIG_PAGE_POOL)
+		skb_mark_for_recycle(skb);
+#endif
+		skb->dev = ndev;
+		skb->protocol = eth_type_trans(skb, skb->dev);
+		skb->ip_summed = CHECKSUM_NONE;
+		return skb;
+	case XDP_REDIRECT:
+		ret = xdp_do_redirect(ndev, &xdp_buff, priv->xdp_prog);
+		if (ret)
+			PRINTM(MERROR, "XDP: redirect failed:%d\n", ret);
+		priv->phandle->xdp_rd++;
+		break;
+	default:
+		return skb;
+	}
+
+	return skb;
+}
+#endif
+#endif
+
 /**
  *  @brief This function uploads the packet to the network stack
  *
@@ -2456,6 +2824,16 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 #endif
 
 		priv = woal_bss_index_to_priv(pmoal, pmbuf->bss_index);
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+		if (priv->xdp_prog) {
+			skb = woal_process_xdp(priv, priv->netdev, pmbuf);
+			if (skb)
+				napi_gro_receive(&handle->napi_rx, skb);
+			goto done;
+		}
+#endif
+#endif
 		skb = (struct sk_buff *)pmbuf->pdesc;
 		if (priv) {
 			if (skb) {
@@ -2543,9 +2921,6 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				       "\n",
 				       priv->netdev->name,
 				       MAC2STR(ethh->h_source));
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-				priv->deauth_evt_cnt = 0;
-#endif
 			} else if (ntohs(ethh->h_proto) == NXP_ETH_P_WAPI) {
 				PRINTM(MEVENT,
 				       "wlan: %s Rx WAPI pkt from " MACSTR "\n",
@@ -2687,7 +3062,11 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 #endif
 #ifdef ANDROID_KERNEL
 			if (handle->params.wakelock_timeout) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				__pm_wakeup_event(
+					handle->ws,
+					handle->params.wakelock_timeout);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 				__pm_wakeup_event(
 					&handle->ws,
 					handle->params.wakelock_timeout);
@@ -2767,6 +3146,8 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 done:
 	if (status != MLAN_STATUS_PENDING && pmbuf && !pmbuf->pdesc && skb)
 		dev_kfree_skb(skb);
+	if (pmbuf && !pmbuf->pbuf)
+		status = MLAN_STATUS_PENDING;
 	LEAVE();
 	return status;
 }
@@ -2920,6 +3301,37 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 #endif
 
 /**
+ * @brief   Handle CSI STATUS event
+ *
+ *  @param  pmevent  Pointer to the mlan event structure
+ *
+ * @return          N/A
+ */
+static void woal_process_csi_status_report(pmlan_event pmevent)
+{
+	csi_status_info *pcsi_status = (csi_status_info *)pmevent->event_buf;
+	if (pcsi_status->status == CSI_STATUS_ENABLED) {
+		PRINTM(MEVENT,
+		       "csi status report: enable and start csi on channel %d \r\n",
+		       pcsi_status->channel);
+	} else if (pcsi_status->status == CSI_STATUS_DISABLED) {
+		PRINTM(MEVENT, "csi status report: stop and disable csi \r\n");
+	} else if (pcsi_status->status == CSI_STATUS_CONFIG_WRONG) {
+		PRINTM(MEVENT,
+		       "csi status report: channel or bandwidth config wrong \r\n");
+	} else if (pcsi_status->status == CSI_STATUS_INTERNAL_RESET) {
+		PRINTM(MEVENT,
+		       "csi status report: FW internal restart csi on channel %d \r\n",
+		       pcsi_status->channel);
+	} else if (pcsi_status->status == CSI_STATUS_INTERNAL_STOP) {
+		PRINTM(MEVENT, "csi status report: FW internal stop csi \r\n");
+	} else if (pcsi_status->status == CSI_STATUS_INTERNAL_DISABLED) {
+		PRINTM(MEVENT,
+		       "csi status report: FW internal stop and disable csi, user should put in csi cmd to enable csi \r\n");
+	}
+}
+
+/**
  *  @brief This function handles rgpower key mismatch event
  *
  *  @param priv pointer to the moal_private structure.
@@ -2969,6 +3381,7 @@ static void woal_wifi_reset_event(moal_private *priv, t_u8 deauth_evt_cnt)
 		spin_unlock_irqrestore(&handle->evt_lock, flags);
 		queue_work(handle->evt_workqueue, &handle->evt_work);
 	}
+	/* evt is freed in woal_evt_work_queue, hence suppressed*/
 	// coverity[leaked_storage]: SUPPRESS
 }
 #endif
@@ -3924,7 +4337,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			) {
 				priv->roaming_required = MTRUE;
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				__pm_wakeup_event(priv->phandle->ws,
+						  ROAMING_WAKE_LOCK_TIMEOUT);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 				__pm_wakeup_event(&priv->phandle->ws,
 						  ROAMING_WAKE_LOCK_TIMEOUT);
 #else
@@ -5330,7 +5746,13 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			roam_info->req_ie_len = ie_len;
 			roam_info->resp_ie = pinfo->rsp_ie;
 			roam_info->resp_ie_len = pinfo->header.len;
-			cfg80211_roamed(priv->netdev, roam_info, GFP_KERNEL);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			if (priv->wdev->u.client.ssid_len)
+#else
+			if (priv->wdev->ssid_len)
+#endif
+				cfg80211_roamed(priv->netdev, roam_info,
+						GFP_KERNEL);
 			kfree(roam_info);
 		}
 #else
@@ -5405,6 +5827,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     custom_len + csi_len);
 		priv->csi_seq++;
+		break;
+	case MLAN_EVENT_ID_CSI_STATUS:
+		woal_process_csi_status_report(pmevent);
 		break;
 	case MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH:
 		if (handle->sec_rgpower)
@@ -5726,4 +6151,18 @@ inline void moal_write_unaligned_u32(void *dest, t_u32 val)
 #else
 	memcpy(dest, &val, sizeof(t_u32));
 #endif
+}
+
+/**
+ *  @brief This function generates crc through kernek API
+ *
+ *  @param initial_crc     Starting crc
+ *  @param data            A pointer to input data buffer
+ *  @param len             Length of the buffer
+ *
+ *  @return                crc value
+ */
+t_u32 moal_crc32_be(t_u32 initial_crc, t_u8 const *data, unsigned long len)
+{
+	return crc32_be(initial_crc, data, len);
 }

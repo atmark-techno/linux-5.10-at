@@ -196,14 +196,6 @@ static const struct nla_policy
 };
 
 // clang-format off
-static const struct nla_policy
-	woal_fw_roaming_policy[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX + 1] = {
-		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL] = {.type = NLA_U32},
-		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID] = {
-			.type = NLA_BINARY},
-		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID] = {
-			.type = NLA_BINARY},
-};
 // clang-format on
 
 static const struct nla_policy
@@ -928,9 +920,6 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 		supp_feature_set |= WLAN_FEATURE_INFRA_5G;
 	if (fw_info.rtt_support)
 		supp_feature_set |= WLAN_FEATURE_D2AP_RTT;
-	if (fw_info.fw_roaming_support)
-		supp_feature_set |= WLAN_FEATURE_CONTROL_ROAMING;
-
 	priv->phandle->wifi_hal_flag = MTRUE;
 
 	reply_len = sizeof(supp_feature_set);
@@ -1906,8 +1895,7 @@ static int woal_deinit_ring_buffer(moal_private *priv)
 			ring_buff->interval = 0;
 		}
 		spin_unlock_irqrestore(&ring_buff->lock, lock_flags);
-		if (ring_state == RING_ACTIVE)
-			cancel_delayed_work_sync(&ring_buff->work);
+		cancel_delayed_work_sync(&ring_buff->work);
 		vfree(ring_buff->ring_buf);
 		ring_buff->ring_buf = NULL;
 		vfree(ring_buff);
@@ -2025,6 +2013,9 @@ int woal_ring_event_logger(moal_private *priv, int ring_id, pmlan_event pmevent)
 				MIN(UINT16_MAX,
 				    msg_hdr.entry_size +
 					    sizeof(connectivity_event->event));
+			/* msg_hdr.entry_size is carefully bounded using MIN
+			 * function and all data fits within the statically
+			 * sized event_buf, ensuring safe access */
 			// coverity[overrun-buffer-arg:SUPPRESS]
 			// coverity[cert_arr30_c_violation:SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
@@ -2409,6 +2400,8 @@ static int woal_deinit_packet_filter(moal_private *priv)
 	spin_unlock_irqrestore(&pkt_filter->lock, flags);
 
 	vfree(pkt_filter);
+	/* packet_filter is cleared after deinitialization and free, with no
+	 * expected concurrent access, making locking unnecessary */
 	// coverity[LOCK_EVASION:SUPPRESS]
 	priv->packet_filter = NULL;
 
@@ -2878,6 +2871,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	if (pkt_filter->state != PACKET_FILTER_STATE_START)
 		goto done;
 
+	/* pkt_filter is already validated in call of unlikely macro */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	// coverity[tainted_data:SUPPRESS]
 	DBG_HEXDUMP(MDAT_D, "packet_filter_program",
@@ -2885,6 +2879,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 		    pkt_filter->packet_filter_len);
 	DBG_HEXDUMP(MDAT_D, "packet_filter_data", data, len);
 	spin_lock_irqsave(&pkt_filter->lock, flags);
+	/* pkt_filter is already validated in call of unlikely macro */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	// coverity[tainted_data:SUPPRESS]
 	ret = process_packet(pkt_filter->packet_filter_program,
@@ -4310,261 +4305,6 @@ int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len)
 	/**send event*/
 	cfg80211_vendor_event(skb, GFP_ATOMIC);
 
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief vendor command to get fw roaming capability
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  fail otherwise
- */
-static int
-woal_cfg80211_subcmd_get_roaming_capability(struct wiphy *wiphy,
-					    struct wireless_dev *wdev,
-					    const void *data, int len)
-{
-	int ret = MLAN_STATUS_SUCCESS;
-	wifi_roaming_capabilities capa;
-	struct sk_buff *skb = NULL;
-	int err = 0;
-
-	ENTER();
-
-	if (!wdev || !wdev->netdev) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	capa.max_blacklist_size = MAX_AP_LIST;
-	capa.max_whitelist_size = MAX_SSID_NUM;
-
-	/* Alloc the SKB for vendor_event */
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(
-		wiphy, sizeof(wifi_roaming_capabilities) + 50);
-	if (unlikely(!skb)) {
-		PRINTM(MERROR, "skb alloc failed\n");
-		goto done;
-	}
-
-	/* Push the data to the skb */
-	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CAPA,
-		sizeof(wifi_roaming_capabilities), (t_u8 *)&capa);
-
-	err = cfg80211_vendor_cmd_reply(skb);
-	if (unlikely(err))
-		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
-
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief vendor command to enable/disable fw roaming
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  fail otherwise
- */
-static int woal_cfg80211_subcmd_fw_roaming_enable(struct wiphy *wiphy,
-						  struct wireless_dev *wdev,
-						  const void *data, int len)
-{
-	moal_private *priv;
-	struct net_device *dev;
-	int ret = MLAN_STATUS_SUCCESS;
-	struct sk_buff *skb = NULL;
-	const struct nlattr *iter;
-	int type, rem, err;
-	t_u32 fw_roaming_enable = 0;
-#ifdef STA_CFG80211
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
-	t_u8 enable = 0;
-#endif
-#endif
-
-	ENTER();
-
-	if (!wdev || !wdev->netdev) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	dev = wdev->netdev;
-	priv = (moal_private *)woal_get_netdev_priv(dev);
-	if (!priv || !priv->phandle) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	nla_for_each_attr (iter, data, len, rem) {
-		type = nla_type(iter);
-		switch (type) {
-		case MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL:
-			fw_roaming_enable = nla_get_u32(iter);
-			break;
-		default:
-			PRINTM(MERROR, "Unknown type: %d\n", type);
-			ret = -EINVAL;
-			goto done;
-		}
-	}
-
-	PRINTM(MMSG, "FW roaming set enable=%d from wifi hal.\n",
-	       fw_roaming_enable);
-	ret = woal_enable_fw_roaming(priv, fw_roaming_enable);
-	/* Alloc the SKB for vendor_event */
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(t_u32) + 50);
-	if (unlikely(!skb)) {
-		PRINTM(MERROR, "skb alloc failed\n");
-		goto done;
-	}
-
-	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL, sizeof(t_u32),
-		&fw_roaming_enable);
-	err = cfg80211_vendor_cmd_reply(skb);
-	if (unlikely(err))
-		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
-
-#ifdef STA_CFG80211
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
-	if (!fw_roaming_enable)
-		woal_cfg80211_vendor_event(priv, event_set_key_mgmt_offload,
-					   &enable, sizeof(enable));
-#endif
-#endif
-
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief vendor command to config blacklist and whitelist for fw roaming
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  fail otherwise
- */
-static int woal_cfg80211_subcmd_fw_roaming_config(struct wiphy *wiphy,
-						  struct wireless_dev *wdev,
-						  const void *data, int len)
-{
-	moal_private *priv;
-	struct net_device *dev;
-	int ret = MLAN_STATUS_SUCCESS;
-	const struct nlattr *iter;
-	int type, rem;
-	woal_roam_offload_cfg *roam_offload_cfg = NULL;
-	wifi_bssid_params blacklist;
-	wifi_ssid_params whitelist;
-
-	ENTER();
-
-	if (!wdev || !wdev->netdev) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	dev = wdev->netdev;
-	priv = (moal_private *)woal_get_netdev_priv(dev);
-	if (!priv || !priv->phandle) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	memset((char *)&blacklist, 0, sizeof(wifi_bssid_params));
-	memset((char *)&whitelist, 0, sizeof(wifi_ssid_params));
-	nla_for_each_attr (iter, data, len, rem) {
-		type = nla_type(iter);
-		switch (type) {
-		case MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID:
-			moal_memcpy_ext(priv->phandle, (t_u8 *)&blacklist,
-					nla_data(iter), nla_len(iter),
-					sizeof(wifi_bssid_params));
-			break;
-		case MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID:
-			moal_memcpy_ext(priv->phandle, (t_u8 *)&whitelist,
-					nla_data(iter), nla_len(iter),
-					sizeof(wifi_ssid_params));
-			break;
-		default:
-			PRINTM(MERROR, "Unknown type: %d\n", type);
-			ret = -EINVAL;
-			goto done;
-		}
-	}
-
-	if (moal_extflg_isset(priv->phandle, EXT_ROAMOFFLOAD_IN_HS)) {
-		/*save blacklist and whitelist in driver*/
-		priv->phandle->fw_roam_params.black_list.ap_num =
-			blacklist.num_bssid;
-		moal_memcpy_ext(
-			priv->phandle,
-			(t_u8 *)priv->phandle->fw_roam_params.black_list.ap_mac,
-			(t_u8 *)blacklist.mac_addr,
-			sizeof(wifi_bssid_params) - sizeof(blacklist.num_bssid),
-			sizeof(mlan_ds_misc_roam_offload_aplist) -
-				sizeof(priv->phandle->fw_roam_params.black_list
-					       .ap_num));
-		priv->phandle->fw_roam_params.ssid_list.ssid_num =
-			whitelist.num_ssid;
-		moal_memcpy_ext(
-			priv->phandle,
-			(t_u8 *)priv->phandle->fw_roam_params.ssid_list.ssids,
-			(t_u8 *)whitelist.whitelist_ssid,
-			sizeof(wifi_ssid_params) - sizeof(whitelist.num_ssid),
-			MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
-	} else {
-		roam_offload_cfg = (woal_roam_offload_cfg *)kmalloc(
-			sizeof(woal_roam_offload_cfg), GFP_KERNEL);
-		if (!roam_offload_cfg) {
-			PRINTM(MERROR, "kmalloc failed!\n");
-			ret = -ENOMEM;
-			goto done;
-		}
-		/*download parameters directly to fw*/
-		memset((char *)roam_offload_cfg, 0,
-		       sizeof(woal_roam_offload_cfg));
-		roam_offload_cfg->black_list.ap_num = blacklist.num_bssid;
-		moal_memcpy_ext(priv->phandle,
-				(t_u8 *)&roam_offload_cfg->black_list.ap_mac,
-				(t_u8 *)blacklist.mac_addr,
-				sizeof(wifi_bssid_params) -
-					sizeof(blacklist.num_bssid),
-				sizeof(mlan_ds_misc_roam_offload_aplist) -
-					sizeof(priv->phandle->fw_roam_params
-						       .black_list.ap_num));
-		roam_offload_cfg->ssid_list.ssid_num = whitelist.num_ssid;
-		moal_memcpy_ext(priv->phandle,
-				(t_u8 *)&roam_offload_cfg->ssid_list.ssids,
-				(t_u8 *)whitelist.whitelist_ssid,
-				sizeof(wifi_ssid_params) -
-					sizeof(whitelist.num_ssid),
-				MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
-		if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
-					   roam_offload_cfg)) {
-			PRINTM(MERROR, "%s: config fw roaming failed \n",
-			       __func__);
-			ret = -EFAULT;
-		}
-	}
-
-done:
-	if (roam_offload_cfg)
-		kfree(roam_offload_cfg);
 	LEAVE();
 	return ret;
 }
@@ -7130,9 +6870,14 @@ static t_u16 extractNumericVal(char *str, t_u32 str_len, char *substr,
 	if (findStr == NULL)
 		return finalVal;
 
+	/* Function usage is controlled and input validation ensures safe
+	 * operation */
 	// coverity[misra_c_2012_rule_21_13_violation:SUPPRESS]
 	// coverity[overflow_sink:SUPPRESS]
 	while ((j < str_len) && (findStr[j] != '\0') && isdigit(findStr[j])) {
+		/* Loop bounds protected by str_len check and isdigit()
+		 * validation. Buffer overflow prevented by result[6] sizing for
+		 * maximum expected value */
 		// coverity[overflow_sink:SUPPRESS]
 		result[i++] = findStr[j];
 		j++;
@@ -7442,6 +7187,324 @@ done:
 }
 
 /**
+ * @brief Vendor cmd to trigger btwt_ap_config_set cmd.
+ * It sets the current uAP BTWT config sets.
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+// Declaration with identifier \"woal_cfg80211_subcmd_btwt_ap_config_set\",
+// which is ambiguous. coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
+static int woal_cfg80211_subcmd_btwt_ap_config_set(struct wiphy *wiphy,
+						   struct wireless_dev *wdev,
+						   const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_ds_twtcfg *btwt_ap_config_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+	struct sk_buff *skb = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_s32 ret = 0;
+	t_u8 *data_buff = NULL;
+	char *strBuffer = NULL;
+	t_u32 strBuff_len = 0;
+	t_u8 ap_bcast_bet_sta_wait, bcastTWTLI, count, btwtId[5],
+		Ap_Bcast_Exponent[5], nominalwake[5];
+	t_u16 Ap_Bcast_Offset, Ap_Bcast_Mantissa[5];
+	t_u8 i;
+	ENTER();
+
+	if ((len < 1) || (len + 1) < 0) {
+		PRINTM(MERROR,
+		       "vendor cmd: btwt_ap_config_set - Invalid data length!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	data_buff = (t_u8 *)kzalloc(len + 1, GFP_ATOMIC);
+	if (data_buff == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	memset((char *)data_buff, 0, len + 1);
+	moal_memcpy_ext(priv->phandle, data_buff, data, len, len);
+
+	strBuffer = (char *)kzalloc(len + 1, GFP_ATOMIC);
+	if (strBuffer == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	// Convert ascii data into string buffer
+	asciiToString(data_buff, len, strBuffer, &strBuff_len);
+
+	ap_bcast_bet_sta_wait = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"ap_bcast_bet_sta_wait=", sizeof("ap_bcast_bet_sta_wait="));
+	Ap_Bcast_Offset = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Offset=", sizeof("Ap_Bcast_Offset="));
+	bcastTWTLI = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len, "bcastTWTLI=", sizeof("bcastTWTLI="));
+	count = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					"count=", sizeof("count="));
+
+	btwtId[0] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId0=", sizeof("btwtId0="));
+	Ap_Bcast_Mantissa[0] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa0=", sizeof("Ap_Bcast_Mantissa0="));
+	Ap_Bcast_Exponent[0] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent0=", sizeof("Ap_Bcast_Exponent0="));
+	nominalwake[0] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake0=", sizeof("nominalwake0="));
+
+	btwtId[1] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId1=", sizeof("btwtId1="));
+	Ap_Bcast_Mantissa[1] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa1=", sizeof("Ap_Bcast_Mantissa1="));
+	Ap_Bcast_Exponent[1] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent1=", sizeof("Ap_Bcast_Exponent1="));
+	nominalwake[1] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake1=", sizeof("nominalwake1="));
+
+	btwtId[2] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId2=", sizeof("btwtId2="));
+	Ap_Bcast_Mantissa[2] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa2=", sizeof("Ap_Bcast_Mantissa2="));
+	Ap_Bcast_Exponent[2] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent2=", sizeof("Ap_Bcast_Exponent2="));
+	nominalwake[2] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake2=", sizeof("nominalwake2="));
+
+	btwtId[3] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId3=", sizeof("btwtId3="));
+	Ap_Bcast_Mantissa[3] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa3=", sizeof("Ap_Bcast_Mantissa3="));
+	Ap_Bcast_Exponent[3] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent3=", sizeof("Ap_Bcast_Exponent3="));
+	nominalwake[3] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake3=", sizeof("nominalwake3="));
+
+	btwtId[4] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId4=", sizeof("btwtId4="));
+	Ap_Bcast_Mantissa[4] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa4=", sizeof("Ap_Bcast_Mantissa4="));
+	Ap_Bcast_Exponent[4] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent4=", sizeof("Ap_Bcast_Exponent4="));
+	nominalwake[4] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake4=", sizeof("nominalwake4="));
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_twtcfg));
+	if (req == NULL) {
+		PRINTM(MERROR,
+		       "vendor cmd: Could not allocate mlan ioctl request, btwt_ap_config_set!\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	btwt_ap_config_cfg = (mlan_ds_twtcfg *)req->pbuf;
+	btwt_ap_config_cfg->sub_command = MLAN_OID_11AX_TWT_CFG;
+	btwt_ap_config_cfg->sub_id = MLAN_11AX_BTWT_AP_CONFIG_SUBID;
+	req->req_id = MLAN_IOCTL_11AX_CFG;
+	req->action = MLAN_ACT_SET;
+
+	btwt_ap_config_cfg->param.btwt_ap_config.ap_bcast_bet_sta_wait =
+		ap_bcast_bet_sta_wait;
+	btwt_ap_config_cfg->param.btwt_ap_config.Ap_Bcast_Offset =
+		Ap_Bcast_Offset;
+	btwt_ap_config_cfg->param.btwt_ap_config.bcastTWTLI = bcastTWTLI;
+	btwt_ap_config_cfg->param.btwt_ap_config.count = count;
+
+	for (i = 0; i < 5; i++) {
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i].btwtId =
+			btwtId[i];
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i]
+			.Ap_Bcast_Mantissa = Ap_Bcast_Mantissa[i];
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i]
+			.Ap_Bcast_Exponent = Ap_Bcast_Exponent[i];
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i]
+			.nominalwake = nominalwake[i];
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR,
+		       "vendor cmd: BTWT AP Config SET ioctl failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, sizeof(mlan_ds_btwt_ap_config));
+	if (!skb) {
+		PRINTM(MERROR,
+		       "vendor cmd: allocate memory fail for vendor cmd\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	ret = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(ret))
+		PRINTM(MERROR, "vendor cmd: reply failed with ret:%d \n", ret);
+
+done:
+	if (data_buff)
+		kfree(data_buff);
+	if (strBuffer)
+		kfree(strBuffer);
+	if (status != MLAN_STATUS_PENDING && req)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Vendor cmd to trigger btwt_ap_config_get cmd.
+ * It gets the current uAP BTWT config sets.
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_btwt_ap_config_get(struct wiphy *wiphy,
+						   struct wireless_dev *wdev,
+						   const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_ds_twtcfg *btwt_ap_config_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+	struct sk_buff *skb = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_s32 ret = 0;
+	t_u8 *data_buff = NULL;
+	char *strBuffer = NULL;
+	t_u32 strBuff_len = 0;
+	t_u8 ap_bcast_bet_sta_wait, bcastTWTLI, count;
+	t_u16 Ap_Bcast_Offset;
+
+	ENTER();
+
+	if ((len < 1) || (len + 1) < 0) {
+		PRINTM(MERROR,
+		       "vendor cmd: btwt_ap_config_get - Invalid data length!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	data_buff = (t_u8 *)kzalloc(len + 1, GFP_ATOMIC);
+	if (data_buff == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	memset((char *)data_buff, 0, len + 1);
+	moal_memcpy_ext(priv->phandle, data_buff, data, len, len);
+
+	strBuffer = (char *)kzalloc(len + 1, GFP_ATOMIC);
+	if (strBuffer == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	// Convert ascii data into string buffer.
+	asciiToString(data_buff, len, strBuffer, &strBuff_len);
+
+	ap_bcast_bet_sta_wait = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"ap_bcast_bet_sta_wait=", sizeof("ap_bcast_bet_sta_wait="));
+	Ap_Bcast_Offset = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Offset=", sizeof("Ap_Bcast_Offset="));
+	bcastTWTLI = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len, "bcastTWTLI=", sizeof("bcastTWTLI="));
+	count = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					"count=", sizeof("count="));
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_twtcfg));
+	if (req == NULL) {
+		PRINTM(MERROR,
+		       "vendor cmd: Could not allocate mlan ioctl request, btwt_ap_config_get!\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	btwt_ap_config_cfg = (mlan_ds_twtcfg *)req->pbuf;
+	btwt_ap_config_cfg->sub_command = MLAN_OID_11AX_TWT_CFG;
+	btwt_ap_config_cfg->sub_id = MLAN_11AX_BTWT_AP_CONFIG_SUBID;
+	req->req_id = MLAN_IOCTL_11AX_CFG;
+	req->action = MLAN_ACT_GET;
+
+	btwt_ap_config_cfg->param.btwt_ap_config.ap_bcast_bet_sta_wait =
+		ap_bcast_bet_sta_wait;
+	btwt_ap_config_cfg->param.btwt_ap_config.Ap_Bcast_Offset =
+		Ap_Bcast_Offset;
+	btwt_ap_config_cfg->param.btwt_ap_config.bcastTWTLI = bcastTWTLI;
+	btwt_ap_config_cfg->param.btwt_ap_config.count = count;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR,
+		       "vendor cmd: BTWT AP CONFIG GET ioctl failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, sizeof(mlan_ds_btwt_ap_config));
+	if (!skb) {
+		PRINTM(MERROR,
+		       "vendor cmd: allocate memory fail for vendor cmd\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	ret = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(ret))
+		PRINTM(MERROR, "vendor cmd: reply failed with ret:%d \n", ret);
+
+done:
+	if (data_buff)
+		kfree(data_buff);
+	if (strBuffer)
+		kfree(strBuffer);
+	if (status != MLAN_STATUS_PENDING && req)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  * @brief Request list of usable channels for requested bands and modes.
  *        Usable implies channel is allowed as per regulatory for current
  *        country code and not restricted due to other hard limitations.
@@ -7552,7 +7615,7 @@ static int woal_cfg80211_subcmd_get_usable_channels(struct wiphy *wiphy,
 		for (j = 0; (j < sband->n_channels); j++) {
 			ch = &sband->channels[j];
 			if (ch->flags & IEEE80211_CHAN_DISABLED) {
-				PRINTM(MERROR, "Skip DISABLED channels %d\n",
+				PRINTM(MINFO, "Skip DISABLED channels %d\n",
 				       ieee80211_frequency_to_channel(
 					       ch->center_freq));
 				continue;
@@ -7792,44 +7855,6 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.doit = woal_cfg80211_subcmd_set_roaming_offload_key,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = VENDOR_CMD_RAW_DATA,
-#endif
-	},
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_get_roaming_capability,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_get_roaming_capability,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
-#endif
-	},
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_fw_roaming_enable,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_fw_roaming_enable,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = woal_fw_roaming_policy,
-		.maxattr = MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX,
-#endif
-	},
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_fw_roaming_config,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_fw_roaming_config,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = woal_fw_roaming_policy,
-		.maxattr = MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX,
 #endif
 	},
 	{
@@ -8304,17 +8329,41 @@ static const struct wiphy_vendor_command vendor_commands[] = {
         .policy = VENDOR_CMD_RAW_DATA,
 #endif
     },
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = subcmd_get_usable_channels,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_get_usable_channels,
+    {
+        .info = {
+                .vendor_id = MRVL_VENDOR_ID,
+                .subcmd = subcmd_btwt_ap_config_set,
+            },
+        .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+            WIPHY_VENDOR_CMD_NEED_NETDEV,
+        .doit = &woal_cfg80211_subcmd_btwt_ap_config_set,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = woal_usable_channel_policy,
-		.maxattr = ATTR_USABLE_CHANNEL_MAX,
+        .policy = VENDOR_CMD_RAW_DATA,
+#endif
+    },
+    {
+        .info = {
+                .vendor_id = MRVL_VENDOR_ID,
+                .subcmd = subcmd_btwt_ap_config_get,
+        },
+        .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+            WIPHY_VENDOR_CMD_NEED_NETDEV,
+        .doit = &woal_cfg80211_subcmd_btwt_ap_config_get,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+        .policy = VENDOR_CMD_RAW_DATA,
+#endif
+    },
+	{
+	.info = {
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = subcmd_get_usable_channels,
+	},
+	.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+		WIPHY_VENDOR_CMD_NEED_NETDEV,
+	.doit = woal_cfg80211_subcmd_get_usable_channels,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+	.policy = woal_usable_channel_policy,
+	.maxattr = ATTR_USABLE_CHANNEL_MAX,
 #endif
 	},
 };

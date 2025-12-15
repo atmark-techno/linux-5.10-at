@@ -535,7 +535,13 @@ static INLINE t_void util_scalar_decrement(
  *  @return			Value after offset or 0 if (scalar_value + offset)
  * overflows
  */
+#ifdef ANDROID_SDK_VERSION
 #define INT_MAX 2147483647
+#else
+#ifndef CONFIG_KASAN
+#define INT_MAX 2147483647
+#endif
+#endif
 static INLINE t_s32 util_scalar_offset(
 	t_void *pmoal_handle, pmlan_scalar pscalar, t_s32 offset,
 	mlan_status (*moal_spin_lock)(t_void *handle, t_void *plock),
@@ -656,6 +662,7 @@ static INLINE t_bool util_is_time_before(t_u64 t1, t_u64 t2)
 {
 	t_s64 delta = t2 - t1;
 
+	/* The subtraction is safe */
 	// coverity[integer_overflow:SUPPRESS]
 	return delta > 0;
 }

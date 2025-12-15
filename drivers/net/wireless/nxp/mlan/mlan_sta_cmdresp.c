@@ -717,11 +717,8 @@ static mlan_status wlan_ret_get_log(pmlan_private pmpriv,
 
 	if (pioctl_buf) {
 		pget_info = (mlan_ds_get_info *)pioctl_buf->pbuf;
-		// coverity[bad_memset:SUPPRESS]
-		// coverity[too_many_arguments:SUPPRESS]
-		// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
-		memset(pmpriv->adapter, &pget_info->param.stats, 0,
-		       sizeof(HostCmd_DS_802_11_GET_LOG));
+		_memset(pmpriv->adapter, &pget_info->param.stats, 0,
+			sizeof(HostCmd_DS_802_11_GET_LOG));
 		memcpy_ext(pmpriv->adapter, (t_u8 *)&get_log_tmp,
 			   (t_u8 *)pget_log,
 			   ((resp->size) - (sizeof(HostCmd_DS_GEN))),
@@ -1038,6 +1035,10 @@ static mlan_status wlan_ret_tx_power_cfg(pmlan_private pmpriv,
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
+		/* Suppressed due to validated TLV length and controlled buffer
+		 * access within wlan_get_power_level, ensuring safe memory
+		 * operations.
+		 */
 		// coverity[overrun-buffer-val:SUPPRESS]
 		// coverity[cert_str31_c_violation:SUPPRESS]
 		// coverity[cert_arr30_c_violation:SUPPRESS]
@@ -3478,6 +3479,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_802_11_key_material(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG:
+		break;
+	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
+		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_SUPPLICANT_PMK:
 		ret = wlan_ret_802_11_supplicant_pmk(pmpriv, resp, pioctl_buf);

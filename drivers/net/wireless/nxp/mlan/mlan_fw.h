@@ -324,6 +324,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** 2K buf size */
 #define MLAN_TX_DATA_BUF_SIZE_2K 2048
 
+#define SECURE_MULT_UINT32(a, b, c)                                            \
+	(((t_u64)(a) * (b) * (c)) > UINT32_MAX ?                               \
+		 UINT32_MAX :                                                  \
+		 (t_u32)((t_u32)(a) * (b) * (c)))
+
 /** ADDBA TID mask */
 #define ADDBA_TID_MASK (MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5))
 /** DELBA TID mask */
@@ -4096,6 +4101,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_TSP_CFG {
 	t_s32 high_thrshld_temp;
 	/** TSP config LOW_THRESHOLD_TEMP */
 	t_s32 low_thrshld_temp;
+	/** TSP current throttle percentage */
+	t_u32 throttle_duty_cycle;
+	/** TSP rfu temp poll count */
+	t_u32 rf_temp_poll_cnt;
 	/** TSP CAU TSEN read value */
 	t_s32 reg_cau_val;
 	/** TSP RFU read values */
@@ -4658,6 +4667,9 @@ typedef MLAN_PACK_START struct _hostcmd_twt_report {
 	t_u8 data[36];
 } MLAN_PACK_END hostcmd_twt_report, *phostcmd_twt_report;
 
+typedef MLAN_PACK_START struct _HostCmd_DS_GET_FOUNDRY_TYPE {
+	t_u8 foundry_type;
+} MLAN_PACK_END HostCmd_DS_GET_FOUNDRY_TYPE;
 /** Type definition of hostcmd_twt_information */
 typedef struct MLAN_PACK_START _hostcmd_twt_information {
 	/** TWT Flow Identifier. Range: [0-7] */
@@ -7628,6 +7640,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_AGCS_CFG {
 
 	/* ch threshold to trigger channel switch for nighthawk */
 	t_u16 ch_th;
+
+	/* Channel switching is triggered only when the current pkts > the min
+	 * average packet percentage. */
+	t_u16 min_pkt_percentage;
 } MLAN_PACK_END HostCmd_DS_AGCS_CFG;
 #endif /* UAP_SUPPORT */
 
@@ -7932,6 +7948,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Auth, (Re)Assoc timeout configuration */
 		HostCmd_DS_AUTH_ASSOC_TIMEOUT_CFG auth_assoc_cfg;
 		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
+		HostCmd_DS_GET_FOUNDRY_TYPE foundry_type;
 #ifdef UAP_SUPPORT
 		/** Agiled channel switch configuration */
 		HostCmd_DS_AGCS_CFG agcs_cfg;
@@ -7985,8 +8002,11 @@ typedef struct _MrvlIEtypes_per_band_txpwr_cap {
 	t_u8 band;
 	/** power value */
 	t_u8 power;
+	/** strong rssi threshold value */
+	t_s8 strong_rssi_thresh;
+	/** weak rssi threshold value */
+	t_s8 weak_rssi_thresh;
 } MLAN_PACK_END MrvlIEtypes_per_band_txpwr_cap;
-
 /** req host side download vdll block */
 #define VDLL_IND_TYPE_REQ 0
 /** notify vdll start offset in firmware image */

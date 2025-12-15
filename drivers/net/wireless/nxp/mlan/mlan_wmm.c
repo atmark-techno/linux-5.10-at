@@ -1003,6 +1003,8 @@ static t_bool wlan_wmm_txq_count_donw(mlan_wmm_contention *txq_cont,
 	if (txq_cont->remaining_aifs == 0)
 		txq_cont->remaining_backoff -= duration;
 
+	/* Input values are bounded and subtraction logic ensures no integer
+	 * overflow during contention timer update. */
 	// coverity[integer_overflow:SUPPRESS]
 	return txq_cont->remaining_backoff == 0 &&
 	       txq_cont->remaining_aifs == 0;
@@ -1286,6 +1288,8 @@ static t_s32 wlan_wmm_refill_budget(t_s32 current_value, t_u32 init_value)
 	if (current_value > 0)
 		return init_value;
 
+	/* Input values are constrained and addition logic ensures no overflow
+	 */
 	// coverity[integer_overflow:SUPPRESS]
 	return current_value + init_value;
 }
@@ -1543,6 +1547,8 @@ static raListTbl *wlan_wmm_get_next_priolist_ptr(pmlan_adapter pmadapter,
 	}
 
 	pmadapter->selected_mlan_bss = MNULL;
+	/* priv_num is checked earlier in the function to ensure it is non-zero.
+	 */
 	// coverity[cert_arr30_c_violation:SUPPRESS]
 	return wlan_wmm_get_highest_priolist_ptr(pmadapter, priv, tid);
 }
@@ -2620,6 +2626,8 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 	}
 
 	LEAVE();
+	// allocated ra_list is enqueued and managed via
+	// wmm.tid_tbl_ptr[i].ra_list, freed during cleanup
 	// coverity[leaked_storage:SUPPRESS]
 }
 
@@ -3815,6 +3823,7 @@ static INLINE t_u8 wlan_del_tx_pkts_in_ralist(pmlan_private priv,
 	return ret;
 }
 
+#ifdef UAP_SUPPORT
 /**
  *  @brief Drop tx pkts
  *
@@ -3844,6 +3853,7 @@ t_void wlan_drop_tx_pkts(pmlan_private priv)
 					      priv->wmm.ra_list_spinlock);
 	return;
 }
+#endif
 
 /**
  *  @brief Remove peer ralist
@@ -5038,6 +5048,7 @@ void wlan_dump_ralist(mlan_private *priv)
  *  @return             tid_down
  *
  */
+// coverity[HIS_COMF:SUPPRESS]
 int wlan_get_wmm_tid_down(mlan_private *priv, int tid)
 {
 	return wlan_wmm_downgrade_tid(priv, tid);
@@ -5189,7 +5200,9 @@ static t_u32 wlam_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
 	}
 
 	rate = rate * nss;
-
+	/* The maximum possible value of rate after all operations
+	 * remains within the bounds of a 32-bit unsigned integer.
+	 */
 	// coverity[integer_overflow:SUPPRESS]
 	return rate;
 }
@@ -5246,7 +5259,9 @@ static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
 	if (bw == bw_40) {
 		rate = (rate * 2077u) / 1000;
 	}
-
+	/* The maximum possible value of rate after all operations
+	 * remains within the bounds of a 32-bit unsigned integer.
+	 */
 	// coverity[integer_overflow:SUPPRESS]
 	return rate;
 }

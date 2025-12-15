@@ -316,6 +316,8 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 	PRINTM(MINFO, "Tx DataRate is set to 0x%X\n", pmpriv->data_rate);
 
 	if (!pmpriv->is_data_rate_auto) {
+		/* rate1_size is decremented in sync with ptr++ and loop exits
+		 * when rate1_size becomes 0 ensures no overflow */
 		// coverity[integer_overflow:SUPPRESS]
 		while (rate1_size && *ptr) {
 			/* loop exits when rate1_size becomes 0 */
@@ -557,7 +559,7 @@ static int wlan_cmd_append_osen_ie(mlan_private *priv, t_u8 **ppbuffer)
 	LEAVE();
 	return retlen;
 }
-
+#if defined(STA_SUPPORT)
 /**
  *  @brief This function get the rsn_cap from RSN ie buffer.
  *
@@ -647,7 +649,7 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 		return MFALSE;
 	return MTRUE;
 }
-
+#endif
 /********************************************************
 				Global Functions
 ********************************************************/
@@ -1306,6 +1308,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			psecurity_cfg_ie->header.type =
 				wlan_cpu_to_le16(TLV_TYPE_SECURITY_CFG);
 
+#if defined(STA_SUPPORT)
 			pmpriv->curr_bss_params.use_mfp =
 				wlan_use_mfp(pmpriv, pbss_desc);
 			PRINTM(MCMND, "use_mfp=%d\n",
@@ -1320,6 +1323,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			       psecurity_cfg_ie->header.len;
 			psecurity_cfg_ie->header.len =
 				wlan_cpu_to_le16(psecurity_cfg_ie->header.len);
+#endif
 		} else if (pmpriv->sec_info.ewpa_enabled ||
 			   (pbss_desc->owe_transition_mode ==
 			    OWE_TRANS_MODE_OWE) ||
@@ -1854,10 +1858,9 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 					   pmpriv->assoc_req_size,
 					   ASSOC_RSP_BUF_SIZE);
 
-				// coverity[no_effect:SUPPRESS]
-				memset(pmpriv->adapter,
-				       pmpriv->curr_bss_params.prev_bssid, 0,
-				       MLAN_MAC_ADDR_LENGTH);
+				_memset(pmpriv->adapter,
+					pmpriv->curr_bss_params.prev_bssid, 0,
+					MLAN_MAC_ADDR_LENGTH);
 			}
 		} else
 			wlan_reset_connect_state(pmpriv, MTRUE);

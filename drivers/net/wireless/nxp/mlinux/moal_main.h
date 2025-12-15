@@ -69,6 +69,27 @@ Change log:
 #include <linux/config.h>
 #endif
 
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#include <linux/bpf.h>
+/*
+ * <------------------ First 256 Bytes of xdp frame ------------------->
+ * =====================================================================
+ * |     0 - 31        |   32 - 224     |  225 -254 |   255            |
+ * | occupied by frame | driver header  |  Reserved | occupied by frame|
+ * |   initiator       |                |           |   initiator      |
+ * =====================================================================
+ * XDP frame data pointer is decremented by WIFI_HEADER_START_OFFSET to add
+ * WIFI_HEADROOM bytes of driver header.
+ */
+#define XDP_RESERVED_BYTES 32
+#define WIFI_HEADER_START_OFFSET (XDP_PACKET_HEADROOM - XDP_RESERVED_BYTES)
+#define WIFI_HEADROOM (sizeof(mlan_buffer) + MLAN_MIN_DATA_HEADER_LEN)
+/* XDP frame data start offset */
+#define XDP_DATA_OFFSET 96
+#endif
+#endif
+
 #ifdef USB
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
 #include <linux/freezer.h>
@@ -250,7 +271,7 @@ Change log:
 #define IEEE80211_NUM_BANDS NUM_NL80211_BANDS
 #endif
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define IEEE80211_BAND_6GHZ NL80211_BAND_6GHZ
 #endif
 
@@ -438,6 +459,10 @@ typedef enum _MOAL_HARDWARE_STATUS {
 #define FW_CAPINFO_DISABLE_NAN MBIT(29)
 /** fw cap info BGA */
 #define FW_CAPINFO_80211BGA (MBIT(8) | MBIT(9) | MBIT(10))
+
+#define NUM_2G_CHAN 14
+#define NUM_5G_CHAN 42
+#define NUM_6G_CHAN 59
 
 /** moal_wait_option */
 enum { MOAL_NO_WAIT, MOAL_IOCTL_WAIT, MOAL_IOCTL_WAIT_TIMEOUT };
@@ -1796,6 +1821,13 @@ typedef struct _moal_priv_linkstats {
 	t_s16 noise;
 } moal_priv_linkstats;
 
+#define BANDCTRL_SET_BANDCFG MBIT(0)
+#define BANDCTRL_BLOCK_SCAN MBIT(1)
+#define BANDCTRL_2G_ONLY MBIT(2)
+
+#define BAND_SELECT_ALL 0
+#define BAND_SELECT_2G_ONLY 1
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -2211,6 +2243,11 @@ struct _moal_private {
 
 	moal_priv_linkstats_cfg plinkstats_cfg;
 	moal_priv_linkstats plinkstats;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	struct cfg80211_qos_map *qos_map;
+#endif
+#endif
 
 	/*BSS active time*/
 	t_u64 bss_active_time;
@@ -2220,6 +2257,16 @@ struct _moal_private {
 	t_u64 rx_airtime_base;
 	/*TX airtime count*/
 	t_u64 tx_airtime_base;
+
+	t_u32 band_ctrl;
+
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	/** xdp */
+	struct bpf_prog *xdp_prog;
+	struct xdp_rxq_info xdp_rxq;
+#endif
+#endif
 };
 
 #ifdef SDIO
@@ -2654,6 +2701,27 @@ int woal_enable_fw_roaming(moal_private *priv, int data);
 #define GTK_REKEY_OFFLOAD_ENABLE 1
 #define GTK_REKEY_OFFLOAD_SUSPEND 2
 
+#if defined(STA_CFG80211)
+struct chan_power {
+	/** channel hw value */
+	t_u8 channel;
+	/** max tx power value */
+	t_u8 max_tx_pwr;
+};
+/** peer countryIE information */
+typedef struct _peer_country_info {
+	/** country code */
+	t_u8 country_code[COUNTRY_CODE_LEN];
+	/** for all channels in 2GHz band */
+	struct chan_power band_2g[NUM_2G_CHAN];
+	/** for all channels in 5GHz band */
+	struct chan_power band_5g[NUM_5G_CHAN];
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+	/** for all channels in 6GHz band */
+	struct chan_power band_6g[NUM_6G_CHAN];
+#endif
+} peer_country_info_t;
+#endif
 /** Supported bandwidth for monitor mode */
 enum {
 	SNIFF_BW_20MHZ = 0,
@@ -2818,10 +2886,12 @@ typedef struct _moal_mod_para {
 	int amsdu_deaggr;
 	int tx_budget;
 	int mclient_scheduling;
+	int copy_policy;
 	int ext_scan;
 	int bootup_cal_ctrl;
 	int ps_mode;
 	int p2a_scan;
+	int tcpackenh;
 	/** scan chan gap */
 	int scan_chan_gap;
 	int sched_scan;
@@ -2893,6 +2963,11 @@ typedef struct _moal_mod_para {
 	int auto_11ax;
 	/** hs_auto_arp setting */
 	int hs_auto_arp;
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	int xdp;
+#endif
+#endif
 	/** Dual-BT **/
 	int dual_nb;
 	/* reject addba req config for HS or FW Auto-reconnect */
@@ -2903,6 +2978,10 @@ typedef struct _moal_mod_para {
 	int tpe_ie_ignore;
 	/* make_before_break during roam */
 	int make_before_break;
+	int bandctrl;
+
+	/** plinkstats_cfg setting */
+	char *plinkstats;
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -3008,6 +3087,9 @@ typedef MLAN_PACK_START struct {
 	t_u16 nav_mitigation_th;
 	/* ch threshold to trigger channel switch for nighthawk */
 	t_u16 ch_th;
+	/* Channel switching is triggered only when the current pkts > the min
+	 * average packet percentage. */
+	t_u16 min_pkt_percentage;
 } MLAN_PACK_END wlan_agcs_info;
 #endif /* UAP_SUPPORT */
 
@@ -3059,6 +3141,8 @@ struct _moal_handle {
 	const struct firmware *txpwr_data;
 	/** Operation Mode PSD String */
 	char mode_psd_string[64];
+	/** Operation Mode PSD RU String */
+	char mode_psd_ru_string[64];
 	/** Load time file name */
 	char mode_psd_file[64];
 	/** Hotplug device */
@@ -3237,6 +3321,10 @@ struct _moal_handle {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 	/** regulatory work */
 	struct work_struct regulatory_work;
+#endif
+#if defined(STA_CFG80211)
+	/** peer countryIE information */
+	peer_country_info_t peer_country_info;
 #endif
 	/** band */
 	enum ieee80211_band band;
@@ -3430,7 +3518,9 @@ struct _moal_handle {
 	t_s8 driver_version[MLAN_MAX_VER_STR_LEN];
 	char *fwdump_fname;
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	struct wakeup_source *ws;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	struct wakeup_source ws;
 #else
 	struct wake_lock wake_lock;
@@ -3508,6 +3598,8 @@ struct _moal_handle {
 	wlan_agcs_info agcs_info;
 	/* fw cap and cap_ext */
 	mlan_hw_info hw_info;
+	/* agcs scan event */
+	agcs_stats agcs_scan_event;
 #endif /* UAP_SUPPORT */
 
 #ifdef DUMP_TO_PROC
@@ -3516,6 +3608,12 @@ struct _moal_handle {
 	t_u64 ssu_dump_len;
 	/** Pointer of ssu dump buffer */
 	t_u8 *ssu_dump_buf;
+#endif
+#endif
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	struct page *page;
+	t_u32 xdp_rd;
 #endif
 #endif
 };
@@ -4176,17 +4274,26 @@ mlan_status woal_shutdown_fw(moal_private *priv, t_u8 wait_option);
 /* Functions in interface module */
 #ifdef ANDROID_KERNEL
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+static inline void wakeup_source_init(struct device *dev,
+				      struct wakeup_source **ws,
+				      const char *name)
+#else
 static inline void wakeup_source_init(struct wakeup_source *ws,
 				      const char *name)
+#endif
 {
 	ENTER();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	*ws = wakeup_source_register(dev, name);
+#else
 	if (ws) {
 		memset(ws, 0, sizeof(*ws));
 		ws->name = name;
 	}
 	wakeup_source_add(ws);
-
+#endif
 	LEAVE();
 }
 
@@ -4198,8 +4305,12 @@ static inline void wakeup_source_trash(struct wakeup_source *ws)
 		PRINTM(MERROR, "ws is null!\n");
 		return;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	wakeup_source_unregister(ws);
+#else
 	wakeup_source_remove(ws);
 	__pm_relax(ws);
+#endif
 
 	LEAVE();
 }
@@ -4462,6 +4573,9 @@ mlan_status woal_get_wpa_enable(moal_private *priv, t_u8 wait_option,
 #endif /**STA_SUPPORT */
 
 mlan_status woal_set_11d(moal_private *priv, t_u8 wait_option, t_u8 enable);
+#if defined(STA_CFG80211)
+void woal_reset_peer_country_info(moal_private *priv);
+#endif
 
 mlan_status woal_process_rf_test_mode(moal_handle *handle, t_u32 mode);
 mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
@@ -4653,6 +4767,8 @@ mlan_status woal_set_scan_time(moal_private *priv, t_u16 active_scan_time,
 			       t_u16 specific_scan_time);
 mlan_status woal_get_band(moal_private *priv, int *band);
 mlan_status woal_set_band(moal_private *priv, char *pband);
+mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl);
+mlan_status woal_flush_scan_table(moal_private *priv, t_u32 band_select);
 mlan_status woal_add_rxfilter(moal_private *priv, char *rxfilter);
 mlan_status woal_remove_rxfilter(moal_private *priv, char *rxfilter);
 mlan_status woal_priv_qos_cfg(moal_private *priv, t_u32 action, char *qos_cfg);
@@ -4840,7 +4956,9 @@ void woal_print_linkstats_info(moal_private *priv, bool is_reset);
 mlan_status woal_get_ch_load(moal_private *priv, t_u16 duration);
 mlan_status woal_get_ch_load_results(moal_private *priv, t_u16 *ch_load,
 				     t_s16 *noise);
+#ifdef UAP_SUPPORT
 mlan_status woal_get_sta_list(moal_private *priv, mlan_ds_sta_list *sta_list);
+#endif
 
 #ifdef DUMP_TO_PROC
 void woal_print_firmware_dump_buf(t_u8 *pfd_buf, t_u64 fwdump_len);
@@ -4894,7 +5012,8 @@ extern mlan_status moal_agcs_trans_state(moal_private *priv,
 extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
 #endif /* UAP_SUPPORT */
 
-#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+#if defined(USB)
 extern mlan_status check_device_name_info(char *device_name, t_u16 *card_type);
+extern mlan_status woal_get_c_vidpid(char **c_vidpid);
 #endif
 #endif /* _MOAL_MAIN_H */

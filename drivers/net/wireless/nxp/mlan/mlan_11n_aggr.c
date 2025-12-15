@@ -115,8 +115,7 @@ static void wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 	ENTER();
 
 	ptx_pd = (TxPD *)mbuf->pbuf;
-	// coverity[bad_memset:SUPPRESS]
-	memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
+	_memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
 
 	/*
 	 * Original priority has been overwritten
@@ -194,8 +193,7 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 	 * Gather*/
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(7)));
 	ptx_pd = (TxPD *)(head_ptr + priv->intf_hr_len);
-	// coverity[bad_memset:SUPPRESS]
-	memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
+	_memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
 
 	/* Set the BSS number to TxPD */
 	ptx_pd->bss_num = GET_BSS_NUM(priv);
@@ -646,7 +644,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		case MLAN_STATUS_FAILURE:
 			PRINTM(MERROR, "Deaggr, send to moal failed\n");
 			daggr_mbuf->status_code = MLAN_ERROR_PKT_INVALID;
-			/* fall through */
+			fallthrough;
 		case MLAN_STATUS_SUCCESS:
 			wlan_recv_packet_complete(pmadapter, daggr_mbuf, ret);
 			break;
@@ -665,6 +663,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			pmadapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
 		delay += (t_u32)(out_ts_sec - in_ts_sec) * 1000000;
 		delay += (t_u32)(out_ts_usec - in_ts_usec);
+		// input values are internally generated and controlled, not
+		// externally sourced
 		// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 		pmadapter->callbacks.moal_amsdu_tp_accounting(
 			pmadapter->pmoal_handle, delay, copy_delay);
@@ -872,7 +872,8 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	}
 	PRINTM(MDAT_D, "Handling Aggr packet\n");
 #ifdef PCIEAW693
-	if (IS_PCIEAW693(pmadapter->card_type)) {
+	if (!wlan_copy_on_tx_enabled(pmadapter) &&
+	    IS_PCIEAW693(pmadapter->card_type)) {
 		return wlan_send_amsdu_subframe_list(priv, pra_list, headroom,
 						     ptrindex);
 	}

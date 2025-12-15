@@ -2035,7 +2035,7 @@ static mlan_status wlan_uap_snmp_mib_chan_track(pmlan_adapter pmadapter,
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status wlan_uap_agcs_cfg(pmlan_adapter pmadapter,
-			      pmlan_ioctl_req pioctl_req)
+				     pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -2355,6 +2355,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (misc->sub_command == MLAN_OID_MISC_CH_LOAD_RESULTS)
 			status = wlan_misc_ioctl_ch_load_results(pmadapter,
 								 pioctl_req);
+		else if (misc->sub_command == MLAN_OID_MISC_FOUNDRY_TYPE)
+			status = wlan_misc_ioctl_foundry_type(pmadapter,
+							      pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_GET_TSF)
 			status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_CROSS_CHIP_SYNCH)

@@ -1689,10 +1689,10 @@ done:
  * @return              0 -- success, otherwise fail
  */
 int woal_cfg80211_set_wiphy_params(struct wiphy *wiphy,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
-				    int radio_idx,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+				   int radio_idx,
 #endif
-				    u32 changed)
+				   u32 changed)
 {
 	moal_private *priv = NULL;
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
@@ -2673,17 +2673,17 @@ done:
  * @brief Request the driver to get antenna configuration
  *
  * @param wiphy           A pointer to wiphy structure
- * @param radio_idx 	   Radio index
+ * @param radio_idx 	  Radio index
  * @param tx_ant          Bitmaps of allowed antennas to use for TX
  * @param rx_ant          Bitmaps of allowed antennas to use for RX
  *
  * @return                0 -- success, otherwise fail
  */
 int woal_cfg80211_get_antenna(struct wiphy *wiphy,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
-			       int radio_idx,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+			      int radio_idx,
 #endif
-			       u32 *tx_ant, u32 *rx_ant)
+			      u32 *tx_ant, u32 *rx_ant)
 {
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	moal_private *priv = NULL;
@@ -2744,17 +2744,17 @@ done:
  * @brief Request the driver to set antenna configuration
  *
  * @param wiphy           A pointer to wiphy structure
- * @param radio_idx 	   Radio index
+ * @param radio_idx 	  Radio index
  * @param tx_ant          Bitmaps of allowed antennas to use for TX
  * @param rx_ant          Bitmaps of allowed antennas to use for RX
  *
  * @return                0 -- success, otherwise fail
  */
 int woal_cfg80211_set_antenna(struct wiphy *wiphy,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
-			       int radio_idx,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+			      int radio_idx,
 #endif
-			       u32 tx_ant, u32 rx_ant)
+			      u32 tx_ant, u32 rx_ant)
 {
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	moal_private *priv = NULL;
@@ -3092,6 +3092,9 @@ static int woal_mgmt_tx(moal_private *priv, const u8 *buf, size_t len,
 		goto done;
 	}
 	if (!new_ie_len) {
+		/* The moal_memcpy_ext call uses a pre-validated buffer with
+		 * tracked remain_len, ensuring no overflow.
+		 */
 		// coverity[overrun:SUPPRESS]
 		moal_memcpy_ext(priv->phandle,
 				pbuf + HEADER_SIZE + sizeof(packet_len) +
@@ -3100,6 +3103,9 @@ static int woal_mgmt_tx(moal_private *priv, const u8 *buf, size_t len,
 				remain_len);
 	} else {
 		/* new IEs post cleanup of 11ax IEs received from kernel */
+		/* The moal_memcpy_ext call uses a pre-validated buffer with
+		 * tracked remain_len, ensuring no overflow.
+		 */
 		// coverity[overrun:SUPPRESS]
 		// coverity[cert_arr30_c_violation: SUPPRESS]
 		moal_memcpy_ext(priv->phandle,
@@ -3503,13 +3509,26 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			}
 		}
 	}
-
+	/* This section is for IWD's WPA2-FT roaming support */
+	if (ieee80211_is_auth(
+		    ((const struct ieee80211_mgmt *)buf)->frame_control) &&
+	    (priv->bss_type == MLAN_BSS_TYPE_STA) &&
+	    (woal_cpu_to_le16(
+		     ((const struct ieee80211_mgmt *)buf)->u.auth.auth_alg) ==
+	     WLAN_AUTH_FT)) {
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MTRUE);
+		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
+		priv->auth_flag = HOST_MLME_AUTH_PENDING;
+		priv->auth_mgmt_tx = 1;
+		priv->auth_alg = woal_cpu_to_le16(
+			((const struct ieee80211_mgmt *)buf)->u.auth.auth_alg);
+		priv->host_mlme = MTRUE;
+	}
 #if KERNEL_VERSION(2, 6, 39) <= CFG80211_VERSION_CODE
-	if ((ieee80211_is_action(
-		    ((const struct ieee80211_mgmt *)buf)->frame_control))
+	else if ((ieee80211_is_action(
+			 ((const struct ieee80211_mgmt *)buf)->frame_control))
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
-	    || (moal_extflg_isset(priv->phandle, EXT_HOST_MLME) &&
-		(priv->bss_type != MLAN_BSS_TYPE_STA))
+		 || moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
 #endif
 	) {
 #ifdef WIFI_DIRECT_SUPPORT
@@ -3619,18 +3638,6 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		}
 	}
 #endif
-
-	if (ieee80211_is_auth(
-		    ((const struct ieee80211_mgmt *)buf)->frame_control) &&
-	    (priv->bss_type == MLAN_BSS_TYPE_STA)) {
-		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MTRUE);
-		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
-		priv->auth_flag = HOST_MLME_AUTH_PENDING;
-		priv->auth_mgmt_tx = 1;
-		priv->auth_alg = woal_cpu_to_le16(
-			((const struct ieee80211_mgmt *)buf)->u.auth.auth_alg);
-		priv->host_mlme = MTRUE;
-	}
 
 #if KERNEL_VERSION(3, 8, 0) > LINUX_VERSION_CODE
 	*cookie = random32() | 1;
@@ -3863,6 +3870,13 @@ int woal_cfg80211_set_qos_map(struct wiphy *wiphy, struct net_device *dev,
 	/**clear dscp map*/
 	if (!qos_map) {
 		memset(priv->dscp_map, 0xFF, sizeof(priv->dscp_map));
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+		if (priv->qos_map) {
+			kfree(priv->qos_map);
+			priv->qos_map = NULL;
+		}
+#endif
+
 		goto done;
 	}
 
@@ -3925,6 +3939,25 @@ int woal_cfg80211_set_qos_map(struct wiphy *wiphy, struct net_device *dev,
 			PRINTM(MERROR, "Failed to set beacon wps/p2p ie\n");
 			goto done;
 		}
+
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+		if (!priv->qos_map) {
+			priv->qos_map = kzalloc(sizeof(struct cfg80211_qos_map),
+						GFP_KERNEL);
+			if (!priv->qos_map) {
+				PRINTM(MERROR,
+				       "Set QoS MAP: Failed to alloc memory\n");
+				LEAVE();
+				return ret;
+			}
+		}
+
+		moal_memcpy_ext(priv->phandle, priv->qos_map, qos_map,
+				sizeof(struct cfg80211_qos_map),
+				sizeof(struct cfg80211_qos_map));
+		DBG_HEXDUMP(MCMD_D, "AP: QoS Map", (t_u8 *)priv->qos_map,
+			    sizeof(struct cfg80211_qos_map));
+#endif
 	}
 
 done:
@@ -4191,7 +4224,7 @@ static t_u8 *woal_remove_11ax_ies(moal_private *priv, const t_u8 *ie, t_u8 len,
 					length + sizeof(IEEEtypes_Header_t);
 				break;
 			}
-		// fall through
+			fallthrough;
 		default:
 			if ((*new_ie_len + length + 2) < (int)ie_out_len) {
 				moal_memcpy_ext(priv->phandle,
@@ -4479,7 +4512,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie,
 			if (priv->chan.chan->band != NL80211_BAND_6GHZ)
 				break;
 #endif
-			/* FALLTHRU */
+			fallthrough;
 		default:
 			if ((out_len + length + 2) < (int)ie_out_len) {
 				moal_memcpy_ext(priv->phandle, ie_out + out_len,
@@ -4865,6 +4898,9 @@ int woal_cfg80211_mgmt_frame_ie(
 			beacon_ies_data->mgmt_subtype_mask =
 				MGMT_MASK_BEACON | MGMT_MASK_ASSOC_RESP |
 				MGMT_MASK_PROBE_RESP;
+			/* woal_filter_beacon_ies() enforces bounds internally
+			 * and output is limited by MAX_IE_SIZE, preventing
+			 * overflow */
 			// coverity[integer_overflow:SUPPRESS]
 			beacon_ies_data->ie_length = woal_filter_beacon_ies(
 				priv, beacon_ies, beacon_ies_len,
@@ -4873,6 +4909,7 @@ int woal_cfg80211_mgmt_frame_ie(
 					IE_MASK_VENDOR,
 				proberesp_ies, proberesp_ies_len);
 			if (beacon_ies_data->ie_length)
+				/* ie_length is already checked as non-zero */
 				// coverity[integer_overflow:SUPPRESS]
 				DBG_HEXDUMP(MCMD_D, "beacon ie",
 					    beacon_ies_data->ie_buffer,
@@ -5968,6 +6005,8 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 					mcs_nss[1] = mcs_nss[0] |= 0x0c;
 					moal_memcpy_ext(
 						priv->phandle,
+						/* This cast is safe and
+						   intentional. */
 						// coverity[misra_c_2012_rule_11_8_violation:SUPPRESS]
 						(t_void *)&bands->iftype_data
 							->he_cap.he_mcs_nss_supp
@@ -5998,6 +6037,8 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 
 					moal_memcpy_ext(
 						priv->phandle,
+						/* This cast is safe and
+						   intentional. */
 						// coverity[misra_c_2012_rule_11_8_violation:SUPPRESS]
 						(t_void *)&bands->iftype_data
 							->he_cap.he_mcs_nss_supp
@@ -6046,6 +6087,8 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 					mcs_nss[1] = mcs_nss[0] |= 0x0c;
 					moal_memcpy_ext(
 						priv->phandle,
+						/* This cast is safe and
+						   intentional. */
 						// coverity[misra_c_2012_rule_11_8_violation:SUPPRESS]
 						(t_void *)&bands->iftype_data
 							->he_cap.he_mcs_nss_supp
@@ -6088,6 +6131,8 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 
 					moal_memcpy_ext(
 						priv->phandle,
+						/* This cast is safe and
+						   intentional. */
 						// coverity[misra_c_2012_rule_11_8_violation:SUPPRESS]
 						(t_void *)&bands->iftype_data
 							->he_cap.he_mcs_nss_supp
