@@ -357,7 +357,7 @@ static int tpe_ie_ignore = 0;
 #ifdef DEBUG_LEVEL2
 #define DEFAULT_DEBUG_MASK (0xffffffff)
 #else
-#define DEFAULT_DEBUG_MASK (MFATAL | MERROR | MREG_D | MFW_D)
+#define DEFAULT_DEBUG_MASK (MMSG | MFATAL | MERROR | MREG_D | MFW_D)
 #endif /* DEBUG_LEVEL2 */
 t_u32 drvdbg = DEFAULT_DEBUG_MASK;
 
@@ -1802,101 +1802,6 @@ err:
 	return ret;
 }
 
-#ifdef CONFIG_OF
-static void woal_setup_handle_from_of_node(moal_handle *handle,
-					   struct device_node *dt_node)
-{
-	struct property *prop;
-	t_u32 data;
-
-	for_each_property_of_node (dt_node, prop) {
-		if (!strcmp(prop->name, "drv_mode")) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "drv_mode=0x%x\n", data);
-				handle->params.drv_mode = data;
-			}
-		} else if (!strcmp(prop->name, "antcfg")) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "antcfg=%d\n", data);
-				handle->params.antcfg = data;
-			}
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-		} else if (!strcmp(prop->name, "host_mlme")) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "host_mlme=%d\n", data);
-				if (data)
-					moal_extflg_set(handle, EXT_HOST_MLME);
-				else
-					moal_extflg_clear(handle, EXT_HOST_MLME);
-			}
-#endif
-#endif
-		} else if (!strcmp(prop->name, "ps_mode")) {
-			if (!handle->params.ps_mode &&
-			    !of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "ps_mode=%d\n", data);
-				handle->params.ps_mode = data;
-			}
-		} else if (!strcmp(prop->name, "auto_ds")) {
-			if (!handle->params.auto_ds &&
-			    !of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "auto_ds=%d\n", data);
-				handle->params.auto_ds = data;
-			}
-		}
-	}
-}
-
-/**
- * @brief init local handle with parameters in dts
- *
- * Adjusted mix-match of woal_setup_module_param and woal_init_from_dev_tree
- */
-static void woal_setup_handle_from_dev_tree(moal_handle *handle)
-{
-	struct device_node *dt_node, *mac_dt_node;
-	char mac_node_name[10];
-
-	ENTER();
-
-	if (!dts_enable) {
-		PRINTM(MIOCTL, "DTS is disabled\n");
-		LEAVE();
-		return;
-	}
-
-	dt_node = of_find_node_by_name(NULL, "moal-params");
-	if (!dt_node) {
-		PRINTM(MMSG, "No moal-params dt node\n");
-		LEAVE();
-		return;
-	}
-
-	/* common settings for all MACs */
-	woal_setup_handle_from_of_node(handle, dt_node);
-
-	/* get MAC-specific sub-node */
-	if (snprintf(mac_node_name, sizeof(mac_node_name),
-		     "mac-%d", handle->second_mac) >= sizeof(mac_node_name)) {
-		PRINTM(MERROR, "mac-specific dts node name does not fit in buffer, %d is long?\n",
-		       handle->second_mac);
-		of_node_put(dt_node);
-		LEAVE();
-		return;
-	}
-
-	mac_dt_node = of_find_node_by_name(dt_node, mac_node_name);
-	if (mac_dt_node) {
-		PRINTM(MIOCTL, "Got mac-%d subnode\n", handle->second_mac);
-		woal_setup_handle_from_of_node(handle, mac_dt_node);
-		of_node_put(mac_dt_node);
-	}
-
-	LEAVE();
-}
-#endif
-
 /**
  *  @brief This function initialize module parameter
  *
@@ -2353,10 +2258,6 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.tpe_ie_ignore = params->tpe_ie_ignore;
 	handle->params.make_before_break = make_before_break;
-
-#ifdef CONFIG_OF
-	woal_setup_handle_from_dev_tree(handle);
-#endif
 }
 
 /**

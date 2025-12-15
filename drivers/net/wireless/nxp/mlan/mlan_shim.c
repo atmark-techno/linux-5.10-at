@@ -2112,10 +2112,6 @@ mlan_status mlan_interrupt(t_u16 msg_id, t_void *adapter)
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
 	mlan_status ret;
 
-	if (!pmadapter) {
-		return MLAN_STATUS_FAILURE;
-	}
-
 	ENTER();
 	ret = pmadapter->ops.interrupt(msg_id, pmadapter);
 	LEAVE();
