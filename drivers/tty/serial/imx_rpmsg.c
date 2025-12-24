@@ -30,7 +30,7 @@
  * `for_each_compatible_node(dn, NULL, "xxx") count++;`
  * and allocate dynamically */
 #define IMX_RPMSG_UART_PORT_PER_SOC_MAX 4
-#define TTY_RPMSG_MINOR 0
+#define TTY_RPMSG_MINOR 1
 #define TTY_RPMSG_MAJOR 3
 
 #define IMX_RPMSG_DEFAULT_BAUD 115200
@@ -49,6 +49,8 @@ enum tty_rpmsg_header_cmd {
 	TTY_RPMSG_COMMAND_INIT,
 	TTY_RPMSG_COMMAND_ACTIVATE,
 	TTY_RPMSG_COMMAND_CTRL,
+	/* Added in v3.1 */
+	TTY_RPMSG_COMMAND_SET_TERMIOS,
 };
 
 #define TTY_RPMSG_COMMAND_CTRL_SHIFT	16	// upper 16 bits for mask, lower 16 bits for enable bit
@@ -121,6 +123,7 @@ struct imx_rpmsg_tty_msg {
 		u32 cflag;
 		/* note: packed only by design, sanity is ensured by checking size */
 		struct srtm_tty_init_payload init;
+		struct ktermios termios;
 		u8 retcode;
 	} __packed __aligned(1);
 } __packed __aligned(1);
@@ -216,7 +219,8 @@ static int imx_rpmsg_uart_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 static int imx_rpmsg_uart_send_and_wait(struct imx_rpmsg_port *rport,
 					struct imx_rpmsg_tty_msg *msg,
-					const void *data, size_t len, bool wait)
+					const void *data, size_t len,
+					bool wait, bool fallback_expected)
 {
 	int err;
 
@@ -262,8 +266,10 @@ static int imx_rpmsg_uart_send_and_wait(struct imx_rpmsg_port *rport,
 		goto err_out;
 	}
 	if (rport->last_retcode != 0) {
-		dev_err(&rport->rpdev->dev, "rpmsg error for %d: %d\n",
-			msg->header.cmd, rport->last_retcode);
+		if (!fallback_expected) {
+			dev_err(&rport->rpdev->dev, "rpmsg error for %d: %d\n",
+				msg->header.cmd, rport->last_retcode);
+		}
 		err = -EINVAL;
 		goto err_out;
 	}
@@ -290,7 +296,7 @@ static void imx_rpmsg_uart_tx_work(struct work_struct *ws)
 	if (port->x_char) {
 		/* Send next char */
 		ret = imx_rpmsg_uart_send_and_wait(rport, &msg, &port->x_char,
-						   1, true);
+						   1, true, false);
 		if (ret)
 			dev_err(&rport->rpdev->dev, "tx dropped XON/XOFF character\n");
 		else
@@ -310,7 +316,7 @@ static void imx_rpmsg_uart_tx_work(struct work_struct *ws)
 		/* send a message to our remote processor */
 		ret = imx_rpmsg_uart_send_and_wait(rport, &msg,
 						   &xmit->buf[xmit->tail],
-						   len, true);
+						   len, true, false);
 		if (ret) {
 			/* The type of error cannot be determined, so
 			 * the error count cannot be incremented. */
@@ -382,7 +388,8 @@ static int _imx_rpmsg_uart_send_activate(struct imx_rpmsg_port *rport,
 	uint8_t activate = activate_;
 
 	return imx_rpmsg_uart_send_and_wait(rport, (void *)&msg,
-					    &activate, sizeof(activate), true);
+					    &activate, sizeof(activate),
+					    true, false);
 }
 
 static int imx_rpmsg_uart_startup(struct uart_port *port)
@@ -406,19 +413,19 @@ static void imx_rpmsg_uart_shutdown(struct uart_port *port)
 	_imx_rpmsg_uart_send_activate(rport, false);
 }
 
-static void
-imx_rpmsg_uart_set_termios(struct uart_port *port, struct ktermios *termios,
-			   struct ktermios *old)
+static int
+_imx_rpmsg_uart_set_termios(struct uart_port *port, struct ktermios *termios,
+			    struct ktermios *old)
 {
 	struct imx_rpmsg_port *rport = (struct imx_rpmsg_port *)port;
 	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
-	tcflag_t cflag = termios->c_cflag;
 	struct imx_rpmsg_tty_msg msg = {
-		.header.cmd = TTY_RPMSG_COMMAND_SET_CFLAG,
+		.header.cmd = TTY_RPMSG_COMMAND_SET_TERMIOS,
 	};
 
-	if (!old || cflag == old->c_cflag)
-		return;
+	if (!old || ((termios->c_cflag == old->c_cflag) &&
+		     (termios->c_ospeed == old->c_ospeed)))
+		return 0;
 
 	/*
 	 * only support CS8 and CS7, and for CS7 must enable PE.
@@ -428,25 +435,63 @@ imx_rpmsg_uart_set_termios(struct uart_port *port, struct ktermios *termios,
 	 *  - (8,m/s,1/2)
 	 *  - (8,e/o,1/2)
 	 */
-	while ((cflag & CSIZE) != CS8 && (cflag & CSIZE) != CS7) {
-		cflag &= ~CSIZE;
-		cflag |= old_csize;
+	while ((termios->c_cflag & CSIZE) != CS8 &&
+	       (termios->c_cflag & CSIZE) != CS7) {
+		termios->c_cflag &= ~CSIZE;
+		termios->c_cflag |= old_csize;
 		old_csize = CS8;
 	}
 
-	if (cflag & CMSPAR) {
-		if ((cflag & CSIZE) != CS8) {
-			cflag &= ~CSIZE;
-			cflag |= CS8;
+	if (termios->c_cflag & CMSPAR) {
+		if ((termios->c_cflag & CSIZE) != CS8) {
+			termios->c_cflag &= ~CSIZE;
+			termios->c_cflag |= CS8;
 		}
 	}
 
 	/* parity must be enabled when CS7 to match 8-bits format */
-	if ((cflag & CSIZE) == CS7)
-		cflag |= PARENB;
+	if ((termios->c_cflag & CSIZE) == CS7)
+		termios->c_cflag |= PARENB;
+
+	return imx_rpmsg_uart_send_and_wait(rport, (void *)&msg, termios,
+					    sizeof(*termios), true, true);
+}
+
+static void
+_imx_rpmsg_uart_set_cflag(struct uart_port *port, struct ktermios *termios,
+			  struct ktermios *old)
+{
+	struct imx_rpmsg_port *rport = (struct imx_rpmsg_port *)port;
+	tcflag_t cflag = termios->c_cflag;
+	struct imx_rpmsg_tty_msg msg = {
+		.header.cmd = TTY_RPMSG_COMMAND_SET_CFLAG,
+	};
+
+	if (!old || cflag == old->c_cflag)
+		return;
+
+	if ((cflag & CBAUD) == BOTHER) {
+		dev_err(&rport->rpdev->dev, "BOTHER not supported, please " \
+			"upgrade to later M33 FW version to enable BOTHER\n");
+		return;
+	}
 
 	imx_rpmsg_uart_send_and_wait(rport, (void *)&msg, &cflag, sizeof(cflag),
-				     true);
+				     true, false);
+}
+
+static void
+imx_rpmsg_uart_set_termios(struct uart_port *port, struct ktermios *termios,
+			   struct ktermios *old)
+{
+	int ret;
+
+	ret = _imx_rpmsg_uart_set_termios(port, termios, old);
+	if (!ret)
+		return;
+
+	/* fallback for v3.0 */
+	_imx_rpmsg_uart_set_cflag(port, termios, old);
 }
 
 static const char *imx_rpmsg_uart_type(struct uart_port *port)
@@ -475,7 +520,7 @@ static void imx_rpmsg_uart_break_ctl(struct uart_port *port, int break_state)
 		control |= TTY_RPMSG_COMMAND_CTRL_BRK_EN;
 
 	imx_rpmsg_uart_send_and_wait(rport, (void *)&msg, &control,
-				     sizeof(control), true);
+				     sizeof(control), true, false);
 }
 
 static const struct uart_ops imx_rpmsg_uart_ops = {
@@ -580,7 +625,7 @@ static int imx_rpmsg_uart_init_remote(struct imx_rpmsg_port *rport,
 	}
 
 	return imx_rpmsg_uart_send_and_wait(rport, (void *)&msg, &init,
-					    sizeof(init), true);
+					    sizeof(init), true, false);
 }
 #undef READ_PROP_OR_RETURN
 
@@ -694,7 +739,7 @@ static int __maybe_unused imx_rpmsg_uart_suspend(struct device *dev)
 	bool enable = device_may_wakeup(dev);
 
 	return imx_rpmsg_uart_send_and_wait(rport, (void *)&msg, &enable,
-					    sizeof(enable), true);
+					    sizeof(enable), true, false);
 }
 
 static int __maybe_unused imx_rpmsg_uart_resume(struct device *dev)
