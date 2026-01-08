@@ -30,7 +30,19 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		vin-supply = <&reg_vdd_3p3v>;
-		startup-delay-us = <100>; // to assert wisun reset
+
+		//      On our boards it takes 400us to fully rise.
+		//      |
+		//      v
+		//       _____
+		// vdd _/
+		//
+		//       A 100us low is required for reset.
+		//       |
+		//       v
+		//         ___
+		// rst ___/
+		startup-delay-us = <1000>; // 400 + 100 + 500 (margin)
 		enable-active-high;
 	};
 
