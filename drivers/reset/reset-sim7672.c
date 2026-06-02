@@ -22,6 +22,7 @@
 #include <linux/reset-controller.h>
 #include <linux/regulator/consumer.h>
 
+#define SIM7672_PWRKEY_TURN_ON_WAIT_TIME_MS	(40) /* Ton(wait) */
 #define SIM7672_PWRKEY_TURN_ON_ASSERT_TIME_MS	(50) /* Ton */
 #define SIM7672_PWRKEY_TURN_OFF_ASSERT_TIME_MS	(2500) /* Toff */
 #define SIM7672_RESET_OFF_ON_INTERVAL_MS	(2003) /* Toff(uart)+Toff-on */
@@ -106,10 +107,12 @@ static void sim7672_reset_pwrkey(struct sim7672_reset_data *data,
 	dev_dbg(data->dev, "PWRKEY: %s\n",
 		ops == SIM7672_PWRKEY_TURN_ON ? "on" : "off");
 
-	if (ops == SIM7672_PWRKEY_TURN_ON)
+	if (ops == SIM7672_PWRKEY_TURN_ON) {
 		delay = SIM7672_PWRKEY_TURN_ON_ASSERT_TIME_MS;
-	else
+		mdelay(SIM7672_PWRKEY_TURN_ON_WAIT_TIME_MS);
+	} else {
 		delay = SIM7672_PWRKEY_TURN_OFF_ASSERT_TIME_MS;
+	}
 
 	gpiod_set_value_cansleep(data->pwrkey, 1);
 	mdelay(delay);
