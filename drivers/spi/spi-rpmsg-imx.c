@@ -27,7 +27,7 @@
 
 #define SPI_RPMSG_TIMEOUT			500 /* unit: ms */
 
-#define SPI_RPMSG_VERSION			0x0002
+#define SPI_RPMSG_VERSION			0x0102
 
 #define SPI_RPMSG_TYPE_REQUEST			0x00
 #define SPI_RPMSG_TYPE_RESPONSE			0x01
@@ -37,6 +37,8 @@ enum spi_rpmsg_commands
 	/* SPI Service Request Command definition */
 	SPI_RPMSG_COMMAND_TRANSFER = 0U,
 	SPI_RPMSG_COMMAND_INIT,
+	/* Added in v2.1 */
+	SPI_RPMSG_COMMAND_SET_MODE,
 };
 
 #define SPI_RPMSG_PRIORITY			0x01
@@ -80,6 +82,7 @@ struct spi_rpmsg_msg {
 	union {
 		u8 buf[SPI_RPMSG_MAX_BUF_SIZE];
 		struct spi_rpmsg_init_payload init;
+		u32 mode;
 	} __packed;
 } __packed __aligned(1);
 
@@ -97,6 +100,7 @@ struct spi_rpmsg_info {
 };
 
 struct rpmsg_spi {
+	u32 mode;
 	u8 id;
 };
 
@@ -148,7 +152,7 @@ static int rpmsg_xfer(struct spi_rpmsg_msg *rmsg, struct spi_rpmsg_info *info)
 	reinit_completion(&info->cmd_complete);
 
 	rmsg->header.cate = IMX_RPMSG_SPI;
-	rmsg->header.major = SPI_RPMSG_VERSION;
+	rmsg->header.major = SPI_RPMSG_VERSION & 0xf;
 	rmsg->header.minor = SPI_RPMSG_VERSION >> 8;
 	rmsg->header.type = SPI_RPMSG_TYPE_REQUEST;
 	rmsg->header.reserved[0] = SPI_RPMSG_PRIORITY;
@@ -159,6 +163,10 @@ static int rpmsg_xfer(struct spi_rpmsg_msg *rmsg, struct spi_rpmsg_info *info)
 	case SPI_RPMSG_COMMAND_INIT:
 		size = sizeof(struct spi_rpmsg_msg) - SPI_RPMSG_MAX_BUF_SIZE +
 			sizeof(struct spi_rpmsg_init_payload);
+		break;
+	case SPI_RPMSG_COMMAND_SET_MODE:
+		size = sizeof(struct spi_rpmsg_msg) - SPI_RPMSG_MAX_BUF_SIZE +
+			sizeof(u32);
 		break;
 	default:
 		WARN_ON(1);
@@ -180,12 +188,33 @@ static int rpmsg_xfer(struct spi_rpmsg_msg *rmsg, struct spi_rpmsg_info *info)
 	}
 
 	if (info->ret_val) {
+		if (rmsg->header.cmd == SPI_RPMSG_COMMAND_SET_MODE) {
+			dev_warn(&info->rpdev->dev, "Current firmware only supports SPI mode 0. Please update the firmware to use other modes.\n");
+			return 0;
+		}
 		dev_dbg(&info->rpdev->dev,
 			"%s failed: %d\n", __func__, info->ret_val);
 		return -(info->ret_val);
 	}
 
 	return 0;
+}
+
+static int spi_rpmsg_set_mode(struct rpmsg_spi *devdata, u32 mode)
+{
+	struct spi_rpmsg_msg rmsg;
+	int ret;
+
+	rmsg.header.cmd = SPI_RPMSG_COMMAND_SET_MODE;
+	rmsg.bus_id = devdata->id;
+	rmsg.len = sizeof(u32);
+
+	rmsg.mode = mode;
+	mutex_lock(&spi_rpmsg.lock);
+	ret = rpmsg_xfer(&rmsg, &spi_rpmsg);
+	mutex_unlock(&spi_rpmsg.lock);
+
+	return ret;
 }
 
 static int spi_rpmsg_transfer_one(struct spi_master *master,
@@ -205,6 +234,13 @@ static int spi_rpmsg_transfer_one(struct spi_master *master,
 
 	if (!transfer->len)
 		goto out;
+
+	if (spi->mode != devdata->mode) {
+		status = spi_rpmsg_set_mode(devdata, spi->mode);
+		if (status)
+			goto out;
+		devdata->mode = spi->mode;
+	}
 
 	memset(&rmsg, 0, sizeof(SPI_RPMSG_HDR_SIZE));
 	rmsg.header.cmd = SPI_RPMSG_COMMAND_TRANSFER;
@@ -237,7 +273,7 @@ out:
 	return status;
 }
 
-static int spi_rpmsg_init_remote(struct device *dev, int bus_id)
+static int spi_rpmsg_init_remote(struct device *dev, struct rpmsg_spi *devdata)
 {
 	struct spi_rpmsg_msg rmsg = { 0 };
 	/* need to build locally and memcpy for alignment */
@@ -246,7 +282,7 @@ static int spi_rpmsg_init_remote(struct device *dev, int bus_id)
 	int ret;
 
 	rmsg.header.cmd = SPI_RPMSG_COMMAND_INIT;
-	rmsg.bus_id = bus_id;
+	rmsg.bus_id = devdata->id;
 	rmsg.len = sizeof(struct spi_rpmsg_init_payload);
 
 	ret = of_property_read_u32(np, "spi_type", &init.type);
@@ -314,7 +350,7 @@ static int spi_rpmsg_platform_probe(struct platform_device *pdev)
 
 	master->dev.of_node = np;
 	master->bits_per_word_mask = SPI_BPW_RANGE_MASK(1, 32);
-	master->mode_bits = 0;
+	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH;
 
 	/* do not store it in bus_num to allow arbitrary alias */
 	devdata = spi_master_get_devdata(master);
@@ -322,7 +358,7 @@ static int spi_rpmsg_platform_probe(struct platform_device *pdev)
 
 	master->transfer_one = spi_rpmsg_transfer_one;
 
-	ret = spi_rpmsg_init_remote(&pdev->dev, devdata->id);
+	ret = spi_rpmsg_init_remote(&pdev->dev, devdata);
 	if (ret)
 		goto error;
 
