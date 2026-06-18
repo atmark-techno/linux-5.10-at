@@ -27,7 +27,7 @@
 
 #define SPI_RPMSG_TIMEOUT			500 /* unit: ms */
 
-#define SPI_RPMSG_VERSION			0x0102
+#define SPI_RPMSG_VERSION			0x0202
 
 #define SPI_RPMSG_TYPE_REQUEST			0x00
 #define SPI_RPMSG_TYPE_RESPONSE			0x01
@@ -39,6 +39,12 @@ enum spi_rpmsg_commands
 	SPI_RPMSG_COMMAND_INIT,
 	/* Added in v2.1 */
 	SPI_RPMSG_COMMAND_SET_MODE,
+	/* Added in v2.2 */
+	/*
+	 * Performs a split transfer while keeping the Chip Select
+	 * (CS) asserted.
+	 */
+	SPI_RPMSG_COMMAND_TRANSFER_CONTINUOUS,
 };
 
 #define SPI_RPMSG_PRIORITY			0x01
@@ -158,6 +164,7 @@ static int rpmsg_xfer(struct spi_rpmsg_msg *rmsg, struct spi_rpmsg_info *info)
 	rmsg->header.reserved[0] = SPI_RPMSG_PRIORITY;
 	switch (rmsg->header.cmd) {
 	case SPI_RPMSG_COMMAND_TRANSFER:
+	case SPI_RPMSG_COMMAND_TRANSFER_CONTINUOUS:
 		size = sizeof(struct spi_rpmsg_msg) - SPI_RPMSG_MAX_BUF_SIZE + rmsg->len;
 		break;
 	case SPI_RPMSG_COMMAND_INIT:
@@ -192,6 +199,10 @@ static int rpmsg_xfer(struct spi_rpmsg_msg *rmsg, struct spi_rpmsg_info *info)
 			dev_warn(&info->rpdev->dev, "Current firmware only supports SPI mode 0. Please update the firmware to use other modes.\n");
 			return 0;
 		}
+		if (rmsg->header.cmd == SPI_RPMSG_COMMAND_TRANSFER_CONTINUOUS) {
+			dev_warn(&info->rpdev->dev, "Failing transfer of %d bytes (%ld max). Please update the firmware.\n",
+				 rmsg->len, SPI_RPMSG_MAX_BUF_SIZE);
+		}
 		dev_dbg(&info->rpdev->dev,
 			"%s failed: %d\n", __func__, info->ret_val);
 		return -(info->ret_val);
@@ -217,20 +228,25 @@ static int spi_rpmsg_set_mode(struct rpmsg_spi *devdata, u32 mode)
 	return ret;
 }
 
+/* The caller must hold spi_rpmsg.lock. */
+static void spi_rpmsg_continuous_transfer_abort(struct spi_rpmsg_msg *rmsg)
+{
+	/*
+	 * A zero-length transfer aborts the operation, even during a
+	 * continuous transfer.
+	 */
+	rmsg->len = 0;
+	rpmsg_xfer(rmsg, &spi_rpmsg);
+}
+
 static int spi_rpmsg_transfer_one(struct spi_master *master,
 				  struct spi_device *spi,
 				  struct spi_transfer *transfer)
 {
 	struct rpmsg_spi *devdata = spi_master_get_devdata(master);
 	struct spi_rpmsg_msg rmsg;
+	unsigned int nbytes, len, pos;
 	int status = 0;
-
-	if (transfer->len > SPI_RPMSG_MAX_BUF_SIZE) {
-		dev_warn(&master->dev, "Failing transfer of %d bytes (%ld max)\n",
-			 transfer->len, SPI_RPMSG_MAX_BUF_SIZE);
-		status = -ERANGE;
-		goto out;
-	}
 
 	if (!transfer->len)
 		goto out;
@@ -242,28 +258,52 @@ static int spi_rpmsg_transfer_one(struct spi_master *master,
 		devdata->mode = spi->mode;
 	}
 
+	pos = 0;
 	memset(&rmsg, 0, sizeof(SPI_RPMSG_HDR_SIZE));
-	rmsg.header.cmd = SPI_RPMSG_COMMAND_TRANSFER;
+	/*
+	 * Set parameters before the loop, as they do not change
+	 * during the split transfer.
+	 */
 	rmsg.bus_id = devdata->id;
 	rmsg.bits_per_word = transfer->bits_per_word;
 	rmsg.speed_hz = transfer->speed_hz;
-	rmsg.len = transfer->len;
-	memcpy(rmsg.buf, transfer->tx_buf, transfer->len);
+	do {
+		nbytes = transfer->len - pos;
+		if (unlikely(nbytes > SPI_RPMSG_MAX_BUF_SIZE)) {
+			rmsg.header.cmd = SPI_RPMSG_COMMAND_TRANSFER_CONTINUOUS;
+			len = SPI_RPMSG_MAX_BUF_SIZE;
+		} else {
+			rmsg.header.cmd = SPI_RPMSG_COMMAND_TRANSFER;
+			len = nbytes;
+		}
 
-	mutex_lock(&spi_rpmsg.lock);
-	spi_rpmsg.rx_buf = transfer->rx_buf;
-	spi_rpmsg.len = transfer->len;
+		rmsg.len = len;
+		if (transfer->tx_buf)
+			memcpy(rmsg.buf, transfer->tx_buf + pos, len);
 
-	status = rpmsg_xfer(&rmsg, &spi_rpmsg);
+		mutex_lock(&spi_rpmsg.lock);
+		spi_rpmsg.rx_buf = transfer->rx_buf;
+		if (spi_rpmsg.rx_buf)
+			spi_rpmsg.rx_buf += pos;
+		spi_rpmsg.len = len;
 
-	if (status)
-		goto out_unlock;
-	if (spi_rpmsg.len != transfer->len) {
-		status = -EREMOTEIO;
-		goto out_unlock;
-	}
-	// data already copied to rx buf in cb so nothing else to do here
-	spi_rpmsg.rx_buf = NULL;
+		status = rpmsg_xfer(&rmsg, &spi_rpmsg);
+
+		if (status)
+			goto out_unlock;
+		if (spi_rpmsg.len != len) {
+			if (rmsg.header.cmd == SPI_RPMSG_COMMAND_TRANSFER_CONTINUOUS)
+				spi_rpmsg_continuous_transfer_abort(&rmsg);
+			status = -EREMOTEIO;
+			goto out_unlock;
+		}
+		// data already copied to rx buf in cb so nothing else to do here
+		spi_rpmsg.rx_buf = NULL;
+
+		mutex_unlock(&spi_rpmsg.lock);
+
+		pos += len;
+	} while (pos < transfer->len);
 
 out_unlock:
 	mutex_unlock(&spi_rpmsg.lock);
