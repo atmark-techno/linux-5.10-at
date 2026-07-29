@@ -65,12 +65,15 @@ static int rpmsg_life_cycle_notifier(struct notifier_block *nb,
 	msg.header.minor = IMX_RMPSG_MINOR;
 	msg.header.type = PM_RPMSG_TYPE;
 	msg.header.cmd = PM_RPMSG_MODE;
-	if (action == SYS_POWER_OFF)
-		msg.data = PM_RPMSG_SHUTDOWN;
-	if (action == SYS_RESTART)
-		msg.data = PM_RPMSG_REBOOT;
-	else // SYS_HALT, don't poweroff (will reset to wdt unless m33 handles it)
+	switch (action) {
+	case SYS_HALT:
 		return NOTIFY_DONE;
+	case SYS_RESTART:
+		msg.data = PM_RPMSG_REBOOT;
+		break;
+	default: // SYS_POWER_OFF
+		 msg.data = PM_RPMSG_SHUTDOWN;
+	}
 
 	/* No ACK from M core */
 	ret = rpmsg_send(life_cycle_rpdev->ept, &msg, sizeof(struct pm_rpmsg_data));
