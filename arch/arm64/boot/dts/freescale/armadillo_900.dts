@@ -236,14 +236,6 @@
 	status = "okay";
 };
 
-&gpioc_iomuxc {
-	leds {
-		imx-rpmsg,pins = <
-			IOMUXC_PTC5_PTC5 0x20000 /* OBE(1) */
-		>;
-	};
-};
-
 &iomuxc1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_customize>;
