@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_usb.c
  *
  * @brief This file contains the interfaceing to USB bus
  * driver.
  *
  *
- * Copyright 2008-2021, 2024-2025 NXP
+ * Copyright 2008-2021, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -22,20 +23,22 @@
  */
 
 /********************************************************
-Change log:
-    10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_usb.h"
 extern struct semaphore AddRemoveCardSem;
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 /** Card-type detection frame response */
 typedef struct {
 	/** 32-bit ACK+WINNER field */
@@ -58,7 +61,7 @@ typedef struct {
 /** Name of the USB driver */
 static const char usbdriver_name[] = "usbxxx";
 
-static struct usb_device_id *woal_usb_table_ext = NULL;
+static struct usb_device_id *woal_usb_table_ext;
 static usb_config_t customer_usb_config = {0x0};
 
 /** This structure contains the device signature */
@@ -67,16 +70,6 @@ static struct usb_device_id woal_usb_table[] = {
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
-#endif
-#ifdef USB8997
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_1, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997V2_PID_1,
-			"NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_2, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_3, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_4, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_5, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_6, "NXP WLAN USB Adapter")},
 #endif
 #ifdef USB8978
 	{NXP_USB_DEVICE(USB8978_VID_1, USB8978_PID_1, "NXP WLAN USB Adapter")},
@@ -115,9 +108,6 @@ static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 /* Enter the device signature inside */
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
-#endif
-#ifdef USB8997
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_2, "NXP WLAN USB Adapter")},
 #endif
 #ifdef USB8978
 	{NXP_USB_DEVICE(USB8978_VID_1, USB8978_PID_2, "NXP WLAN USB Adapter")},
@@ -192,12 +182,14 @@ static struct usb_driver REFDATA woal_usb_driver = {
 static moal_if_ops usb_ops;
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 /**
@@ -207,7 +199,7 @@ static moal_if_ops usb_ops;
  *  @param urb		Pointer to struct urb
  *  @param regs		Registers
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 static void woal_usb_receive(struct urb *urb, struct pt_regs *regs)
 #else
@@ -217,7 +209,7 @@ static void woal_usb_receive(struct urb *urb, struct pt_regs *regs)
  *
  *  @param urb		Pointer to struct urb
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 static void woal_usb_receive(struct urb *urb)
 #endif
@@ -281,9 +273,11 @@ static void woal_usb_receive(struct urb *urb)
 		if (status == MLAN_STATUS_PENDING) {
 			queue_work(handle->workqueue, &handle->main_work);
 			/* urb for data_ep is re-submitted now, unless we reach
-			 * USB_HIGH_RX_PENDING */
+			 * USB_HIGH_RX_PENDING
+			 */
 			/* urb for cmd_ep will be re-submitted in callback
-			 * moal_recv_complete */
+			 * moal_recv_complete
+			 */
 			if (cardp->rx_cmd_ep == context->ep)
 				goto rx_exit;
 			else if (atomic_read(&handle->rx_pending) >=
@@ -336,10 +330,10 @@ setup_for_next:
 			    MLAN_USB_AGGR_MODE_NUM) {
 				size *= MAX(MLAN_USB_MAX_PKT_SIZE,
 					    cardp->rx_deaggr_ctrl.aggr_align);
-				size = MAX(size, MLAN_RX_DATA_BUF_SIZE);
+				size = MAX(size, handle->params.amsdu_rx_size);
 			}
 		} else
-			size = MLAN_RX_DATA_BUF_SIZE;
+			size = handle->params.amsdu_rx_size;
 	}
 	woal_usb_submit_rx_urb(context, size);
 
@@ -425,7 +419,7 @@ static void woal_usb_tx_complete(struct urb *urb)
  *  @param ctx		Pointer to urb_context structure
  *  @param size	        Skb size
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_submit_rx_urb(urb_context *ctx, int size)
 {
@@ -497,11 +491,12 @@ rx_ret:
 }
 
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 /**
  *  @brief  Check chip revision
  *
@@ -510,7 +505,7 @@ rx_ret:
  *  @param usb_strap     A pointer to usb_strap
  *  @param boot_mode     A pointer to boot_mode
  *
- *  @return 	   	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_check_chip_revision(moal_handle *handle,
 					    t_u32 *usb_chip_rev,
@@ -611,12 +606,13 @@ cleanup:
  *  @brief This function unlink urb
  *
  *  @param handle A pointer to moal_handle structure
- *  @return 	  N/A
+ *  @return	  N/A
  */
 static void woal_usb_unlink_urb(void *card_desc)
 {
 	struct usb_card_rec *cardp = (struct usb_card_rec *)card_desc;
 	int i;
+
 	ENTER();
 	if (cardp) {
 		/* Unlink Rx cmd URB */
@@ -659,7 +655,7 @@ static void woal_usb_unlink_urb(void *card_desc)
  *
  *  @param cardp	Pointer usb_card_rec
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 void woal_usb_free(struct usb_card_rec *cardp)
 {
@@ -722,33 +718,6 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V15, strlen(V15),
-			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
-				strlen(INTF_CARDTYPE) - strlen(KERN_VERSION));
-	}
-#endif
-#ifdef USB8997
-	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_1 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_2 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_3 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_4 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_5 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_6 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997V2_PID_1) {
-		card_type = CARD_TYPE_USB8997;
-		moal_memcpy_ext(NULL, driver_version, CARD_USB8997,
-				strlen(CARD_USB8997), strlen(driver_version));
-		moal_memcpy_ext(
-			NULL,
-			driver_version + strlen(INTF_CARDTYPE) +
-				strlen(KERN_VERSION),
-			V16, strlen(V16),
 			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				strlen(INTF_CARDTYPE) - strlen(KERN_VERSION));
 	}
@@ -843,15 +812,17 @@ static t_u16 woal_update_card_type(t_void *card)
 		    device_name, &card_type,
 		    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct)) ==
 	    MLAN_STATUS_SUCCESS) {
-		moal_memcpy_ext(NULL, driver_version, device_name,
-				strlen(device_name), strlen(driver_version));
+		moal_memcpy_ext(
+			NULL, driver_version, device_name, strlen(device_name),
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1));
 
 		if (card_type == CARD_TYPE_USB8801) {
 			moal_memcpy_ext(NULL,
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V14, strlen(V14),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		} else if (card_type == CARD_TYPE_USB8897) {
@@ -859,16 +830,17 @@ static t_u16 woal_update_card_type(t_void *card)
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V15, strlen(V15),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
-		} else if (card_type == CARD_TYPE_USB8997 ||
-			   card_type == CARD_TYPE_USB8978) {
+		} else if (card_type == CARD_TYPE_USB8978) {
 			moal_memcpy_ext(NULL,
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V16, strlen(V16),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		} else if (card_type == CARD_TYPE_USB9098 ||
@@ -877,7 +849,8 @@ static t_u16 woal_update_card_type(t_void *card)
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V17, strlen(V17),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		} else if (card_type == CARD_TYPE_USBIW624 ||
@@ -886,11 +859,15 @@ static t_u16 woal_update_card_type(t_void *card)
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V18, strlen(V18),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		}
 	}
+
+	driver_version[MLAN_MAX_VER_STR_LEN - 1] = '\0';
+
 	return card_type;
 }
 
@@ -900,7 +877,7 @@ static t_u16 woal_update_card_type(t_void *card)
  *  @param intf		Pointer to usb_interface
  *  @param id		Pointer to usb_device_id
  *
- *  @return 	   	Address of variable usb_cardp, error code otherwise
+ *  @return		Address of variable usb_cardp, error code otherwise
  */
 static int woal_usb_probe(struct usb_interface *intf,
 			  const struct usb_device_id *id)
@@ -947,10 +924,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB8897
 			case (__force __le16)USB8897_PID_1:
 #endif /* USB8897 */
-#ifdef USB8997
-			case (__force __le16)USB8997_PID_1:
-			case (__force __le16)USB8997V2_PID_1:
-#endif /* USB8997 */
 #ifdef USB8978
 			case (__force __le16)USB8978_PID_1:
 			case (__force __le16)USB8978_PID_1_BT:
@@ -969,7 +942,8 @@ static int woal_usb_probe(struct usb_interface *intf,
 #endif /* USBIW610 */
 
 				/* If skip FW is set, we must return error so
-				 * the next driver can download the FW */
+				 * the next driver can download the FW
+				 */
 				if (skip_fwdnld)
 					goto error;
 				else
@@ -978,9 +952,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB8897
 			case (__force __le16)USB8897_PID_2:
 #endif /* USB8897 */
-#ifdef USB8997
-			case (__force __le16)USB8997_PID_2:
-#endif /* USB8997 */
 #ifdef USB8978
 			case (__force __le16)USB8978_PID_2:
 			case (__force __le16)USB8978_PID_2_BT:
@@ -1011,15 +982,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 
 				break;
 			}
-			/*To do, get card type*/
-			/*			if
-			   (woal_cpu_to_le16(udev->descriptor.idProduct) ==
-			   USB8897_PID_2) usb_cardp->card_type =
-			   CARD_TYPE_USB8897; else if
-			   (woal_cpu_to_le16(udev->descriptor.idProduct) ==
-			   USB8997_PID_2) usb_cardp->card_type =
-			   CARD_TYPE_USB997;
-			*/
 			break;
 		}
 	}
@@ -1030,8 +992,7 @@ static int woal_usb_probe(struct usb_interface *intf,
 		usb_cardp->intf = intf;
 
 		PRINTM(MINFO,
-		       "bcdUSB = 0x%X bDeviceClass = 0x%X"
-		       " bDeviceSubClass = 0x%X, bDeviceProtocol = 0x%X\n",
+		       "bcdUSB = 0x%X bDeviceClass = 0x%X bDeviceSubClass = 0x%X, bDeviceProtocol = 0x%X\n",
 		       woal_cpu_to_le16(udev->descriptor.bcdUSB),
 		       udev->descriptor.bDeviceClass,
 		       udev->descriptor.bDeviceSubClass,
@@ -1150,16 +1111,16 @@ static int woal_usb_probe(struct usb_interface *intf,
 			    !usb_cardp->rx_cmd_ep || !usb_cardp->rx_data_ep) {
 				PRINTM(MERROR,
 				       "%s: invalid endpoint assignment\n",
-				       __FUNCTION__);
+				       __func__);
 				goto error;
 			}
 			if (!usb_cardp->tx_data2_ep) {
 				PRINTM(MERROR,
 				       "%s: invalid endpoint assignment\n",
-				       __FUNCTION__);
+				       __func__);
 				PRINTM(MERROR,
 				       "%s: DATA2 endpoint is not enumarated\n",
-				       __FUNCTION__);
+				       __func__);
 			}
 		}
 
@@ -1188,8 +1149,7 @@ static int woal_usb_probe(struct usb_interface *intf,
 		/* At this point wlan_add_card() will be called */
 		if (!(woal_add_card(usb_cardp, &usb_cardp->udev->dev, &usb_ops,
 				    card_type))) {
-			PRINTM(MERROR, "%s: woal_add_card failed\n",
-			       __FUNCTION__);
+			PRINTM(MERROR, "%s: woal_add_card failed\n", __func__);
 			goto error;
 		}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
@@ -1206,7 +1166,8 @@ static int woal_usb_probe(struct usb_interface *intf,
 		 * the wakeup policy, which is purely a userspace decision.
 		 */
 		/* if (udev->actconfig->desc.bmAttributes &
-		   USB_CONFIG_ATT_WAKEUP) intf->needs_remote_wakeup = 1; */
+		 * USB_CONFIG_ATT_WAKEUP) intf->needs_remote_wakeup = 1;
+		 */
 #endif
 		usb_get_dev(udev);
 		LEAVE();
@@ -1229,12 +1190,13 @@ error:
  *
  *  @param intf		Pointer to usb_interface
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 static void woal_usb_disconnect(struct usb_interface *intf)
 {
 	struct usb_card_rec *cardp = usb_get_intfdata(intf);
 	moal_handle *phandle = NULL;
+
 	ENTER();
 	if (!cardp || !cardp->phandle) {
 		PRINTM(MERROR, "Card or phandle is not valid\n");
@@ -1266,7 +1228,7 @@ static void woal_usb_disconnect(struct usb_interface *intf)
  *  @param handle	  Pointer to moal_handle
  *
  *
- *  @return 	   	  N/A
+ *  @return		  N/A
  */
 void woal_kill_urbs(moal_handle *handle)
 {
@@ -1282,7 +1244,7 @@ void woal_kill_urbs(moal_handle *handle)
  *  @param handle	  Pointer to moal_handle
  *
  *
- *  @return 	   	  N/A
+ *  @return		  N/A
  */
 void woal_resubmit_urbs(moal_handle *handle)
 {
@@ -1312,7 +1274,7 @@ void woal_resubmit_urbs(moal_handle *handle)
  *  @param intf		  Pointer to usb_interface
  *  @param message	  Pointer to pm_message_t structure
  *
- *  @return 	   	  MLAN_STATUS_SUCCESS
+ *  @return		  MLAN_STATUS_SUCCESS
  */
 static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 {
@@ -1347,9 +1309,8 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	memset(&pm_info, 0, sizeof(pm_info));
 #define MAX_RETRY_USB 8
 	for (i = 0; i < MAX_RETRY_USB; i++) {
-		if (MLAN_STATUS_SUCCESS ==
-		    woal_get_pm_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
-				     &pm_info)) {
+		if (woal_get_pm_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
+				     &pm_info) == MLAN_STATUS_SUCCESS) {
 			if (pm_info.is_suspend_allowed == MTRUE)
 				break;
 			else
@@ -1381,31 +1342,26 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	}
 
 	/* Unlink Rx cmd URB */
-	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb) {
+	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb)
 		usb_kill_urb(cardp->rx_cmd.urb);
-	}
 	/* Unlink Rx data URBs */
 	if (atomic_read(&cardp->rx_data_urb_pending)) {
 		for (i = 0; i < MVUSB_RX_DATA_URB; i++) {
-			if (cardp->rx_data_list[i].urb) {
+			if (cardp->rx_data_list[i].urb)
 				usb_kill_urb(cardp->rx_data_list[i].urb);
-			}
 		}
 	}
 
 	/* Unlink Tx data URBs */
 	for (i = 0; i < MVUSB_TX_HIGH_WMARK; i++) {
-		if (cardp->tx_data_list[i].urb) {
+		if (cardp->tx_data_list[i].urb)
 			usb_kill_urb(cardp->tx_data_list[i].urb);
-		}
-		if (cardp->tx_data2_list[i].urb) {
+		if (cardp->tx_data2_list[i].urb)
 			usb_kill_urb(cardp->tx_data2_list[i].urb);
-		}
 	}
 	/* Unlink Tx cmd URB */
-	if (cardp->tx_cmd.urb) {
+	if (cardp->tx_cmd.urb)
 		usb_kill_urb(cardp->tx_cmd.urb);
-	}
 
 	handle->suspend_wait_q_woken = MTRUE;
 	wake_up_interruptible(&handle->suspend_wait_q);
@@ -1421,7 +1377,7 @@ done:
  *
  *  @param intf		  Pointer to usb_interface
  *
- *  @return 	   	  MLAN_STATUS_SUCCESS
+ *  @return		  MLAN_STATUS_SUCCESS
  */
 static int woal_usb_resume(struct usb_interface *intf)
 {
@@ -1445,7 +1401,8 @@ static int woal_usb_resume(struct usb_interface *intf)
 
 	/* Indicate device resumed.
 	 * The netdev queue will be resumed only after the urbs
-	 * have been resubmitted */
+	 * have been resubmitted
+	 */
 	handle->is_suspended = MFALSE;
 
 	if (!atomic_read(&cardp->rx_data_urb_pending)) {
@@ -1472,7 +1429,8 @@ static int woal_usb_resume(struct usb_interface *intf)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
 		/* Resume handler may be called due to remote wakeup,
-		   force to exit suspend anyway */
+		 * force to exit suspend anyway
+		 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	cardp->udev->autosuspend_disabled = 1;
 #else
@@ -1500,9 +1458,9 @@ done:
 /**
  *  @brief This function initialize the tx URBs
  *
- *  @param handle 	Pointer to moal_handle structure
+ *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_tx_init(moal_handle *handle)
 {
@@ -1552,16 +1510,16 @@ init_exit:
 /**
  *  @brief This function submits the rx data URBs
  *
- *  @param handle 	Pointer to moal_handle structure
+ *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 {
 	struct usb_card_rec *cardp = (struct usb_card_rec *)handle->card;
 	int i;
 	mlan_status ret = MLAN_STATUS_FAILURE;
-	t_u32 buffer_len = MLAN_RX_DATA_BUF_SIZE;
+	t_u32 buffer_len = handle->params.amsdu_rx_size;
 
 	ENTER();
 
@@ -1570,7 +1528,8 @@ mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 		if (cardp->rx_deaggr_ctrl.aggr_mode == MLAN_USB_AGGR_MODE_NUM) {
 			buffer_len *= MAX(MLAN_USB_MAX_PKT_SIZE,
 					  cardp->rx_deaggr_ctrl.aggr_align);
-			buffer_len = MAX(buffer_len, MLAN_RX_DATA_BUF_SIZE);
+			buffer_len =
+				MAX(buffer_len, handle->params.amsdu_rx_size);
 		}
 	}
 
@@ -1590,9 +1549,9 @@ mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 /**
  *  @brief This function initialize the rx URBs and submit them
  *
- *  @param handle 	Pointer to moal_handle structure
+ *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_rx_init(moal_handle *handle)
 {
@@ -1650,9 +1609,9 @@ init_exit:
  *  @param handle	Pointer to moal_handle structure
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param ep		Endpoint to send
- *  @param timeout 	Timeout value in milliseconds (if 0 the wait is forever)
+ *  @param timeout	Timeout value in milliseconds (if 0 the wait is forever)
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_write_data_sync(moal_handle *handle,
 					    mlan_buffer *pmbuf, t_u32 endpoint,
@@ -1696,9 +1655,9 @@ static mlan_status woal_usb_write_data_sync(moal_handle *handle,
  *  @param handle	Pointer to moal_handle structure
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param ep		Endpoint to receive
- *  @param timeout 	Timeout value in milliseconds (if 0 the wait is forever)
+ *  @param timeout	Timeout value in milliseconds (if 0 the wait is forever)
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_read_data_sync(moal_handle *handle,
 					   mlan_buffer *pmbuf, t_u32 endpoint,
@@ -1710,6 +1669,7 @@ static mlan_status woal_usb_read_data_sync(moal_handle *handle,
 	t_u32 buf_len = pmbuf->data_len;
 	int actual_length;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 	/* Receive the data response */
 	ret = usb_bulk_msg(cardp->udev, usb_rcvbulkpipe(cardp->udev, ep), data,
@@ -1731,7 +1691,7 @@ static mlan_status woal_usb_read_data_sync(moal_handle *handle,
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param ep		Endpoint to send
  *
- *  @return 	   	MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE or
+ *  @return		MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE or
  * MLAN_STATUS_RESOURCE
  */
 mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
@@ -1872,7 +1832,7 @@ tx_ret:
  *
  *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_register_dev(moal_handle *handle)
 {
@@ -1889,6 +1849,7 @@ static mlan_status woal_usb_register_dev(moal_handle *handle)
 static void woal_usb_unregister_dev(moal_handle *handle)
 {
 	struct usb_card_rec *cardp = (struct usb_card_rec *)handle->card;
+
 	PRINTM(MMSG, "USB: unregister device\n");
 	woal_usb_free(cardp);
 	cardp->phandle = NULL;
@@ -1898,26 +1859,25 @@ static void woal_usb_unregister_dev(moal_handle *handle)
 /**
  *  @brief This function registers driver.
  *
- *  @return 	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_bus_register(void)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
-	if (skip_fwdnld) {
+	if (skip_fwdnld)
 		woal_usb_driver.id_table = woal_usb_table_skip_fwdnld;
-	}
 
-	if (woal_usb_table_ext != NULL) {
+	if (woal_usb_table_ext != NULL)
 		woal_usb_driver.id_table = woal_usb_table_ext;
-	}
 	/*
 	 * API registers the NXP USB driver
 	 * to the USB system
 	 */
 	if (usb_register(&woal_usb_driver)) {
-		PRINTM(MFATAL, "USB Driver Registration Failed \n");
+		PRINTM(MFATAL, "USB Driver Registration Failed\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
 	LEAVE();
@@ -1927,7 +1887,7 @@ mlan_status woal_usb_bus_register(void)
 /**
  *  @brief This function removes usb driver.
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 void woal_usb_bus_unregister(void)
 {
@@ -2092,7 +2052,7 @@ int woal_exit_usb_suspend(moal_handle *handle)
  *  @param handle   Pointer to moal_handle
  *  @param ep       Endpoint to re-submit urb
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 void woal_submit_rx_urb(moal_handle *handle, t_u8 ep)
 {
@@ -2159,8 +2119,8 @@ done:
 static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 	t_u32 revision_id = 0;
 	t_u32 strap = 0;
 	t_u32 boot_mode = 0;
@@ -2179,8 +2139,8 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 	if (cardp->boot_state == USB_FW_READY)
 		goto done;
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 	ret = woal_check_chip_revision(handle, &revision_id, &strap,
 				       &boot_mode);
 	if (ret != MLAN_STATUS_SUCCESS) {
@@ -2189,19 +2149,6 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 	}
 	PRINTM(MCMND, "revision=0x%x, strap=0x%x\n", revision_id, strap);
-#endif
-
-#ifdef USB8997
-	if (IS_USB8997(handle->card_type)) {
-		if (strap == CARD_TYPE_USB_UART)
-			strncpy(handle->card_info->fw_name,
-				USBUART8997_DEFAULT_COMBO_FW_NAME,
-				FW_NAMW_MAX_LEN);
-		else if (strap != 0)
-			strncpy(handle->card_info->fw_name,
-				USBUSB8997_DEFAULT_COMBO_FW_NAME,
-				FW_NAMW_MAX_LEN);
-	}
 #endif
 
 #ifdef USB8978
@@ -2336,7 +2283,7 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #endif
 
 done:
-	PRINTM(MCMND, "combo fw:%s wlan fw:%s \n", handle->card_info->fw_name,
+	PRINTM(MCMND, "combo fw:%s wlan fw:%s\n", handle->card_info->fw_name,
 	       handle->card_info->fw_name_wlan);
 	LEAVE();
 	return ret;
@@ -2354,7 +2301,7 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 			     t_u16 *current_entry_idx)
 {
 	char *token, *value;
-	static usb_config_entry_t *current_entry = NULL;
+	static usb_config_entry_t *current_entry;
 
 	/* Remove whitespace and newlines */
 	line = strim(line);
@@ -2456,9 +2403,8 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 			current_entry->vid_pid_pairs[pair_idx].pid = (__u16)pid;
 
 			/* Update the count to track the highest index + 1 */
-			if (pair_idx >= current_entry->vid_pid_count) {
+			if (pair_idx >= current_entry->vid_pid_count)
 				current_entry->vid_pid_count = pair_idx + 1;
-			}
 
 			PRINTM(MINFO,
 			       "Parsed VID/PID[%d]: 0x%04x:0x%04x for device %s\n",
@@ -2480,6 +2426,7 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
 {
 	t_u8 *src, *dest;
+
 	static t_s32 pos;
 
 	ENTER();
@@ -2564,6 +2511,7 @@ static int parse_usb_config_file(const char *config_path, usb_config_t *config)
 
 	if (ret >= 0) {
 		int i, j;
+
 		config->total_entries = entry_idx;
 
 		/* Count total valid VID/PID pairs */
@@ -2718,6 +2666,7 @@ int woal_usb_init_extended_table(const char *config_path)
 
 	/* Count original table size */
 	struct usb_device_id *entry = woal_usb_table;
+
 	while (entry->idVendor != 0 || entry->idProduct != 0) {
 		original_size++;
 		entry++;
@@ -2747,7 +2696,6 @@ int woal_usb_init_extended_table(const char *config_path)
 
 	return 0;
 }
-
 /**
  * check_usb_ext_table_info - Check USB extended table for device information
  * @device_name: Buffer to store the device name (can be NULL)
@@ -2799,10 +2747,9 @@ mlan_status check_usb_ext_table_info(char *device_name, t_u16 *card_type,
 								 1] = '\0';
 						}
 
-						if (card_type != NULL) {
+						if (card_type != NULL)
 							*card_type =
 								get_card_type;
-						}
 
 						return MLAN_STATUS_SUCCESS;
 					}

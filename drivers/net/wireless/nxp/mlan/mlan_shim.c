@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_shim.c
  *
  *  @brief This file contains APIs to MOAL module.
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -21,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    10/13/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/13/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_init.h"
@@ -47,12 +49,14 @@ Change log:
 #include "mlan_11n_rxreorder.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 #ifdef STA_SUPPORT
 static mlan_operations mlan_sta_ops = {
 	/* init cmd handler */
@@ -142,8 +146,9 @@ static INLINE t_bool wlan_is_adma_supported(mlan_adapter *pmadapter)
 }
 
 /********************************************************
-			Local Functions
-*******************************************************/
+ * Local Functions
+ * *****************************************************
+ */
 /**
  *  @brief This function process pending ioctl
  *
@@ -198,8 +203,9 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 	LEAVE();
 }
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function registers MOAL to MLAN module.
@@ -236,9 +242,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	t_u8 i = 0;
 	t_u32 j = 0;
 
-	if (!pmdevice || !ppmlan_adapter) {
+	if (!pmdevice || !ppmlan_adapter)
 		return MLAN_STATUS_FAILURE;
-	}
 	MASSERT(ppmlan_adapter);
 	MASSERT(pmdevice->callbacks.moal_print);
 #ifdef DEBUG_LEVEL1
@@ -367,7 +372,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 			   sizeof(mlan_adapter_operations),
 			   sizeof(mlan_adapter_operations));
 		ret = wlan_get_sdio_device(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
+		if (ret != MLAN_STATUS_SUCCESS) {
 			ret = MLAN_STATUS_FAILURE;
 			goto error;
 		}
@@ -380,7 +385,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->init_para.gpio_pin = pmdevice->gpio_pin;
 		/* card specific probing has been deferred until now .. */
 		ret = wlan_sdio_probe(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
+		if (ret != MLAN_STATUS_SUCCESS) {
 			ret = MLAN_STATUS_FAILURE;
 			goto error;
 		}
@@ -410,6 +415,9 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		PRINTM(MMSG,
 		       "Attach mlan adapter operations.card_type is 0x%x.\n",
 		       pmdevice->card_type);
+		/* coverity assumes that Passing pmadapter to memset,
+		 *  sets pmadapter->callbacks.moal_memcpy_ext to NULL
+		 */
 		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_pcie_ops,
 			   sizeof(mlan_adapter_operations),
 			   sizeof(mlan_adapter_operations));
@@ -420,7 +428,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 			pmdevice->mclient_scheduling;
 
 		ret = wlan_get_pcie_device(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
+		if (ret != MLAN_STATUS_SUCCESS) {
 			ret = MLAN_STATUS_FAILURE;
 			goto error;
 		}
@@ -441,11 +449,16 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		PRINTM(MMSG,
 		       "Attach mlan adapter operations.card_type is 0x%x.\n",
 		       pmdevice->card_type);
+		/* coverity assumes that Passing pmadapter to memset,
+		 * sets pmadapter->callbacks.moal_memcpy_ext to NULL but
+		 * memset of pmadapter will not nullify
+		 * pmadapter->callbacks.moal_memcpy_ext.
+		 */
 		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_usb_ops,
 			   sizeof(mlan_adapter_operations),
 			   sizeof(mlan_adapter_operations));
 		ret = wlan_get_usb_device(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
+		if (ret != MLAN_STATUS_SUCCESS) {
 			ret = MLAN_STATUS_FAILURE;
 			goto error;
 		}
@@ -515,6 +528,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.disable_11h_tpc = pmdevice->disable_11h_tpc;
 	pmadapter->init_para.tpe_ie_ignore = pmdevice->tpe_ie_ignore;
 	pmadapter->init_para.amsdu_disable = pmdevice->amsdu_disable;
+	pmadapter->rx_buf_size = pmdevice->amsdu_rx_size;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
 
@@ -571,6 +585,18 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->priv[0]->bss_num =
 			(t_u8)pmdevice->bss_attr[0].bss_num;
 	}
+
+#ifdef SECURE_HOST
+	pmadapter->shc_secure_host = pmdevice->secure_host;
+	if (pmadapter->shc_secure_host && pmadapter->second_mac) {
+		if (pcb->moal_secure_host_derive_traffic_keys(
+			    pmadapter->pmoal_handle) ||
+		    pcb->moal_secure_host_data_ctx_init(
+			    pmadapter->pmoal_handle)) {
+			goto error;
+		}
+	}
+#endif
 
 	/* init function table */
 	for (j = 0; mlan_ops[j]; j++) {
@@ -725,6 +751,12 @@ mlan_status mlan_read_meta_data(mlan_adapter *pmadapter, pmlan_fw_image pmfw)
 	if (memcmp(pmadapter, magic,
 		   (pmfw->pfw_buf + pmfw->fw_len) - META_MAGIC_OFFSET,
 		   META_MAGIC_LEN)) {
+#ifdef SECURE_HOST
+		if (pmadapter->shc_secure_host)
+			PRINTM(MERROR,
+			       "Secure host failed: No Meta magic in FW\n");
+		else
+#endif
 			ret = MLAN_STATUS_SUCCESS;
 
 		LEAVE();
@@ -1088,6 +1120,7 @@ mlan_status mlan_shutdown_fw(t_void *padapter)
 static t_void mlan_queue_main_work(mlan_adapter *pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+
 	ENTER();
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
 			    pmadapter->pmain_proc_lock);
@@ -1117,6 +1150,7 @@ static t_void mlan_queue_main_work(mlan_adapter *pmadapter)
 static t_void mlan_queue_rx_work(mlan_adapter *pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+
 	ENTER();
 
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pmadapter->prx_proc_lock);
@@ -1147,6 +1181,7 @@ static t_void mlan_queue_rx_work(mlan_adapter *pmadapter)
 void mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
 			    pmadapter->pmain_proc_lock);
 	if (!block) {
@@ -1180,6 +1215,7 @@ void mlan_block_main_process(mlan_adapter *pmadapter, t_u8 block)
 void mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pmadapter->prx_proc_lock);
 	if (!block) {
 		pmadapter->rx_lock_flag = MFALSE;
@@ -1338,8 +1374,8 @@ static void mlan_refill_rx_ring(t_void *padapter)
 				 pmadapter->callbacks.moal_spin_lock,
 				 pmadapter->callbacks.moal_spin_unlock);
 	while (refill_index != MLAN_INVALID_TXRX_INDEX_VAL) {
-		if (MLAN_STATUS_SUCCESS ==
-		    wlan_pcie_reattach_pmbuf(pmadapter, refill_index, &pmbuf)) {
+		if (wlan_pcie_reattach_pmbuf(pmadapter, refill_index, &pmbuf) ==
+		    MLAN_STATUS_SUCCESS) {
 			reattach_fail = 0;
 			/* Update WR PTR after Reattach success */
 			wlan_pcie_rx_ring_move_rdwrptr(pmadapter, refill_index,
@@ -1389,6 +1425,7 @@ static void mlan_refill_rx_ring(t_void *padapter)
 static t_void wlan_free_txrx(pmlan_adapter pmadapter)
 {
 	t_u8 i;
+
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i])
 			wlan_clean_txrx(pmadapter->priv[i]);
@@ -1551,7 +1588,8 @@ process_start:
 			if (pmadapter->pm_wakeup_fw_try)
 				break;
 			/* Check if we need to confirm Sleep Request received
-			 * previously */
+			 * previously
+			 */
 			if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
 				if (!pmadapter->cmd_sent &&
 				    !pmadapter->curr_cmd &&
@@ -1730,7 +1768,7 @@ process_start:
 
 exit_main_proc:
 	if (pmadapter->hw_status == WlanHardwareStatusClosing)
-		if (MLAN_STATUS_SUCCESS != mlan_shutdown_fw(pmadapter))
+		if (mlan_shutdown_fw(pmadapter) != MLAN_STATUS_SUCCESS)
 			PRINTM(MERROR, "ERR:mlan_shutdown_fw failed\n");
 	LEAVE();
 	return ret;
@@ -1828,9 +1866,8 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	ENTER();
 	MASSERT(padapter && pmbuf);
 
-	if (!padapter || !pmbuf) {
+	if (!padapter || !pmbuf)
 		return MLAN_STATUS_FAILURE;
-	}
 
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 	pmbuf->flags |= MLAN_BUF_FLAG_MOAL_TX_BUF;
@@ -1889,7 +1926,7 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 				   pmbuf->pbuf + pmbuf->data_offset,
 				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 			tdls_status = wlan_get_tdls_link_status(pmpriv, ra);
-			if (MTRUE == wlan_is_tdls_link_setup(tdls_status) ||
+			if (wlan_is_tdls_link_setup(tdls_status) == MTRUE ||
 			    !pmpriv->media_connected)
 				pmbuf->flags |= MLAN_BUF_FLAG_TDLS;
 		}
@@ -1945,6 +1982,11 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 	pmlan_private pmpriv = MNULL;
 
 	ENTER();
+
+	if (pmadapter == MNULL) {
+		LEAVE();
+		return ret;
+	}
 
 	if (pioctl_req == MNULL) {
 		PRINTM(MMSG, "set pending clean\n");
@@ -2014,7 +2056,7 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 #ifdef DEBUG_LEVEL1
 	t_u32 sec = 0, usec = 0;
 #endif
-	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
+	t_u32 max_rx_data_size = pmadapter->rx_buf_size;
 
 	ENTER();
 
@@ -2027,7 +2069,6 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 
 	MASSERT(len >= MLAN_TYPE_LEN);
 	recv_type = read_u32_unaligned(pmadapter, pbuf);
-	;
 	recv_type = wlan_le32_to_cpu(recv_type);
 	pbuf += MLAN_TYPE_LEN;
 	len -= MLAN_TYPE_LEN;
@@ -2113,7 +2154,7 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 					    pmadapter->pcard_usb->usb_rx_deaggr
 						    .aggr_ctrl.aggr_align);
 				max_rx_data_size = MAX(max_rx_data_size,
-						       MLAN_RX_DATA_BUF_SIZE);
+						       pmadapter->rx_buf_size);
 			}
 		}
 #endif
@@ -2185,6 +2226,7 @@ t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_private pmpriv = pmadapter->priv[bss_num];
 	t_u8 ret;
+
 	ENTER();
 	ret = wlan_wmm_select_queue(pmpriv, tid);
 	LEAVE();
@@ -2216,10 +2258,9 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");
 		if (pmpriv->sec_info.ewpa_enabled) {
 			*drop = MTRUE;
-			if (MLAN_STATUS_FAILURE ==
-			    wlan_prepare_cmd(pmpriv,
-					     HostCmd_CMD_802_11_EAPOL_PKT, 0, 0,
-					     MNULL, pmbuf)) {
+			if (wlan_prepare_cmd(
+				    pmpriv, HostCmd_CMD_802_11_EAPOL_PKT, 0, 0,
+				    MNULL, pmbuf) == MLAN_STATUS_FAILURE) {
 				PRINTM(MERROR, "Preparing the CMD failed\n");
 			}
 			wlan_recv_event(pmpriv,
@@ -2250,8 +2291,10 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 t_void mlan_set_driver_status(t_void *adapter, t_u8 driver_status)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
+
 	ENTER();
-	pmadapter->driver_status = driver_status;
+	if (pmadapter)
+		pmadapter->driver_status = driver_status;
 	LEAVE();
 }
 
@@ -2307,6 +2350,7 @@ t_u8 mlan_is_main_process_running(t_void *adapter)
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u8 ret = MFALSE;
+
 	ENTER();
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
 			    pmadapter->pmain_proc_lock);
@@ -2334,6 +2378,7 @@ t_u8 mlan_is_main_process_running(t_void *adapter)
 t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode, t_u8 func_num)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
+
 	ENTER();
 	pmadapter->pcard_pcie->pcie_int_mode = int_mode;
 	pmadapter->pcard_pcie->func_num = func_num;

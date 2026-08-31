@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file  moal_priv.c
  *
  * @brief This file contains standard ioctl functions
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -21,9 +22,10 @@
  */
 
 /************************************************************************
-Change log:
-    10/30/2008: initial version
-************************************************************************/
+ * Change log:
+ * 10/30/2008: initial version
+ * **********************************************************************
+ */
 
 #include "moal_main.h"
 #ifdef SDIO
@@ -36,8 +38,9 @@ Change log:
 #endif
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 /** Bands supported in Infra mode */
 static t_u8 SupportedInfraBand[] = {
 	BAND_B,
@@ -62,8 +65,9 @@ static t_u8 SupportedInfraBand[] = {
 };
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  * @brief Associated to a specific indexed entry in the ScanTable
@@ -127,7 +131,8 @@ static int woal_associate_ssid_bssid(moal_private *priv, struct iwreq *wrq)
 			if (mac_idx < ETH_ALEN) {
 				/* Data inside buf is copied from user space and
 				 * its length is bounded and validated before
-				 * use */
+				 * use
+				 */
 				// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 				ssid_bssid->bssid[mac_idx] =
 					(t_u8)woal_atox(buf + i);
@@ -152,8 +157,8 @@ static int woal_associate_ssid_bssid(moal_private *priv, struct iwreq *wrq)
 	       MAC2STR(ssid_bssid->bssid), (int)ssid_bssid->ssid.ssid_len,
 	       ssid_bssid->ssid.ssid);
 
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_bss_start(priv, MOAL_IOCTL_WAIT, ssid_bssid)) {
+	if (woal_bss_start(priv, MOAL_IOCTL_WAIT, ssid_bssid) !=
+	    MLAN_STATUS_SUCCESS) {
 		kfree(ssid_bssid);
 		LEAVE();
 		return -EFAULT;
@@ -161,8 +166,8 @@ static int woal_associate_ssid_bssid(moal_private *priv, struct iwreq *wrq)
 
 #ifdef REASSOCIATION
 	memset(&bss_info, 0x00, sizeof(bss_info));
-	if (MLAN_STATUS_SUCCESS ==
-	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+	if (woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info) ==
+	    MLAN_STATUS_SUCCESS) {
 		moal_memcpy_ext(priv->phandle, &priv->prev_ssid_bssid.ssid,
 				&bss_info.ssid, sizeof(mlan_802_11_ssid),
 				sizeof(mlan_802_11_ssid));
@@ -301,8 +306,8 @@ static int woal_get_signal(moal_private *priv, struct iwreq *wrq)
 	}
 
 	memset(&signal, 0, sizeof(mlan_ds_get_signal));
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_signal_info(priv, MOAL_IOCTL_WAIT, &signal)) {
+	if (woal_get_signal_info(priv, MOAL_IOCTL_WAIT, &signal) !=
+	    MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -486,7 +491,7 @@ static int woal_deep_sleep_ioctl(moal_private *priv, struct iwreq *wrq)
 		return -EINVAL;
 	} else { /* Display Deep Sleep settings */
 		PRINTM(MINFO, "Get Deep Sleep Mode\n");
-		if (MLAN_STATUS_SUCCESS != woal_get_deep_sleep(priv, data)) {
+		if (woal_get_deep_sleep(priv, data) != MLAN_STATUS_SUCCESS) {
 			LEAVE();
 			return -EFAULT;
 		}
@@ -894,6 +899,7 @@ static int woal_addba_reject(moal_private *priv, struct iwreq *wrq)
 	mlan_ds_11n_cfg *cfg_11n = NULL;
 	int data_length = wrq->u.data.length;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	copy_len = MIN(sizeof(data), sizeof(int) * data_length);
@@ -1163,8 +1169,8 @@ static int woal_hs_cfg(moal_private *priv, struct iwreq *wrq,
 	if (data_length && (data[0] != (int)HOST_SLEEP_CFG_CANCEL ||
 			    invoke_hostcmd == MFALSE)) {
 		memset(&bss_info, 0, sizeof(bss_info));
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info))
+		if (woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info) !=
+		    MLAN_STATUS_SUCCESS)
 			PRINTM(MINFO, "Fail to get bss_info\n");
 		if (bss_info.is_hs_configured) {
 			PRINTM(MERROR, "HS already configured\n");
@@ -1175,9 +1181,8 @@ static int woal_hs_cfg(moal_private *priv, struct iwreq *wrq,
 
 	/* Do a GET first if some arguments are not provided */
 	if (data_length >= 1 && data_length < 3) {
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_hs_params(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
-					   &hscfg)) {
+		if (woal_set_get_hs_params(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+					   &hscfg) != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Unable to get HS params\n");
 		}
 	}
@@ -1192,16 +1197,15 @@ static int woal_hs_cfg(moal_private *priv, struct iwreq *wrq,
 	if ((invoke_hostcmd == MTRUE) && (action == MLAN_ACT_SET)) {
 		/* Need to issue an extra IOCTL first to set up parameters */
 		hscfg.is_invoke_hostcmd = MFALSE;
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_hs_params(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
-					   &hscfg)) {
+		if (woal_set_get_hs_params(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+					   &hscfg) != MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
 	}
 	hscfg.is_invoke_hostcmd = invoke_hostcmd;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_hs_params(priv, action, MOAL_IOCTL_WAIT, &hscfg)) {
+	if (woal_set_get_hs_params(priv, action, MOAL_IOCTL_WAIT, &hscfg) !=
+	    MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -1497,7 +1501,8 @@ static int woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 
 	if (wrq->u.data.length == 0) {
 		/* Get config_bands, adhoc_start_band and adhoc_channel values
-		 * from MLAN */
+		 * from MLAN
+		 */
 		req->action = MLAN_ACT_GET;
 		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 		if (status != MLAN_STATUS_SUCCESS) {
@@ -1795,8 +1800,8 @@ static int woal_get_log(moal_private *priv, struct iwreq *wrq)
 	}
 
 	memset(&stats, 0, sizeof(mlan_ds_get_stats));
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
+	if (woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats) !=
+	    MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -1976,17 +1981,16 @@ static int woal_deauth(moal_private *priv, struct iwreq *wrq)
 			ret = -EFAULT;
 			goto done;
 		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_disconnect(priv, MOAL_IOCTL_WAIT,
-				    (t_u8 *)saddr.sa_data,
-				    DEF_DEAUTH_REASON_CODE)) {
+		if (woal_disconnect(
+			    priv, MOAL_IOCTL_WAIT, (t_u8 *)saddr.sa_data,
+			    DEF_DEAUTH_REASON_CODE) != MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
 	} else {
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
-				    DEF_DEAUTH_REASON_CODE))
+		if (woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
+				    DEF_DEAUTH_REASON_CODE) !=
+		    MLAN_STATUS_SUCCESS)
 			ret = -EFAULT;
 	}
 done:
@@ -2014,11 +2018,12 @@ static int woal_tx_power_cfg(moal_private *priv, struct iwreq *wrq)
 	int *ptr = power_data;
 	mlan_power_group *pwr_grp = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	memset(&bss_info, 0, sizeof(bss_info));
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info))
+	if (woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info) !=
+	    MLAN_STATUS_SUCCESS)
 		PRINTM(MINFO, "Fail to get bss_info\n");
 	memset(data, 0, sizeof(data));
 	user_data_len = wrq->u.data.length;
@@ -2127,7 +2132,7 @@ static int woal_tx_power_cfg(moal_private *priv, struct iwreq *wrq)
 					.first_rate_ind -= 12;
 				pcfg->param.power_ext.power_group[0]
 					.last_rate_ind -= 12;
-			} else if ((140 <= data[0]) && (data[0] <= 155)) {
+			} else if ((data[0] >= 140) && (data[0] <= 155)) {
 				pcfg->param.power_ext.power_group[0]
 					.rate_format = MLAN_RATE_FORMAT_HT;
 				pcfg->param.power_ext.power_group[0].bandwidth =
@@ -2536,12 +2541,12 @@ static int woal_set_get_radio(moal_private *priv, struct iwreq *wrq)
 			ret = -EFAULT;
 			goto done;
 		}
-		if (MLAN_STATUS_SUCCESS != woal_set_radio(priv, (t_u8)option))
+		if (woal_set_radio(priv, (t_u8)option) != MLAN_STATUS_SUCCESS)
 			ret = -EFAULT;
 	} else {
 		/* Get radio status */
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info))
+		if (woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info) !=
+		    MLAN_STATUS_SUCCESS)
 			PRINTM(MINFO, "Fail to get bss_info\n");
 		wrq->u.data.length = 1;
 		if (copy_to_user(wrq->u.data.pointer, &bss_info.radio_on,
@@ -2563,12 +2568,21 @@ done:
  *  @param wrq          A pointer to wrq structure
  *
  *  @return             0 --success, otherwise fail
+ *
+ *  @note Bit 19 (MFW_D) protection:
+ *        Once bit 19 is enabled, it is automatically preserved when setting
+ *        other debug flags. Use override flag (second param = 0xFFFFFFFF) to
+ *        explicitly clear bit 19 if needed.
+ *        Example: mlanutl mlan0 drvdbg 0x7 0xFFFFFFFF
  */
 static int woal_drv_dbg(moal_private *priv, struct iwreq *wrq)
 {
 	int data[4], copy_len;
 	int ret = 0;
 	int data_length = wrq->u.data.length;
+	t_u32 old_drvdbg;
+	t_u32 new_drvdbg;
+
 	ENTER();
 
 	copy_len = MIN(sizeof(data), sizeof(int) * data_length);
@@ -2588,7 +2602,33 @@ static int woal_drv_dbg(moal_private *priv, struct iwreq *wrq)
 			ret = -EFAULT;
 			goto drvdbgexit;
 		}
-		drvdbg = data[0];
+		old_drvdbg = drvdbg;
+		new_drvdbg = moal_read_unaligned_u32(&data[0]);
+
+		/* Check if override flag is provided (second parameter =
+		 * 0xFFFFFFFF) */
+		if (data_length == 2 &&
+		    moal_read_unaligned_u32(&data[1]) == DRVDBG_OVERRIDE_FLAG) {
+			/* OVERRIDE MODE: Allow complete overwrite of drvdbg */
+			drvdbg = new_drvdbg;
+			PRINTM(MMSG,
+			       "WARNING: Overriding bit 19 (MFW_D) protection! drvdbg=0x%08x\n",
+			       drvdbg);
+		} else {
+			/* PROTECTED MODE: Preserve bit 19 if it was previously
+			 * set */
+			if (old_drvdbg & MFW_D) {
+				/* Bit 19 was ON: force it to stay ON */
+				drvdbg = new_drvdbg | MFW_D;
+				PRINTM(MMSG,
+				       "Preserving bit 19 (MFW_D) - MFW_D bit write protected. drvdbg=0x%08x\n",
+				       drvdbg);
+			} else {
+				/* Bit 19 was OFF: allow user to set it normally
+				 */
+				drvdbg = new_drvdbg;
+			}
+		}
 		/* Set the driver debug bit masks into mlan */
 		woal_set_drvdbg(priv, drvdbg);
 	} else {
@@ -2607,6 +2647,10 @@ static int woal_drv_dbg(moal_private *priv, struct iwreq *wrq)
 #endif
 	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
 	       (drvdbg & MMPA_D) ? "X" : "");
+#ifdef SECURE_HOST
+	printk(KERN_ALERT "MSHC_D (%08x) %s\n", MSHC_D,
+	       (drvdbg & MSHC_D) ? "X" : "");
+#endif
 	printk(KERN_ALERT "MIF_D  (%08x) %s\n", MIF_D,
 	       (drvdbg & MIF_D) ? "X" : "");
 	printk(KERN_ALERT "MFW_D  (%08x) %s\n", MFW_D,
@@ -4429,8 +4473,8 @@ static int woal_tx_bf_cfg_ioctl(moal_private *priv, struct iwreq *wrq)
 
 		/* Save the value */
 		bf_cfg.bf_action = bf_action;
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_tx_bf_cfg(priv, action, &bf_cfg)) {
+		if (woal_set_get_tx_bf_cfg(priv, action, &bf_cfg) !=
+		    MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
@@ -4695,6 +4739,7 @@ static int woal_set_user_scan_ext_ioctl(moal_private *priv, struct iwreq *wrq)
 {
 	int ret = 0;
 	wlan_user_scan_cfg *scan_req;
+
 	ENTER();
 	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
 						 GFP_KERNEL);
@@ -4712,7 +4757,7 @@ static int woal_set_user_scan_ext_ioctl(moal_private *priv, struct iwreq *wrq)
 		LEAVE();
 		return -EFAULT;
 	}
-	if (MLAN_STATUS_FAILURE == woal_do_scan(priv, scan_req))
+	if (woal_do_scan(priv, scan_req) == MLAN_STATUS_FAILURE)
 		ret = -EFAULT;
 	kfree(scan_req);
 	LEAVE();
@@ -5053,7 +5098,8 @@ static int woal_do_sdio_mpa_ctrl(moal_private *priv, struct iwreq *wrq)
 	req->req_id = MLAN_IOCTL_MISC_CFG;
 
 	/* Get the values first, then modify these values if
-	 * user had modified them */
+	 * user had modified them
+	 */
 
 	req->action = MLAN_ACT_GET;
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -5552,7 +5598,8 @@ static int woal_wmm_delts_req_ioctl(moal_private *priv, struct iwreq *wrq)
 		}
 
 		/* Return the firmware command result back to the application
-		 * layer */
+		 * layer
+		 */
 		delts_ioctl.cmd_result = cfg->param.delts.result;
 		wrq->u.data.length = sizeof(delts_ioctl);
 
@@ -5881,6 +5928,7 @@ static int woal_bypassed_packet_ioctl(moal_private *priv, struct iwreq *wrq)
 	struct sk_buff *skb = NULL;
 	struct ethhdr *eth;
 	t_u16 moreLen = 0, copyLen = 0;
+
 	ENTER();
 
 #define MLAN_BYPASS_PKT_EXTRA_OFFSET (4)
@@ -5934,8 +5982,8 @@ static int woal_auth_type(moal_private *priv, struct iwreq *wrq)
 
 	ENTER();
 	if (wrq->u.data.length == 0) {
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_get_auth_mode(priv, MOAL_IOCTL_WAIT, &auth_mode)) {
+		if (woal_get_auth_mode(priv, MOAL_IOCTL_WAIT, &auth_mode) !=
+		    MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
@@ -5962,8 +6010,8 @@ static int woal_auth_type(moal_private *priv, struct iwreq *wrq)
 			goto done;
 		}
 		auth_mode = auth_type;
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_auth_mode(priv, MOAL_IOCTL_WAIT, auth_mode)) {
+		if (woal_set_auth_mode(priv, MOAL_IOCTL_WAIT, auth_mode) !=
+		    MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
@@ -5987,6 +6035,7 @@ static int woal_port_ctrl(moal_private *priv, struct iwreq *wrq)
 	mlan_ds_sec_cfg *sec = NULL;
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	/* Allocate an IOCTL request buffer */
@@ -6053,6 +6102,7 @@ static int woal_dfs_testing(moal_private *priv, struct iwreq *wrq)
 	int data[4] = {0}, copy_len;
 	int data_length = wrq->u.data.length;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	copy_len = MIN(sizeof(data), sizeof(int) * data_length);
@@ -6076,17 +6126,17 @@ static int woal_dfs_testing(moal_private *priv, struct iwreq *wrq)
 			ret = -EFAULT;
 			goto done;
 		}
-		if ((unsigned)data[0] > 1800) {
+		if ((unsigned int)data[0] > 1800) {
 			PRINTM(MERROR, "The maximum user CAC is 1800 sec.\n");
 			ret = -EINVAL;
 			goto done;
 		}
-		if ((unsigned)data[1] > 0xFFFF) {
+		if ((unsigned int)data[1] > 0xFFFF) {
 			PRINTM(MERROR, "The maximum user NOP is 65535 sec.\n");
 			ret = -EINVAL;
 			goto done;
 		}
-		if ((unsigned)data[3] > 0xFF) {
+		if ((unsigned int)data[3] > 0xFF) {
 			PRINTM(MERROR,
 			       "The maximum user fixed channel is 255.\n");
 			ret = -EINVAL;
@@ -6486,8 +6536,9 @@ done:
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief ioctl function - entry point
  *
@@ -6858,9 +6909,9 @@ int woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		break;
 	case WOAL_FROYO_STOP:
 		if (IS_UAP_WEXT(priv->phandle->params.cfg80211_wext) &&
-		    MLAN_STATUS_SUCCESS !=
-			    woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
-					    DEF_DEAUTH_REASON_CODE)) {
+		    woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
+				    DEF_DEAUTH_REASON_CODE) !=
+			    MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 		}
 		break;
@@ -6890,6 +6941,7 @@ mlan_status woal_get_data_rates(moal_private *priv, t_u8 wait_option,
 	mlan_ds_rate *rate = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	/* Allocate an IOCTL request buffer */
@@ -6936,6 +6988,7 @@ mlan_status woal_get_channel_list(moal_private *priv, t_u8 wait_option,
 	mlan_ds_bss *bss = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	/* Allocate an IOCTL request buffer */
@@ -7026,5 +7079,4 @@ void woal_ioctl_get_bss_resp(moal_private *priv, mlan_ds_bss *bss)
 	}
 
 	LEAVE();
-	return;
 }

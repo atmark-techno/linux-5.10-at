@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
  * @file mlan_cfp.c
  *
@@ -5,7 +6,7 @@
  *  related code
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -2075,7 +2076,7 @@ t_u32 wlan_get_active_data_rates(mlan_private *pmpriv, t_u32 bss_mode,
  *            present in all the regions.
  *
  *  @param pmpriv       A pointer to mlan_private structure
- *  @param band      	band.
+ *  @param band	band.
  *  @param channel      Channel number.
  *
  *  @return             The Tx power
@@ -2198,7 +2199,7 @@ wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u16 band,
 			case BAND_AN:
 			case BAND_A | BAND_AN:
 			case BAND_A | BAND_AN | BAND_AAC:
-			/* Fall Through */
+				/* Fall Through */
 			case BAND_A: /* Matching BAND_A */
 				break;
 
@@ -2216,11 +2217,11 @@ wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u16 band,
 			case BAND_B | BAND_G | BAND_GN | BAND_GAC:
 			case BAND_G | BAND_GN | BAND_GAC:
 			case BAND_B | BAND_G:
-			/* Fall Through */
+				/* Fall Through */
 			case BAND_B: /* Matching BAND_B/G */
-			/* Fall Through */
+				/* Fall Through */
 			case BAND_G:
-			/* Fall Through */
+				/* Fall Through */
 			case 0:
 				break;
 			default:
@@ -3457,9 +3458,8 @@ t_void wlan_reset_all_chan_dfs_state(mlan_private *priv, t_u16 band,
 
 	if (pcfp) {
 		/*check table according to chan num*/
-		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++) {
+		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++)
 			pcfp[j].dynamic.dfs_state = dfs_state;
-		}
 	}
 
 	LEAVE();
@@ -3670,6 +3670,9 @@ table_a:
 		max = 0;
 		bonded_chan_count = 0;
 		for (i = 0; i < rows; i++) {
+			t_bool channel_found = MFALSE;
+			t_u32 check_offset;
+			t_u32 offset;
 			if ((pmadapter->cfp_otp_a + i)->dynamic.flags &
 			    NXP_CHANNEL_DISABLED)
 				continue;
@@ -3682,18 +3685,47 @@ table_a:
 			 */
 			n = 0;
 			while (n < pmadapter->tx_power_table_a_rows) {
-				if (pmadapter->tx_power_table_a[n * cols] ==
-				    (pmadapter->cfp_otp_a + i)->channel)
+				check_offset = n * cols;
+				if (check_offset >=
+				    pmadapter->tx_power_table_a_size) {
+					PRINTM(MERROR,
+					       "A-band channel lookup offset %u exceeds table size %u\n",
+					       check_offset,
+					       pmadapter->tx_power_table_a_size);
 					break;
+				}
+				if (pmadapter->tx_power_table_a[check_offset] ==
+				    (pmadapter->cfp_otp_a + i)->channel) {
+					channel_found = MTRUE;
+					break;
+				}
 				n++;
+			}
+
+			/* Validate channel was found and n is within bounds */
+			if (!channel_found ||
+			    n >= pmadapter->tx_power_table_a_rows) {
+				PRINTM(MWARN,
+				       "Channel %u not found in A-band power table\n",
+				       (pmadapter->cfp_otp_a + i)->channel);
+				goto skip_a_channel;
 			}
 			/* Get the max value among all mod groups for this chan
 			 */
-			for (j = 1; j < cols; j++)
-				max = MAX(max,
-					  pmadapter->tx_power_table_a[n * cols +
-								      j]);
 
+			for (j = 1; j < cols; j++) {
+				offset = n * cols + j;
+				if (offset >=
+				    pmadapter->tx_power_table_a_size) {
+					PRINTM(MERROR,
+					       "A-band power offset %u exceeds table size %u\n",
+					       offset,
+					       pmadapter->tx_power_table_a_size);
+					goto skip_a_channel;
+				}
+				max = MAX(max,
+					  pmadapter->tx_power_table_a[offset]);
+			}
 			bonded_chan_count++;
 
 			if ((i < (rows - 1)) &&
@@ -3718,9 +3750,10 @@ table_a:
 			/* Apply the max power value to all channels in this
 			 * bonded group
 			 */
-			for (k = 0; k < bonded_chan_count; k++)
+			for (k = 0; k < bonded_chan_count && k <= i; k++)
 				(pmadapter->cfp_otp_a + i - k)->max_tx_power =
 					max;
+		skip_a_channel:
 			max = 0;
 			bonded_chan_count = 0;
 		}
@@ -4466,7 +4499,7 @@ static mlan_status wlan_get_6g_cfpinfo(pmlan_adapter pmadapter,
 		c.is6g_present = 1;
 		c.rows_6g = cfp_no_6g;
 		c.cols_6g = pmadapter->tx_power_table_6g_cols;
-		size += pmadapter->tx_power_table_6g_size;
+		size += (c.rows_6g * c.cols_6g);
 	}
 	/* Check information buffer length of MLAN IOCTL */
 	if (pioctl_req->buf_len < size) {
@@ -4494,9 +4527,8 @@ static mlan_status wlan_get_6g_cfpinfo(pmlan_adapter pmadapter,
 	if (pmadapter->tx_power_table_6g) {
 		memcpy_ext(pmadapter, req_buf + len,
 			   pmadapter->tx_power_table_6g,
-			   pmadapter->tx_power_table_6g_size,
-			   pmadapter->tx_power_table_6g_size);
-		len += pmadapter->tx_power_table_6g_size;
+			   (c.rows_6g * c.cols_6g), (c.rows_6g * c.cols_6g));
+		len += (c.rows_6g * c.cols_6g);
 	}
 out:
 	if (pioctl_req)
@@ -4566,7 +4598,7 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 		c.is2g_present = 1;
 		c.rows_2g = cfp_no_bg;
 		c.cols_2g = pmadapter->tx_power_table_bg_cols;
-		size += pmadapter->tx_power_table_bg_size;
+		size += (c.rows_2g * c.cols_2g);
 	}
 	if (pmadapter->fw_bands & BAND_A) {
 		if (pmadapter->cfp_code_a)
@@ -4577,7 +4609,7 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 		c.is5g_present = 1;
 		c.rows_5g = cfp_no_a;
 		c.cols_5g = pmadapter->tx_power_table_a_cols;
-		size += pmadapter->tx_power_table_a_size;
+		size += (c.rows_5g * c.cols_5g);
 	}
 	/* Check information buffer length of MLAN IOCTL */
 	if (pioctl_req->buf_len < size) {
@@ -4623,16 +4655,14 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 	if (pmadapter->tx_power_table_bg) {
 		memcpy_ext(pmadapter, req_buf + len,
 			   pmadapter->tx_power_table_bg,
-			   pmadapter->tx_power_table_bg_size,
-			   pmadapter->tx_power_table_bg_size);
-		len += pmadapter->tx_power_table_bg_size;
+			   (c.rows_2g * c.cols_2g), (c.rows_2g * c.cols_2g));
+		len += (c.rows_2g * c.cols_2g);
 	}
 	if (pmadapter->tx_power_table_a) {
 		memcpy_ext(pmadapter, req_buf + len,
-			   pmadapter->tx_power_table_a,
-			   pmadapter->tx_power_table_a_size,
-			   pmadapter->tx_power_table_a_size);
-		len += pmadapter->tx_power_table_a_size;
+			   pmadapter->tx_power_table_a, (c.rows_5g * c.cols_5g),
+			   (c.rows_5g * c.cols_5g));
+		len += (c.rows_5g * c.cols_5g);
 	}
 out:
 	if (pioctl_req)

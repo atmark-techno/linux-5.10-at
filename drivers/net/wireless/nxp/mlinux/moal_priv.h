@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 
 /** @file moal_priv.h
  *
  * @brief This file contains definition for extended private IOCTL call.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2021, 2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -22,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-    10/31/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/31/2008: initial version
+ * ******************************************************
+ */
 
 #ifndef _WOAL_PRIV_H_
 #define _WOAL_PRIV_H_

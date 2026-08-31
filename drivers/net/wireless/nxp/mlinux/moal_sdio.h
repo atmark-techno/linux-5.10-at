@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_sdio.h
  *
  * @brief This file contains definitions for SDIO interface.
  * driver.
  *
  *
- * Copyright 2008-2022, 2024-2025 NXP
+ * Copyright 2008-2022, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -21,8 +22,9 @@
  *
  */
 /****************************************************
-Change log:
-****************************************************/
+ * Change log:
+ * **************************************************
+ */
 
 #ifndef _MOAL_SDIO_H
 #define _MOAL_SDIO_H
@@ -92,13 +94,6 @@ Change log:
 #define SD8977_DEFAULT_WLAN_FW_NAME "nxp/sd8977_wlan_v2.bin"
 #endif /* SD8977 */
 
-#ifdef SD8997
-#define SD8997_DEFAULT_COMBO_FW_NAME "nxp/sduart8997_combo_v4.bin"
-#define SDUART8997_DEFAULT_COMBO_FW_NAME "nxp/sduart8997_combo_v4.bin"
-#define SDSD8997_DEFAULT_COMBO_FW_NAME "nxp/sdsd8997_combo_v4.bin"
-#define SD8997_DEFAULT_WLAN_FW_NAME "nxp/sd8997_wlan_v4.bin"
-#endif /* SD8997 */
-
 #ifdef SD8987
 #define SD8987_DEFAULT_COMBO_FW_NAME "nxp/sduart8987_combo.bin"
 #define SDUART8987_DEFAULT_COMBO_FW_NAME "nxp/sduart8987_combo.bin"
@@ -155,13 +150,13 @@ Change log:
 #ifdef SDAW693
 #define SDAW693_A0 0x00
 #define SDAW693_A1 0x01
-#define SDAW693_DEFAULT_COMBO_FW_NAME "nxp/sduartaw693_combo.bin"
-#define SDUARTAW693_COMBO_FW_NAME "nxp/sduartaw693_combo.bin"
-#define SDSDAW693_COMBO_FW_NAME "sdsdaw693_combo.bin"
-#define SDUARTAW693_COMBO_V1_FW_NAME "nxp/sduartaw693_combo_v1.bin.se"
-#define SDSDAW693_COMBO_V1_FW_NAME "sdsdaw693_combo_v1.bin.se"
-#define SDAW693_DEFAULT_WLAN_FW_NAME "nxp/sdaw693_wlan.bin"
-#define SDAW693_WLAN_V1_FW_NAME "nxp/sdaw693_wlan_v1.bin.se"
+#define SDIW693_DEFAULT_COMBO_FW_NAME "nxp/sduartiw693_combo.bin"
+#define SDUARTIW693_COMBO_FW_NAME "nxp/sduartiw693_combo.bin"
+#define SDSDIW693_COMBO_FW_NAME "sdsdiw693_combo.bin"
+#define SDUARTIW693_COMBO_V1_FW_NAME "nxp/sduartiw693_combo_v1.bin.se"
+#define SDSDIW693_COMBO_V1_FW_NAME "sdsdiw693_combo_v1.bin.se"
+#define SDIW693_DEFAULT_WLAN_FW_NAME "nxp/sdiw693_wlan.bin"
+#define SDIW693_WLAN_V1_FW_NAME "nxp/sdiw693_wlan_v1.bin.se"
 #endif /* SDAW693 */
 
 #ifdef SD9177
@@ -189,8 +184,9 @@ Change log:
 #endif /* SDIW610 */
 
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /** Register to bus driver function */
 mlan_status woal_sdiommc_bus_register(void);

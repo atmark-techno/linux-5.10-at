@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_pcie.c
  *
  *  @brief This file contains PCIE IF (interface) module
  *  related functions.
  *
  *
- * Copyright 2008-2022, 2024-2025 NXP
+ * Copyright 2008-2022, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -22,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-    02/01/2012: initial version
-********************************************************/
+ * Change log:
+ * 02/01/2012: initial version
+ * ******************************************************
+ */
 
 #include <linux/firmware.h>
 
@@ -49,8 +51,9 @@ Change log:
 #endif
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #define DRV_NAME "NXP mdriver PCIe"
 
 /* PCIE resume handler */
@@ -67,24 +70,6 @@ static const struct pci_device_id wlan_ids[] = {
 	{
 		PCIE_VENDOR_ID_MRVL,
 		PCIE_DEVICE_ID_88W8897P,
-		PCI_ANY_ID,
-		PCI_ANY_ID,
-		0,
-		0,
-	},
-#endif
-#ifdef PCIE8997
-	{
-		PCIE_VENDOR_ID_MRVL,
-		PCIE_DEVICE_ID_88W8997P,
-		PCI_ANY_ID,
-		PCI_ANY_ID,
-		0,
-		0,
-	},
-	{
-		PCIE_VENDOR_ID_V2_MRVL,
-		PCIE_DEVICE_ID_88W8997P,
 		PCI_ANY_ID,
 		PCI_ANY_ID,
 		0,
@@ -155,16 +140,18 @@ static moal_if_ops pcie_ops;
 
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev);
-#if defined(PCIE8897) || defined(PCIE8997) || defined(PCIE9098) ||             \
-	defined(PCIE9097) || defined(PCIEAW693) || defined(PCIEIW624)
+#if defined(PCIE8897) || defined(PCIE9098) || defined(PCIE9097) ||             \
+	defined(PCIEAW693) || defined(PCIEIW624)
 static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 					   t_u8 resetflag);
 #endif
@@ -199,27 +186,6 @@ static t_u16 woal_update_card_type(t_void *card)
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
 				V15, strlen(V15),
-				strlen(driver_version) - strlen(INTF_CARDTYPE) -
-					strlen(KERN_VERSION));
-	}
-#endif
-#ifdef PCIE8997
-	if (cardp_pcie->dev->device == PCIE_DEVICE_ID_88W8997P) {
-		card_type = CARD_TYPE_PCIE8997;
-		moal_memcpy_ext(NULL, driver_version, CARD_PCIE8997,
-				strlen(CARD_PCIE8997), strlen(driver_version));
-		/* we are copying card name in middle of full version, we can
-		 * not copy null termination. This was already tried and
-		 * reverted as full version got terminated in middle(See commit
-		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
-		 * the coverity warning for all card types in this function.
-		 */
-		// coverity[string_null:SUPPRESS]
-		// coverity[cert_str32_c_violation:SUPPRESS]
-		moal_memcpy_ext(NULL,
-				driver_version + strlen(INTF_CARDTYPE) +
-					strlen(KERN_VERSION),
-				V16, strlen(V16),
 				strlen(driver_version) - strlen(INTF_CARDTYPE) -
 					strlen(KERN_VERSION));
 	}
@@ -330,19 +296,23 @@ static mlan_status woal_reset_adma(moal_handle *handle)
 	t_u32 value;
 	t_u32 reset_reg = handle->card_info->fw_reset_reg;
 	t_u8 reset_adma_val = 0x97;
-
+	/* wake up device before set the reset reg */
+	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
+	mdelay(50);
 	if (handle->ops.write_reg(handle, reset_reg, reset_adma_val) !=
 	    MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Failed to write register.\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-
-	for (tries = 0; tries < 100; ++tries) {
+	/* Poll 10k times or till reset completes */
+	for (tries = 0; tries < 10000; ++tries) {
 		ret = handle->ops.read_reg(handle, reset_reg, &value);
-		if (value == 0) {
+		if (value == 0)
 			break;
-		}
+		if (tries && ((tries % 200) == 0))
+			PRINTM(MMSG, "ADMA reset tries done:%d\n", tries);
+
 		moal_usleep_range(handle, 100, 200);
 	}
 
@@ -368,7 +338,7 @@ done:
  *
  * Note: This function is mix of woal_switch_drv_mode() and
  * remove_card(). Idea is to cleanup the software only without
- * touching the PCIe specific code. Likewise, during init init
+ * touching the PCIe specific code. Likewise, during init
  * everything, including hw, but do not reinitiate PCIe stack
  *
  * @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
@@ -398,8 +368,7 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 		return (mlan_status)MLAN_STATUS_FAILURE;
 	}
 
-	if (!IS_PCIE8997(handle->card_type) &&
-	    !IS_PCIE9097(handle->card_type) &&
+	if (!IS_PCIE9097(handle->card_type) &&
 	    !IS_PCIEIW624(handle->card_type) &&
 	    !IS_PCIEAW693(handle->card_type) &&
 	    !IS_PCIE9098(handle->card_type)) {
@@ -419,8 +388,6 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
 	woal_clean_up(handle);
-	mlan_ioctl(handle->pmlan_adapter, NULL);
-
 	/* Shutdown firmware */
 	handle->init_wait_q_woken = MFALSE;
 	status = mlan_shutdown_fw(handle->pmlan_adapter);
@@ -474,8 +441,7 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 		    atomic_read(&handle->malloc_count) ||
 		    atomic_read(&handle->mbufalloc_count)) {
 			PRINTM(MERROR,
-			       "mlan has memory leak: lock_count=%d,"
-			       " malloc_count=%d, mbufalloc_count=%d\n",
+			       "mlan has memory leak: lock_count=%d, malloc_count=%d, mbufalloc_count=%d\n",
 			       atomic_read(&handle->lock_count),
 			       atomic_read(&handle->malloc_count),
 			       atomic_read(&handle->mbufalloc_count));
@@ -521,11 +487,7 @@ perform_init:
 	}
 	if (woal_init_fw(handle)) {
 		PRINTM(MFATAL, "Firmware Init Failed\n");
-#ifdef PCIE
-		if (!IS_PCIEAW693(handle->card_type))
-#endif
-			woal_pcie_reg_dbg(handle);
-
+		woal_pcie_reg_dbg(handle);
 		if (fw_serial_bkp)
 			moal_extflg_set(handle, EXT_FW_SERIAL);
 		goto err_init_fw;
@@ -638,7 +600,7 @@ static int woal_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		ret = MLAN_STATUS_FAILURE;
 		goto err;
 	}
-	if (MLAN_STATUS_SUCCESS != woal_pcie_init(card)) {
+	if (woal_pcie_init(card) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "woal_pcie_init failed\n");
 		ret = -EFAULT;
 		goto err;
@@ -814,10 +776,9 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		if (handle->priv[i] && !keep_power &&
 		    handle->priv[i]->bss_started == MTRUE) {
 			if (woal_uap_bss_ctrl(handle->priv[i], MOAL_IOCTL_WAIT,
-					      UAP_BSS_STOP)) {
-				PRINTM(MERROR, "%s: stop uap failed \n",
+					      UAP_BSS_STOP))
+				PRINTM(MERROR, "%s: stop uap failed\n",
 				       __func__);
-			}
 		}
 #endif
 	}
@@ -826,10 +787,9 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		memset(&pm_info, 0, sizeof(pm_info));
 #define MAX_RETRY_NUM 8
 		for (i = 0; i < MAX_RETRY_NUM; i++) {
-			if (MLAN_STATUS_SUCCESS ==
-			    woal_get_pm_info(woal_get_priv(handle,
+			if (woal_get_pm_info(woal_get_priv(handle,
 							   MLAN_BSS_ROLE_ANY),
-					     &pm_info)) {
+					     &pm_info) == MLAN_STATUS_SUCCESS) {
 				if (pm_info.is_suspend_allowed == MTRUE)
 					break;
 				else
@@ -984,11 +944,6 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 	pcie_service_card *card;
 	moal_handle *handle;
 	moal_handle *ref_handle = NULL;
-#if defined(PCIEAW693)
-	pcie_service_card *ref_card = NULL;
-	t_u32 value;
-	t_u32 count = 0;
-#endif
 
 	ENTER();
 
@@ -1024,36 +979,8 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 			ref_handle = (moal_handle *)handle->pref_mac;
 		}
 	}
-
-#if defined(PCIEAW693)
-	/* WAR to Poll firmware dump flag for 5 seconds */
-	while (count < 50 &&
-	       (handle->fw_dump || (ref_handle && ref_handle->fw_dump))) {
-		woal_sched_timeout(100);
-		count++;
-	}
-#endif
-
 	handle->surprise_removed = MTRUE;
 	handle->fw_reseting = MTRUE;
-	if (ref_handle) {
-		ref_handle->surprise_removed = MTRUE;
-		ref_handle->fw_reseting = MTRUE;
-	}
-
-#if defined(PCIEAW693)
-	// This is just WAR for PRC release
-	/* wake up device before set the reset reg */
-	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
-	mdelay(50);
-
-	/*Disable L1 before start of FLR*/
-	pci_write_config_dword(card->dev, 0x80, 0x40);
-	if (ref_handle)
-		ref_card = (pcie_service_card *)ref_handle->card;
-	if (ref_card)
-		pci_write_config_dword(ref_card->dev, 0x80, 0x40);
-#endif
 	// TODO: Can add more chips once the related code has been ported to fw
 	// v18
 	if (IS_PCIE9097(handle->card_type) || IS_PCIE9098(handle->card_type) ||
@@ -1063,6 +990,8 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 
 	woal_do_flr(handle, true, true);
 	if (ref_handle) {
+		ref_handle->surprise_removed = MTRUE;
+		ref_handle->fw_reseting = MTRUE;
 		woal_do_flr(ref_handle, true, true);
 	}
 
@@ -1078,9 +1007,6 @@ static void woal_pcie_reset_done(struct pci_dev *pdev)
 	pcie_service_card *card;
 	moal_handle *handle;
 	moal_handle *ref_handle = NULL;
-#if defined(PCIEAW693)
-	pcie_service_card *ref_card = NULL;
-#endif
 	ENTER();
 
 	card = pci_get_drvdata(pdev);
@@ -1115,29 +1041,18 @@ static void woal_pcie_reset_done(struct pci_dev *pdev)
 		}
 	}
 	handle->surprise_removed = MFALSE;
-	if (MLAN_STATUS_SUCCESS == woal_do_flr(handle, false, true))
+	if (woal_do_flr(handle, false, true) == MLAN_STATUS_SUCCESS)
 		handle->fw_reseting = MFALSE;
 	else
 		handle = NULL;
 	if (ref_handle) {
 		ref_handle->surprise_removed = MFALSE;
-		if (MLAN_STATUS_SUCCESS == woal_do_flr(ref_handle, false, true))
+		if (woal_do_flr(ref_handle, false, true) == MLAN_STATUS_SUCCESS)
 			ref_handle->fw_reseting = MFALSE;
 	}
 	wifi_status = WIFI_STATUS_OK;
 	if (handle)
 		woal_send_auto_recovery_complete_event(handle);
-
-		// This is just WAR for PRC release
-#if defined(PCIEAW693)
-	/*Re-enable L1 before start of FLR*/
-	pci_write_config_dword(card->dev, 0x80, 0x143);
-	if (ref_handle)
-		ref_card = (pcie_service_card *)ref_handle->card;
-	if (ref_card)
-		pci_write_config_dword(ref_card->dev, 0x80, 0x143);
-#endif
-
 	LEAVE();
 }
 #else
@@ -1205,14 +1120,14 @@ static void woal_pcie_reset_notify(struct pci_dev *pdev, bool prepare)
 		 * Reconfigure the sw and fw including fw redownload
 		 */
 		handle->surprise_removed = MFALSE;
-		if (MLAN_STATUS_SUCCESS == woal_do_flr(handle, prepare, true))
+		if (woal_do_flr(handle, prepare, true) == MLAN_STATUS_SUCCESS)
 			handle->fw_reseting = MFALSE;
 		else
 			handle = NULL;
 		if (ref_handle) {
 			ref_handle->surprise_removed = MFALSE;
-			if (MLAN_STATUS_SUCCESS ==
-			    woal_do_flr(ref_handle, prepare, true))
+			if (woal_do_flr(ref_handle, prepare, true) ==
+			    MLAN_STATUS_SUCCESS)
 				ref_handle->fw_reseting = MFALSE;
 		}
 		wifi_status = WIFI_STATUS_OK;
@@ -1255,8 +1170,9 @@ static struct pci_driver REFDATA wlan_pcie = {
 };
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function writes data into card register
@@ -1265,7 +1181,7 @@ static struct pci_driver REFDATA wlan_pcie = {
  *  @param reg      Register offset
  *  @param data     Value
  *
- *  @return    		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_pcie_write_reg(moal_handle *handle, t_u32 reg,
 				       t_u32 data)
@@ -1285,7 +1201,7 @@ static mlan_status woal_pcie_write_reg(moal_handle *handle, t_u32 reg,
  *  @param reg      Register offset
  *  @param data     Value
  *
- *  @return    		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_pcie_read_reg(moal_handle *handle, t_u32 reg,
 				      t_u32 *data)
@@ -1306,9 +1222,9 @@ static mlan_status woal_pcie_read_reg(moal_handle *handle, t_u32 reg,
  *  @param handle   A Pointer to the moal_handle structure
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param port		Port
- *  @param timeout 	Time out value
+ *  @param timeout	Time out value
  *
- *  @return    		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_pcie_write_data_sync(moal_handle *handle,
 					     mlan_buffer *pmbuf, t_u32 port,
@@ -1323,9 +1239,9 @@ static mlan_status woal_pcie_write_data_sync(moal_handle *handle,
  *  @param handle   A Pointer to the moal_handle structure
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param port		Port
- *  @param timeout 	Time out value
+ *  @param timeout	Time out value
  *
- *  @return    		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_pcie_read_data_sync(moal_handle *handle,
 					    mlan_buffer *pmbuf, t_u32 port,
@@ -1375,9 +1291,8 @@ static irqreturn_t woal_pcie_interrupt(int irq, void *dev_id)
 		PRINTM(MINTR, "**\n");
 	else
 		PRINTM(MINTR, "*\n");
-	if (handle->is_suspended) {
+	if (handle->is_suspended)
 		PRINTM(MERROR, "Receive interrupt in hs_suspended\n");
-	}
 	ret = mlan_interrupt(0xffff, handle->pmlan_adapter);
 
 exit:
@@ -1504,9 +1419,7 @@ static mlan_status woal_pcie_init(pcie_service_card *card)
 		goto err_iomap2;
 	}
 
-	PRINTM(MMSG,
-	       "PCI memory map Virt0: %p PCI memory map Virt2: "
-	       "%p\n",
+	PRINTM(MMSG, "PCI memory map Virt0: %p PCI memory map Virt2: %p\n",
 	       card->pci_mmap, card->pci_mmap1);
 
 	return MLAN_STATUS_SUCCESS;
@@ -1544,7 +1457,7 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 	ENTER();
 
 	if (!handle || !handle->card) {
-		PRINTM(MINFO, "%s: handle=%p card=%p\n", __FUNCTION__, handle,
+		PRINTM(MINFO, "%s: handle=%p card=%p\n", __func__, handle,
 		       handle ? handle->card : NULL);
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
@@ -1563,12 +1476,14 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 			ret = request_irq(pdev->irq, woal_pcie_interrupt, 0,
 					  "mrvl_pcie_msi", pdev);
 			if (ret) {
-				PRINTM(MFATAL, "request_irq failed: ret=%d\n",
+				PRINTM(MERROR, "request_irq failed: ret=%d\n",
 				       ret);
 				pci_disable_msi(pdev);
 			} else {
 				break;
 			}
+		} else {
+			PRINTM(MERROR, "pci_enable_msi failed: ret=%d\n", ret);
 		}
 		// follow through
 
@@ -1615,6 +1530,7 @@ done:
 static void woal_pcie_cleanup(pcie_service_card *card)
 {
 	struct pci_dev *pdev = NULL;
+
 	pdev = card->dev;
 	PRINTM(MINFO, "Clearing driver ready signature\n");
 
@@ -1677,11 +1593,12 @@ static void woal_pcie_unregister_dev(moal_handle *handle)
 mlan_status woal_pcie_bus_register(void)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	/* API registers the NXP PCIE driver */
 	if (pci_register_driver(&wlan_pcie)) {
-		PRINTM(MFATAL, "PCIE Driver Registration Failed \n");
+		PRINTM(MFATAL, "PCIE Driver Registration Failed\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
 
@@ -1692,7 +1609,7 @@ mlan_status woal_pcie_bus_register(void)
 /**
  *  @brief This function de-registers the IF module in bus driver
  *
- *  @return 	   N/A
+ *  @return	   N/A
  */
 void woal_pcie_bus_unregister(void)
 {
@@ -1710,7 +1627,7 @@ void woal_pcie_bus_unregister(void)
 #define PCIE9098_DUMP_START_REG 0x1C98
 #define PCIE9098_DUMP_END_REG 0x1C9F
 #endif
-#if defined(PCIE8897) || defined(PCIE8997)
+#if defined(PCIE8897)
 #define DEBUG_DUMP_CTRL_REG 0xCF4
 #define DEBUG_DUMP_START_REG 0xCF8
 #define DEBUG_DUMP_END_REG 0xCFF
@@ -1725,7 +1642,7 @@ void woal_pcie_bus_unregister(void)
 #define PCIE9098_DUMP_REG_END 0x1C9C
 #endif
 
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 #define PCIE_SCRATCH_12_REG 0x0CF0;
 #define PCIE_SCRATCH_14_REG 0x0CF8;
 #define PCIE_SCRATCH_15_REG 0x0CFC;
@@ -1747,8 +1664,8 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 	t_u8 i;
 	char buf[256], *ptr;
 	pcie_service_card *card = (pcie_service_card *)phandle->card;
-	int config_reg_table[] = {0x00, 0x04, 0x10, 0x18, 0x2c,
-				  0x3c, 0x44, 0x80, 0x98, 0x170};
+	int config_reg_table[] = {0x00, 0x04, 0x10, 0x18, 0x2c, 0x3c, 0x44,
+				  0x50, 0x60, 0x64, 0x80, 0x98, 0x170};
 	t_u32 dump_start_reg = 0;
 	t_u32 dump_end_reg = 0;
 	t_u32 scratch_14_reg = 0;
@@ -1791,9 +1708,8 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 
 	drv_ptr += sprintf(drv_ptr, "FW Scrach Registers:\n");
 
-#if defined(PCIE8897) || defined(PCIE8997)
-	if (IS_PCIE8897(phandle->card_type) ||
-	    IS_PCIE8997(phandle->card_type)) {
+#if defined(PCIE8897)
+	if (IS_PCIE8897(phandle->card_type)) {
 		reg = PCIE_SCRATCH_12_REG;
 		dump_start_reg = PCIE_DUMP_START_REG;
 		dump_end_reg = PCIE_DUMP_END_REG;
@@ -1922,8 +1838,8 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 	t_u8 i;
 	char buf[256], *ptr;
 	pcie_service_card *card = (pcie_service_card *)phandle->card;
-	int config_reg_table[] = {0x00, 0x04, 0x10, 0x18, 0x2c,
-				  0x3c, 0x44, 0x80, 0x98, 0x170};
+	int config_reg_table[] = {0x00, 0x04, 0x10, 0x18, 0x2c, 0x3c, 0x44,
+				  0x50, 0x60, 0x64, 0x80, 0x98, 0x170};
 	t_u32 dump_start_reg = 0;
 	t_u32 dump_end_reg = 0;
 	t_u32 scratch_14_reg = 0;
@@ -1957,9 +1873,8 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 	}
 
 	PRINTM(MMSG, "FW Scrach Registers:\n");
-#if defined(PCIE8897) || defined(PCIE8997)
-	if (IS_PCIE8897(phandle->card_type) ||
-	    IS_PCIE8997(phandle->card_type)) {
+#if defined(PCIE8897)
+	if (IS_PCIE8897(phandle->card_type)) {
 		reg = PCIE_SCRATCH_12_REG;
 		dump_start_reg = PCIE_DUMP_START_REG;
 		dump_end_reg = PCIE_DUMP_END_REG;
@@ -2100,19 +2015,18 @@ static memory_type_mapping mem_type_mapping_tbl_8897[] = {
 };
 #endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIEAW693) || defined(PCIEIW624)
-#define DEBUG_HOST_READY_8997 0xCC
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 #define DEBUG_HOST_EVENT_READY 0xAA
 #define DEBUG_HOST_RESET_READY                                                 \
 	0x98 /* 0x98: Reset WiFi only, 0x99: Reset both BT and WiFi */
-static memory_type_mapping mem_type_mapping_tbl_8997 = {"DUMP", NULL, NULL,
+static memory_type_mapping mem_type_mapping_tbl_9098 = {"DUMP", NULL, NULL,
 							0xDD, 0x00};
 
 #endif
 
-#if defined(PCIE8897) || defined(PCIE8997) || defined(PCIE9098) ||             \
-	defined(PCIE9097) || defined(PCIEAW693) || defined(PCIEIW624)
+#if defined(PCIE8897) || defined(PCIE9098) || defined(PCIE9097) ||             \
+	defined(PCIEAW693) || defined(PCIEIW624)
 /**
  *  @brief This function reads data by 8 bit from card register
  *
@@ -2120,7 +2034,7 @@ static memory_type_mapping mem_type_mapping_tbl_8997 = {"DUMP", NULL, NULL,
  *  @param reg      Register offset
  *  @param data     Value
  *
- *  @return    		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_read_reg_eight_bit(moal_handle *handle, t_u32 reg,
 					   t_u8 *data)
@@ -2155,12 +2069,6 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 		dump_ctrl_reg = DEBUG_DUMP_CTRL_REG;
 	}
 #endif
-#if defined(PCIE8997)
-	if (IS_PCIE8997(phandle->card_type)) {
-		debug_host_ready = DEBUG_HOST_READY_8997;
-		dump_ctrl_reg = DEBUG_DUMP_CTRL_REG;
-	}
-#endif
 
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
@@ -2170,8 +2078,6 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 	    IS_PCIE9097(phandle->card_type)) {
 		if (phandle->event_fw_dump)
 			debug_host_ready = DEBUG_HOST_EVENT_READY;
-		else
-			debug_host_ready = DEBUG_HOST_READY_8997;
 		if (resetflag)
 			debug_host_ready = DEBUG_HOST_RESET_READY;
 		dump_ctrl_reg = PCIE9098_DUMP_CTRL_REG;
@@ -2359,7 +2265,7 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 		       mem_type_mapping_tbl[idx].mem_name, sec, usec);
 		do {
 			stat = woal_pcie_rdwr_firmware(phandle, doneflag, 0);
-			if (RDWR_STATUS_FAILURE == stat)
+			if (stat == RDWR_STATUS_FAILURE)
 				goto done;
 
 			reg_start = DEBUG_DUMP_START_REG;
@@ -2377,7 +2283,7 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 					PRINTM(MINFO,
 					       "pre-allocced buf is not enough\n");
 			}
-			if (RDWR_STATUS_DONE == stat) {
+			if (stat == RDWR_STATUS_DONE) {
 				PRINTM(MMSG, "%s done: size=0x%lx\n",
 				       mem_type_mapping_tbl[idx].mem_name,
 				       (dbg_ptr -
@@ -2392,11 +2298,10 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 				memset(file_name, 0, sizeof(file_name));
 				sprintf(file_name, "%s%s", "file_pcie_",
 					mem_type_mapping_tbl[idx].mem_name);
-				if (MLAN_STATUS_SUCCESS !=
-				    woal_save_dump_info_to_file(
+				if (woal_save_dump_info_to_file(
 					    path_name, file_name,
 					    mem_type_mapping_tbl[idx].mem_Ptr,
-					    memory_size))
+					    memory_size) != MLAN_STATUS_SUCCESS)
 					PRINTM(MMSG,
 					       "Can't save dump file %s in %s\n",
 					       file_name, path_name);
@@ -2436,8 +2341,8 @@ done:
 }
 #endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIEAW693) || defined(PCIEIW624)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 /**
  *  @brief This function dump firmware memory to file
  *
@@ -2461,7 +2366,7 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 	moal_handle *ref_handle;
 #endif
 	t_u8 *end_ptr = NULL;
-	memory_type_mapping *mem_type_mapping_tbl = &mem_type_mapping_tbl_8997;
+	memory_type_mapping *mem_type_mapping_tbl = &mem_type_mapping_tbl_9098;
 	t_u32 dump_start_reg = 0;
 	t_u32 dump_end_reg = 0;
 
@@ -2518,12 +2423,6 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 		dump_end_reg = PCIE9098_DUMP_END_REG;
 	}
 #endif
-#ifdef PCIE8997
-	if (IS_PCIE8997(phandle->card_type)) {
-		dump_start_reg = DEBUG_DUMP_START_REG;
-		dump_end_reg = DEBUG_DUMP_END_REG;
-	}
-#endif
 	reg = dump_start_reg;
 	ret = woal_read_reg_eight_bit(phandle, reg, &dump_num);
 	if (ret) {
@@ -2548,7 +2447,7 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 	       mem_type_mapping_tbl->mem_name, sec, usec);
 	do {
 		stat = woal_pcie_rdwr_firmware(phandle, doneflag, 0);
-		if (RDWR_STATUS_FAILURE == stat)
+		if (stat == RDWR_STATUS_FAILURE)
 			goto done;
 
 		reg_start = dump_start_reg;
@@ -2586,17 +2485,13 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 					  memory_size;
 			}
 		}
-		if (RDWR_STATUS_DONE == stat) {
+		if (stat == RDWR_STATUS_DONE) {
 #ifdef MLAN_64BIT
-			PRINTM(MMSG,
-			       "%s done:"
-			       "size = 0x%lx\n",
+			PRINTM(MMSG, "%s done:size = 0x%lx\n",
 			       mem_type_mapping_tbl->mem_name,
 			       dbg_ptr - mem_type_mapping_tbl->mem_Ptr);
 #else
-			PRINTM(MMSG,
-			       "%s done:"
-			       "size = 0x%x\n",
+			PRINTM(MMSG, "%s done:size = 0x%x\n",
 			       mem_type_mapping_tbl->mem_name,
 			       dbg_ptr - mem_type_mapping_tbl->mem_Ptr);
 #endif
@@ -2614,11 +2509,11 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 			memset(file_name, 0, sizeof(file_name));
 			sprintf(file_name, "%s%s", "file_pcie_",
 				mem_type_mapping_tbl->mem_name);
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_save_dump_info_to_file(
+			if (woal_save_dump_info_to_file(
 				    path_name, file_name,
 				    mem_type_mapping_tbl->mem_Ptr,
-				    dbg_ptr - mem_type_mapping_tbl->mem_Ptr))
+				    dbg_ptr - mem_type_mapping_tbl->mem_Ptr) !=
+			    MLAN_STATUS_SUCCESS)
 				PRINTM(MMSG, "Can't save dump file %s in %s\n",
 				       file_name, path_name);
 			moal_vfree(phandle, mem_type_mapping_tbl->mem_Ptr);
@@ -2659,6 +2554,7 @@ static t_u8 woal_pcie_is_second_mac(moal_handle *handle)
 {
 #if defined(PCIE9098) || defined(PCIEAW693)
 	pcie_service_card *card = (pcie_service_card *)handle->card;
+
 	if ((card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1) ||
 	    (card->dev->device == PCIE_DEVICE_ID_88WAW693_FN1))
 		return MTRUE;
@@ -2683,10 +2579,9 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 	if (IS_PCIE8897(phandle->card_type))
 		woal_pcie_dump_fw_info_v1(phandle);
 #endif
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIEAW693) || defined(PCIEIW624)
-	if (IS_PCIE8997(phandle->card_type) ||
-	    IS_PCIEAW693(phandle->card_type) ||
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+	if (IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIEIW624(phandle->card_type) ||
 	    IS_PCIE9098(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
@@ -2704,9 +2599,8 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 	if (!phandle->priv_num)
 		return;
 	priv = woal_get_priv(phandle, MLAN_BSS_ROLE_ANY);
-	if (priv == NULL) {
+	if (priv == NULL)
 		return;
-	}
 	woal_send_fw_dump_complete_event(priv);
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);
@@ -2728,14 +2622,14 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 	moal_handle *ref_handle = NULL;
 #endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIEAW693) || defined(PCIEIW624)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 	t_u32 rev_id_reg = handle->card_info->rev_id_reg;
 	t_u32 revision_id = 0;
 #endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIEAW693) || defined(PCIEIW624)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
 	t_u32 magic_reg = handle->card_info->magic_reg;
 	t_u32 strap = 0;
@@ -2788,27 +2682,6 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 		goto done;
 	}
 
-#ifdef PCIE8997
-	if (IS_PCIE8997(handle->card_type)) {
-		woal_pcie_read_reg(handle, rev_id_reg, &revision_id);
-		woal_pcie_read_reg(handle, host_strap_reg, &strap);
-		woal_pcie_read_reg(handle, magic_reg, &magic);
-		revision_id &= 0xff;
-		strap &= 0x7;
-		magic &= 0xff;
-		PRINTM(MCMND, "magic=0x%x, strap=0x%x, revision_id=0x%x\n",
-		       magic, strap, revision_id);
-		if ((revision_id == PCIE8997_A1) &&
-		    (magic == CHIP_MAGIC_VALUE)) {
-			if (strap == CARD_TYPE_PCIE_UART)
-				strcpy(handle->card_info->fw_name,
-				       PCIEUART8997_DEFAULT_COMBO_FW_NAME);
-			else
-				strcpy(handle->card_info->fw_name,
-				       PCIEUSB8997_DEFAULT_COMBO_FW_NAME);
-		}
-	}
-#endif
 #ifdef PCIE9098
 	if (IS_PCIE9098(handle->card_type)) {
 		if (card->dev->device == PCIE_DEVICE_ID_88W9098P_FN0) {
@@ -3067,7 +2940,7 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 	}
 #endif
 done:
-	PRINTM(MCMND, "combo fw:%s wlan fw:%s \n", handle->card_info->fw_name,
+	PRINTM(MCMND, "combo fw:%s wlan fw:%s\n", handle->card_info->fw_name,
 	       handle->card_info->fw_name_wlan);
 	LEAVE();
 	return ret;
@@ -3140,10 +3013,6 @@ static void woal_pcie_work(struct work_struct *work)
 		container_of(work, pcie_service_card, reset_work);
 	moal_handle *handle = NULL;
 	moal_handle *ref_handle = NULL;
-#if defined(PCIEAW693)
-	pcie_service_card *ref_card = NULL;
-	t_u32 value;
-#endif
 	handle = card->handle;
 	if (!handle)
 		return;
@@ -3158,33 +3027,21 @@ static void woal_pcie_work(struct work_struct *work)
 		} else {
 			ref_handle = (moal_handle *)handle->pref_mac;
 		}
-		if (ref_handle) {
+		if (ref_handle)
 			ref_handle->surprise_removed = MTRUE;
-			woal_clean_up(ref_handle);
-			mlan_ioctl(ref_handle->pmlan_adapter, NULL);
-		}
 	}
-	// This is just WAR for PRC release
-#if defined(PCIEAW693)
-	/* wake up device before set the reset reg */
-	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
-	mdelay(50);
-
-	/*Disable L1 state before start of IN-BAND RESET*/
-	pci_write_config_dword(card->dev, 0x80, 0x40);
-	if (ref_handle)
-		ref_card = (pcie_service_card *)ref_handle->card;
-	if (ref_card)
-		pci_write_config_dword(ref_card->dev, 0x80, 0x40);
-#endif
-
 	handle->surprise_removed = MTRUE;
 	handle->fw_reseting = MTRUE;
 	// TODO: Can add more chips once the related code has been ported to fw
 	// v18
 	if (IS_PCIE9097(handle->card_type) || IS_PCIE9098(handle->card_type) ||
 	    IS_PCIEAW693(handle->card_type)) {
-		woal_reset_adma(handle);
+		if (woal_reset_adma(handle) != MLAN_STATUS_SUCCESS) {
+			PRINTM(MERROR, "ERR: ADMA reset failed \n");
+			woal_send_auto_recovery_failure_event(handle);
+			wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
+			return;
+		}
 	}
 	woal_do_flr(handle, true, true);
 	if (ref_handle) {
@@ -3203,7 +3060,7 @@ static void woal_pcie_work(struct work_struct *work)
 	woal_free_module_param(handle);
 	woal_init_module_param(handle);
 
-	if (MLAN_STATUS_SUCCESS == woal_do_flr(handle, false, true))
+	if (woal_do_flr(handle, false, true) == MLAN_STATUS_SUCCESS)
 		handle->fw_reseting = MFALSE;
 	else {
 		handle = NULL;
@@ -3216,21 +3073,12 @@ static void woal_pcie_work(struct work_struct *work)
 		woal_free_module_param(ref_handle);
 		woal_init_module_param(ref_handle);
 
-		if (MLAN_STATUS_SUCCESS == woal_do_flr(ref_handle, false, true))
+		if (woal_do_flr(ref_handle, false, true) == MLAN_STATUS_SUCCESS)
 			ref_handle->fw_reseting = MFALSE;
 	}
 	card->work_flags = MFALSE;
 	wifi_status = WIFI_STATUS_OK;
 	woal_send_auto_recovery_complete_event(handle);
-
-	// This is just WAR for PRC release
-#if defined(PCIEAW693)
-	/*Re-enable L1 state once IN-BAND RESET is done*/
-	pci_write_config_dword(card->dev, 0x80, 0x143);
-	if (ref_card)
-		pci_write_config_dword(ref_card->dev, 0x80, 0x143);
-#endif
-
 	PRINTM(MMSG, "========END IN-BAND RESET===========\n");
 	return;
 }
@@ -3245,6 +3093,7 @@ static void woal_pcie_work(struct work_struct *work)
 static void woal_pcie_card_reset(moal_handle *handle)
 {
 	pcie_service_card *card = (pcie_service_card *)handle->card;
+
 	if (!card->work_flags) {
 		card->work_flags = MTRUE;
 		schedule_work(&card->reset_work);

@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_cfg80211.h
  *
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2022, 2024-2025 NXP
+ * Copyright 2011-2022, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -152,7 +153,13 @@ int woal_cfg80211_set_wiphy_params(struct wiphy *wiphy,
 #endif
 				   u32 changed);
 
-int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
+int woal_cfg80211_add_key(struct wiphy *wiphy,
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) ||             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
+			  struct wireless_dev *wdev,
+#else
+			  struct net_device *netdev,
+#endif
 #if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 			  int link_id,
@@ -163,7 +170,13 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 #endif
 			  const t_u8 *mac_addr, struct key_params *params);
 
-int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
+int woal_cfg80211_del_key(struct wiphy *wiphy,
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) ||             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
+			  struct wireless_dev *wdev,
+#else
+			  struct net_device *netdev,
+#endif
 #if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 			  int link_id,
@@ -189,7 +202,7 @@ int woal_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+#if ((KERNEL_VERSION(5, 19, 2) <= CFG80211_VERSION_CODE) ||                    \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 				   unsigned int link_id,
 #endif
@@ -263,7 +276,12 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy, struct net_device *dev,
 
 #if KERNEL_VERSION(2, 6, 30) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) ||             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
+				       struct wireless_dev *wdev,
+#else
 				       struct net_device *netdev,
+#endif
 #if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 				       int link_id,
@@ -273,7 +291,12 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 
 #if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) ||             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
+					 struct wireless_dev *wdev,
+#else
 					 struct net_device *netdev,
+#endif
 #if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) ||                        \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 					 int link_id,
@@ -496,14 +519,20 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct beacon_parameters *params);
 #endif
 
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+#if ((KERNEL_VERSION(5, 19, 2) <= CFG80211_VERSION_CODE) ||                    \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     unsigned int link_id);
 #else
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev);
 #endif
-int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
+int woal_cfg80211_del_station(struct wiphy *wiphy,
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) ||             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
+			      struct wireless_dev *wdev,
+#else
+			      struct net_device *dev,
+#endif
 #if KERNEL_VERSION(3, 19, 0) <= CFG80211_VERSION_CODE
 			      struct station_del_parameters *param);
 #else
@@ -624,7 +653,7 @@ int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
 				  mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 #endif
 
-mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason);
+mlan_status woal_reset_wifi(moal_private *priv, t_u8 cnt, char *reason);
 
 /* Handling for 6E Indoor/Outdoor Mode */
 

@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan.h
  *
  *  @brief This file declares all APIs that will be called from MOAL module.
  *  It also defines the data structures used for APIs between MLAN and MOAL.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -22,10 +23,11 @@
  */
 
 /******************************************************
-Change log:
-    10/13/2008: initial version
-    11/07/2008: split mlan.h into mlan_decl.h & mlan_ioctl.h
-******************************************************/
+ * Change log:
+ * 10/13/2008: initial version
+ * 11/07/2008: split mlan.h into mlan_decl.h & mlan_ioctl.h
+ * ****************************************************
+ */
 
 #ifndef _MLAN_H_
 #define _MLAN_H_

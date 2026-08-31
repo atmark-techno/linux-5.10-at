@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_uap_cmdevent.c
  *
  *  @brief This file contains the handling of AP mode command and event
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -21,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    02/05/2009: initial version
-********************************************************/
+ * Change log:
+ * 02/05/2009: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_util.h"
@@ -44,8 +46,9 @@ Change log:
 #include "mlan_pcie.h"
 #endif /* PCIE */
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function prepares command of BAND_STEERING_CFG
@@ -481,6 +484,7 @@ static mlan_status wlan_uap_cmd_802_11_hs_cfg(pmlan_private pmpriv,
 		if (pmadapter->mgmt_filter[0].type) {
 			int i = 0;
 			mgmt_frame_filter mgmt_filter[MAX_MGMT_FRAME_FILTER];
+
 			memset(pmadapter, mgmt_filter, 0,
 			       MAX_MGMT_FRAME_FILTER *
 				       sizeof(mgmt_frame_filter));
@@ -614,6 +618,7 @@ static void wlan_process_tx_pause_event(pmlan_private priv, pmlan_buffer pevent)
 	t_u8 bc_mac[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	t_u32 total_pkts_queued;
 	t_u16 tx_pkts_queued = 0;
+
 	;
 
 	ENTER();
@@ -804,8 +809,8 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 	if (bss->param.bss_config.bandcfg.scanMode == SCAN_MODE_ACS) {
 		/* ACS is not allowed when DFS repeater mode is on */
 		if (pmpriv->adapter->dfs_repeater) {
-			PRINTM(MERROR, "ACS is not allowed when"
-				       "DFS repeater mode is on.\n");
+			PRINTM(MERROR,
+			       "ACS is not allowed when DFS repeater mode is on.\n");
 			return MLAN_STATUS_FAILURE;
 		}
 	}
@@ -1691,7 +1696,8 @@ static mlan_status wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 								->beacon_period);
 				}
 				/* Add TLV_UAP_DTIM_PERIOD if it follws in
-				 * pdata_buf */
+				 * pdata_buf
+				 */
 				pdat_tlv_dtimpd =
 					(MrvlIEtypes_dtim_period_t
 						 *)(((t_u8 *)pdata_buf) +
@@ -2149,10 +2155,9 @@ static mlan_status wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 				wlan_cpu_to_le16(TLV_TYPE_UAP_WACP_MODE);
 			tlv_wacp_mode->header.len =
 				wlan_cpu_to_le16(sizeof(t_u8));
-			if (cmd_action == HostCmd_ACT_GEN_SET) {
+			if (cmd_action == HostCmd_ACT_GEN_SET)
 				tlv_wacp_mode->wacp_mode =
 					misc->param.wacp_mode;
-			}
 			cmd->size = wlan_cpu_to_le16(
 				sizeof(HostCmd_DS_SYS_CONFIG) + S_DS_GEN +
 				sizeof(MrvlIEtypes_wacp_mode_t));
@@ -2880,8 +2885,12 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 					bss->param.ap_channel.channel =
 						chan_band_tlv->channel;
 					bss->param.ap_channel.center_chan = 0;
+					/* Channel 14 (Japan) does not support
+					 * 802.11n. */
 					bss->param.ap_channel.is_11n_enabled =
-						pmpriv->is_11n_enabled;
+						(chan_band_tlv->channel == 14) ?
+							0 :
+							pmpriv->is_11n_enabled;
 					pmpriv->uap_channel =
 						chan_band_tlv->channel;
 					pmpriv->uap_bandwidth =
@@ -3036,7 +3045,8 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 									.buf_count);
 						}
 						/* Append max_mgmt_ie TLV after
-						 * custom_ie */
+						 * custom_ie
+						 */
 						memcpy_ext(
 							pmpriv->adapter,
 							(t_u8 *)&misc->param
@@ -3056,10 +3066,9 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 				misc->param.wacp_mode =
 					tlv_wacp_mode->wacp_mode;
 				/** update the wacp_mode in mlan_adapter */
-				if (pioctl_buf->action == MLAN_ACT_SET) {
+				if (pioctl_buf->action == MLAN_ACT_SET)
 					pmpriv->adapter->init_para.wacp_mode =
 						misc->param.wacp_mode;
-				}
 			}
 		}
 	} else { /* no ioctl: driver generated get/set */
@@ -4348,6 +4357,7 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 				t_u8 bandwidth = BW_20MHZ;
 
 				MrvlIEtypes_chan_bw_oper_t chan_bw_oper;
+
 				chan_bw_oper.header.type = REGULATORY_CLASS;
 				chan_bw_oper.header.len =
 					sizeof(MrvlIEtypes_chan_bw_oper_t);
@@ -4675,6 +4685,7 @@ wlan_check_11B_support_rates(MrvlIEtypes_RatesParamSet_t *prates_tlv)
 	int i;
 	t_u8 rate;
 	t_u8 ret = MTRUE;
+
 	for (i = 0; i < prates_tlv->header.len; i++) {
 		rate = prates_tlv->rates[i] & 0x7f;
 		if ((rate != 0x02) && (rate != 0x04) && (rate != 0x0b) &&
@@ -4762,7 +4773,7 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 	tlv_buf = bss->param.sta_info.tlv;
 	tlv = (MrvlIEtypesHeader_t *)tlv_buf;
 	if (bss->param.sta_info.sta_flags & STA_FLAG_WME) {
-		PRINTM(MCMND, "ADD_STA flags supports wmm \n");
+		PRINTM(MCMND, "ADD_STA flags supports wmm\n");
 		sta_ptr->is_wmm_enabled = MTRUE;
 	}
 	// append sta_flag_flags.
@@ -5159,6 +5170,7 @@ static mlan_status wlan_cmd_apcmd_agcs_cfg(pmlan_private pmpriv,
 	HostCmd_DS_AGCS_CFG *pcmd_agcs_cfg =
 		(HostCmd_DS_AGCS_CFG *)&cmd->params.agcs_cfg;
 	mlan_ds_agcs_cfg *pagcs_cfg = (mlan_ds_agcs_cfg *)pdata_buf;
+
 	ENTER();
 
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_AGCS_CFG);
@@ -5282,31 +5294,42 @@ static mlan_status wlan_process_agcs_event(pmlan_private priv,
 
 				if ((sta_ptr->ExtCap.ext_cap.ExtChanSwitching ==
 				     0) &&
-				    (global_oper_class != 128)) {
+				    (global_oper_class != 128))
 					pacs_start_event->stats.all_sta_ecs =
 						MFALSE;
-				}
-				if (sta_ptr->is_11ax_enabled == 0) {
-					pacs_start_event->stats.all_sta_6g =
-						MFALSE;
-				} else {
-					int i;
-					t_bool t_support_6g = MFALSE;
+				if (pacs_start_event->stats.all_sta_6g ==
+				    MTRUE) {
+					if (sta_ptr->is_11ax_enabled == 0) {
+						pacs_start_event->stats
+							.all_sta_6g = MFALSE;
+					} else {
+						int i;
+						t_bool t_support_6g = MFALSE;
 
-					for (i = 0;
-					     i <
-					     sta_ptr->OperClass.ieee_hdr.len;
-					     i++) {
-						if (is_6ghz_op_class(
-							    sta_ptr->OperClass
-								    .data[i]) ==
-						    MTRUE) {
-							t_support_6g = MTRUE;
-							break;
+						for (i = 0;
+						     i < sta_ptr->OperClass
+								 .ieee_hdr.len;
+						     i++) {
+							if (wlan_is_6ghz_op_class(
+								    sta_ptr->OperClass
+									    .data[i]) ==
+							    MTRUE) {
+								t_support_6g =
+									MTRUE;
+								break;
+							}
 						}
+						if (t_support_6g == MFALSE)
+							pacs_start_event->stats
+								.all_sta_6g =
+								MFALSE;
 					}
-					pacs_start_event->stats.all_sta_6g &=
-						t_support_6g;
+				}
+				if (pacs_start_event->stats.all_sta_ecs ==
+					    MFALSE &&
+				    pacs_start_event->stats.all_sta_6g ==
+					    MFALSE) {
+					break;
 				}
 				sta_ptr = sta_ptr->pnext;
 			}
@@ -5337,9 +5360,73 @@ done:
 	return status;
 }
 
+static mlan_status wlan_ret_chan_switch_cnt_config(pmlan_private pmpriv,
+						   HostCmd_DS_COMMAND *resp,
+						   mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_CHAN_SWITCH_CNT_CFG *pchan_switch_cnt_cfg =
+		(HostCmd_DS_CHAN_SWITCH_CNT_CFG *)&resp->params
+			.chan_switch_cnt_cfg;
+	mlan_ds_misc_cfg *misc = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc->param.ecsa_cfg.chan_switch_cnt =
+			(t_u8)pchan_switch_cnt_cfg->chan_switch_cnt;
+		PRINTM(MIOCTL, "Received SWITCH CNT = %d",
+		       misc->param.ecsa_cfg.chan_switch_cnt);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+static mlan_status wlan_cmd_chan_switch_cnt_config(pmlan_private pmpriv,
+						   HostCmd_DS_COMMAND *cmd,
+						   t_u16 cmd_action,
+						   t_void *pdata_buf)
+{
+	HostCmd_DS_CHAN_SWITCH_CNT_CFG *pchan_switch_cnt_cfg =
+		(HostCmd_DS_CHAN_SWITCH_CNT_CFG *)&cmd->params
+			.chan_switch_cnt_cfg;
+	mlan_ds_ecsa_cfg *ecsa_cfg = MNULL;
+
+	ENTER();
+
+	if (!pdata_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	ecsa_cfg = (mlan_ds_ecsa_cfg *)pdata_buf;
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG);
+	cmd->size = wlan_cpu_to_le16(
+		sizeof(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG) + S_DS_GEN +
+		sizeof(HostCmd_DS_CHAN_SWITCH_CNT_CFG));
+
+	pchan_switch_cnt_cfg->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		if (!ecsa_cfg) {
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+		pchan_switch_cnt_cfg->chan_switch_cnt =
+			(ecsa_cfg->chan_switch_cnt);
+	}
+	PRINTM(MIOCTL, "CHAN SWITCH CNT = %d",
+	       pchan_switch_cnt_cfg->chan_switch_cnt);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function prepare the command before sending to firmware.
  *
@@ -5661,7 +5748,7 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 						pdata_buf);
 		break;
 #if defined(PCIE)
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 	case HostCmd_CMD_PCIE_HOST_BUF_DETAILS:
 		ret = wlan_cmd_pcie_host_buf_cfg(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
@@ -5797,6 +5884,10 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
 		ret = wlan_cmd_get_foundry_type(pmpriv, cmd_ptr, cmd_action);
 		break;
+	case HostCmd_CMD_SET_DEBUG_TEMPERATURE:
+		ret = wlan_cmd_set_debug_temperature(pmpriv, cmd_ptr,
+						     cmd_action, pdata_buf);
+		break;
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:
 		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
@@ -5826,6 +5917,11 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_APCMD_AGCS_CFG:
 		ret = wlan_cmd_apcmd_agcs_cfg(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);
+		break;
+
+	case HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG:
+		ret = wlan_cmd_chan_switch_cnt_config(pmpriv, cmd_ptr,
+						      cmd_action, pdata_buf);
 		break;
 
 	default:
@@ -6170,7 +6266,7 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_packet_aggr_ctrl(pmpriv, resp, pioctl_buf);
 		break;
 #if defined(PCIE)
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 	case HostCmd_CMD_PCIE_HOST_BUF_DETAILS:
 		PRINTM(MINFO, "PCIE host buffer configuration successful.\n");
 		break;
@@ -6279,6 +6375,11 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
 		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
 		break;
+
+	case HostCmd_CMD_SET_DEBUG_TEMPERATURE:
+		ret = wlan_ret_debug_temperature(pmpriv, resp, pioctl_buf);
+		break;
+
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:
 		ret = wlan_ret_802_11_scan_ext(pmpriv, resp, pioctl_buf);
@@ -6309,6 +6410,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 
 	case HostCmd_CMD_APCMD_AGCS_CFG:
 		ret = wlan_uap_ret_agcs_cfg(pmpriv, resp, pioctl_buf);
+		break;
+
+	case HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG:
+		ret = wlan_ret_chan_switch_cnt_config(pmpriv, resp, pioctl_buf);
 		break;
 
 	default:
@@ -6631,8 +6736,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 						pevent);
 			} else {
 				PRINTM(MEVENT,
-				       "Ignore Event Radar Detected - handling"
-				       " already in progress.\n");
+				       "Ignore Event Radar Detected - handling already in progress.\n");
 			}
 		} else {
 			if (pmpriv->adapter->dfs_test_params
@@ -6760,8 +6864,13 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 						pchan_info->bandcfg.chanBand,
 						pchan_info->channel,
 						CHANNEL_BW_80MHZ);
+			/* Channel 14 (Japan) does not support 802.11n. */
+			/* TODO: Update is_11n_enabled after the channel switch.
+			 */
 			pchan_band_info->is_11n_enabled =
-				pmpriv->is_11n_enabled;
+				(pchan_info->channel == 14) ?
+					0 :
+					pmpriv->is_11n_enabled;
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE,
 					pevent);
@@ -6889,6 +6998,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 	case EVENT_CHAN_LOAD: {
 		t_u8 *ptr = MNULL;
 		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
+
 		ptr = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);
 		ptr += 4; /* actual data buffer start */
 		cfg_cmd = (HostCmd_DS_GET_CH_LOAD *)ptr;

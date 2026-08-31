@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
  * @file mlan_meas.c
  *
@@ -30,9 +31,10 @@
  */
 
 /*************************************************************
-Change Log:
-    03/24/2009: initial version
-************************************************************/
+ * Change Log:
+ * 03/24/2009: initial version
+ * **********************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -49,8 +51,9 @@ static const char *meas_type_str[WLAN_MEAS_NUM_TYPES] = {
 };
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Retrieve the measurement string representation of a meas_type enum
@@ -102,7 +105,8 @@ wlan_meas_dump_meas_req(const HostCmd_DS_MEASUREMENT_REQUEST *pmeas_req)
 	switch (pmeas_req->meas_type) {
 	case WLAN_MEAS_BASIC:
 		/* Lazy cheat, fields of bas, cca, rpi union match on the
-		 * request */
+		 * request
+		 */
 		PRINTM(MINFO, "Meas: Req: chan: %u\n",
 		       pmeas_req->req.basic.channel);
 		PRINTM(MINFO, "Meas: Req: strt: %llu\n",
@@ -130,6 +134,7 @@ static void
 wlan_meas_dump_meas_rpt(const HostCmd_DS_MEASUREMENT_REPORT *pmeas_rpt)
 {
 	MeasType_t type;
+
 	ENTER();
 
 	PRINTM(MINFO, "Meas: Rpt: ------------------------------\n");
@@ -219,7 +224,8 @@ static int wlan_meas_cmdresp_get_report(mlan_private *pmpriv,
 		pmadapter->state_meas.meas_rpt_pend_on = 0;
 
 		/* Copy the received report into the measurement state for
-		 * retrieval */
+		 * retrieval
+		 */
 		memcpy_ext(pmadapter, &pmadapter->state_meas.meas_rpt_returned,
 			   pmeas_rpt,
 			   sizeof(pmadapter->state_meas.meas_rpt_returned),
@@ -313,8 +319,9 @@ static int wlan_meas_cmd_get_report(mlan_private *pmpriv,
 }
 
 /********************************************************
-			Global functions
-********************************************************/
+ * Global functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Send the input measurement request to the firmware.

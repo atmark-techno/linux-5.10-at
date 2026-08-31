@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_event_ids.h
  *
  *  @brief This file contains FW event ID definitions.
  *
  *
- *  Copyright 2023-2025 NXP
+ *  Copyright 2023-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -184,8 +185,6 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 
 	ENUM_ELEMENT(EVENT_VDLL_IND, 0x0081),
 
-	ENUM_ELEMENT(EVENT_ROAM_OFFLOAD, 0x0083),
-
 	ENUM_ELEMENT(EVENT_WLS_FTM_COMPLETE, 0x0086),
 
 	ENUM_ELEMENT(EVENT_EXCEED_MAX_P2P_CONN, 0x0089),
@@ -233,6 +232,10 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 #if defined(PCIE) || defined(SDIO)
 	/** Card Event definition : In Band reset triggered by FW */
 	ENUM_ELEMENT(EVENT_FW_IN_BAND_RESET, 0x00AD),
+#endif
+
+#ifdef SECURE_HOST
+	ENUM_ELEMENT(EVENT_SECURE_HOST_COMM, 0x00AE),
 #endif
 
 	/** Event ID: WiFi uAP Channel Avoidance */

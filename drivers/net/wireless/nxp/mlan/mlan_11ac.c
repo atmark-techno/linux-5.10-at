@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11ac.c
  *
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2011-2021 NXP
+ *  Copyright 2011-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -30,16 +31,19 @@
 #include "mlan_11ac.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
 				     t_u16 mcs_map);
 /**
@@ -95,6 +99,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 static t_u8 wlan_get_nss_vht_mcs(t_u16 mcs_map_set)
 {
 	t_u8 nss, nss_map = 0;
+
 	for (nss = 1; nss <= 8; nss++) {
 		if (GET_VHTNSSMCS(mcs_map_set, nss) != NO_NSS_SUPPORT)
 			nss_map |= 1 << (nss - 1);
@@ -113,6 +118,7 @@ static t_u8 wlan_get_nss_vht_mcs(t_u16 mcs_map_set)
 static t_u8 wlan_get_nss_num_vht_mcs(t_u16 mcs_map_set)
 {
 	t_u8 nss, nss_num = 0;
+
 	for (nss = 1; nss <= 8; nss++) {
 		if (GET_VHTNSSMCS(mcs_map_set, nss) != NO_NSS_SUPPORT)
 			nss_num++;
@@ -134,6 +140,7 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 			       t_u16 bands)
 {
 	t_u32 usr_dot_11ac_dev_cap;
+	t_u32 cfg_value = 0;
 	ENTER();
 
 	if (bands & BAND_A)
@@ -144,6 +151,16 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 	vht_cap->vht_cap_info = usr_dot_11ac_dev_cap;
 
 	RESET_VHTCAP_MAXMPDULEN(vht_cap->vht_cap_info);
+	/*
+	 * Set to 0 for 3895 octets.
+	 * Set to 1 for 7991 octets.
+	 * Set to 2 for 11 454 octets.
+	 */
+	cfg_value = GET_VHTCAP_MAXMPDULEN(usr_dot_11ac_dev_cap);
+	if (cfg_value &&
+	    (priv->adapter->rx_buf_size >= MLAN_RX_DATA_BUF_SIZE_8K)) {
+		SET_VHTCAP_MAXMPDULEN(vht_cap->vht_cap_info, 1);
+	}
 	LEAVE();
 }
 
@@ -205,12 +222,16 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 				   cfg->param.vht_cfg.vht_cap_info &
 				   pmadapter->hw_dot_11ac_dev_cap;
 		/** set MAX MPDU LEN field (bit 0 - bit 1) */
+		RESET_VHTCAP_MAXMPDULEN(usr_vht_cap_info);
 		cfg_value =
 			GET_VHTCAP_MAXMPDULEN(cfg->param.vht_cfg.vht_cap_info);
 		hw_value =
 			GET_VHTCAP_MAXMPDULEN(pmadapter->hw_dot_11ac_dev_cap);
-		SET_VHTCAP_MAXMPDULEN(usr_vht_cap_info,
-				      MIN(cfg_value, hw_value));
+		if (cfg_value && hw_value &&
+		    (pmpriv->adapter->rx_buf_size >=
+		     MLAN_RX_DATA_BUF_SIZE_8K)) {
+			SET_VHTCAP_MAXMPDULEN(usr_vht_cap_info, 1);
+		}
 		/** set CHAN Width Set field (bit 2 - bit 3) */
 		cfg_value = GET_VHTCAP_CHWDSET(cfg->param.vht_cfg.vht_cap_info);
 		hw_value = GET_VHTCAP_CHWDSET(pmadapter->hw_dot_11ac_dev_cap);
@@ -522,8 +543,9 @@ static mlan_status wlan_11ac_ioctl_supported_mcs_set(pmlan_adapter pmadapter,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function prints the 802.11ac device capability
@@ -628,7 +650,8 @@ t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
 	t_u32 usr_dot_11n_dev_cap;
 
 	/* tables of the MCS map to the highest data rate (in Mbps)
-	 * supported for long GI */
+	 * supported for long GI
+	 */
 	t_u16 max_rate_lgi_20MHZ[8][3] = {
 		{0x41, 0x4E, 0x0}, /* NSS = 1 */
 		{0x82, 0x9C, 0x0}, /* NSS = 2 */
@@ -906,6 +929,7 @@ t_u8 wlan_is_ap_in_11ac_mode(mlan_private *priv)
 {
 	BSSDescriptor_t *pbss_desc;
 	IEEEtypes_VHTOprat_t *vht_oprat = MNULL;
+
 	pbss_desc = &priv->curr_bss_params.bss_descriptor;
 	vht_oprat = pbss_desc->pvht_oprat;
 	if (!pbss_desc->pvht_cap)
@@ -947,12 +971,13 @@ void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
 	BSSDescriptor_t *pbss_desc;
 	IEEEtypes_VHTCap_t *pvht_cap = &sta_ptr->vht_cap;
 	IEEEtypes_VHTCap_t *ap_vht_cap = MNULL;
+
 	ENTER();
 
 	pbss_desc = &priv->curr_bss_params.bss_descriptor;
 
 	/* Check if AP is in 11ac mode */
-	if (MFALSE == wlan_is_ap_in_11ac_mode(priv)) {
+	if (wlan_is_ap_in_11ac_mode(priv) == MFALSE) {
 		if (sta_ptr->ExtCap.ieee_hdr.element_id != EXT_CAPABILITY) {
 			PRINTM(MMSG, "No Peer's Ext_cap info\n");
 			return;

@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0
-/** @file mlan_11n_aggr.h
+/** @file mlan_shc.c
  *
- *  @brief This file contains related macros, enum, and struct
- *  of 11n aggregation functionalities
+ *  @brief This file contains the secure host interface functions.
  *
  *
- *  Copyright 2008-2021, 2026 NXP
+ *  Copyright 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -22,19 +20,21 @@
  *
  */
 
-/********************************************************
- * Change log:
- * 11/10/2008: initial version
- * ******************************************************
- */
+#ifndef _MLAN_SHC_H_
+#define _MLAN_SHC_H_
+#ifdef STA_SUPPORT
+#include "mlan_join.h"
+#endif
+#include "mlan_main.h"
 
-#ifndef _MLAN_11N_AGGR_H_
-#define _MLAN_11N_AGGR_H_
-
-/** Aggregate 11N packets */
-mlan_status wlan_11n_deaggregate_pkt(pmlan_private priv, pmlan_buffer pmbuf);
-/** Deaggregate 11N packets */
-int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *ptr, int headroom,
-			   int ptrindex);
-
-#endif /* !_MLAN_11N_AGGR_H_ */
+mlan_status mlan_shc_handshake(pmlan_adapter pmadapter, t_u8 type, t_void *msg);
+mlan_status wlan_shc_process_secure_host_event(pmlan_private pmpriv, t_u8 *data,
+					       t_u32 len);
+mlan_status wlan_shc_secure_hostcmd_process(pmlan_adapter pmadapter,
+					    HostCmd_DS_COMMAND *pcmd);
+t_bool wlan_is_secure_host_cmd(t_u16 cmd_id);
+mlan_status wlan_shc_secure_hostresp_process(pmlan_adapter pmadapter,
+					     HostCmd_DS_COMMAND *resp);
+mlan_status wlan_shc_prep_for_requeue(pmlan_adapter pmadapter,
+				      HostCmd_DS_COMMAND *pcmd);
+#endif

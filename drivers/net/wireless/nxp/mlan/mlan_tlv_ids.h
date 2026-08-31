@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_tlv_ids.h
  *
  *  @brief This file contains TLV ID definitions.
  *
  *
- *  Copyright 2023-2025 NXP
+ *  Copyright 2023-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -48,6 +49,8 @@
 /** TLV type : Power capability */
 #define TLV_TYPE_POWER_CAPABILITY 0x0021
 #define TLV_TYPE_HT_CAPABILITY 0x002d
+/** TLV type : RSN eXtended IE */
+#define TLV_TYPE_RSNX 0x00f4
 /** TLV type : Vendor Specific IE */
 #define TLV_TYPE_VENDOR_SPECIFIC_IE 0x00dd
 #define TLV_TYPE_EXTENSION_ID 0x00ff
@@ -350,9 +353,6 @@
 /** TLV type :  AP WMM params */
 #define TLV_TYPE_AP_WMM_PARAM (PROPRIETARY_TLV_BASE_ID + 208) /* 0x01d0 */
 #endif /* UAP_SUPPORT */
-/** TLV type : ESS scan*/
-#define TLV_TYPE_ENERGYEFFICIENTSCAN                                           \
-	(PROPRIETARY_TLV_BASE_ID + 218) /* 0x01da */
 /** TLV type : EES Configuration */
 #define TLV_TYPE_EES_CFG (PROPRIETARY_TLV_BASE_ID + 218) /* 0x01da */
 /** TLV type : EES Network Configuration */
@@ -367,14 +367,6 @@
 #define TLV_TYPE_RANDOM_MAC (PROPRIETARY_TLV_BASE_ID + 236) /* 0x01ec */
 #define TLV_TYPE_CHAN_ATTR_CFG (PROPRIETARY_TLV_BASE_ID + 237) /* 0x01ed */
 #define TLV_TYPE_REGION_INFO (PROPRIETARY_TLV_BASE_ID + 238) /* 0x01ee */
-/** TLV type : ENABLE ROAM IE */
-#define TLV_TYPE_ROAM (PROPRIETARY_TLV_BASE_ID + 245) /* 0x01f5 */
-/** TLV type : AP LIST IE */
-#define TLV_TYPE_APLIST (PROPRIETARY_TLV_BASE_ID + 246) /* 0x01f6 */
-/** TLV type : PMK */
-#define TLV_TYPE_PMK_R0 (PROPRIETARY_TLV_BASE_ID + 247) /* 0x01f7 */
-/** TLV type : PMK */
-#define TLV_TYPE_PMK_R0_NAME (PROPRIETARY_TLV_BASE_ID + 248) /* 0x01f8 */
 /** TLV for cloud keep alive control info */
 #define TLV_TYPE_CLOUD_KEEP_ALIVE (PROPRIETARY_TLV_BASE_ID + 258) /* 0x0202 */
 /** TLV for cloud keep alive control info */
@@ -388,14 +380,6 @@
 /** TLV ID for DRCS TimeSlice */
 #define NXP_DRCS_TIME_SLICE_TLV_ID (PROPRIETARY_TLV_BASE_ID + 263) /* 0x0207   \
 								    */
-/** TLV type : TRIGGER CONDITION*/
-#define TLV_TYPE_ROM_TRIGGER (PROPRIETARY_TLV_BASE_ID + 264) /* 0x0208 */
-/** TLV type : RETRY_COUNT*/
-#define TLV_TYPE_ROM_RETRY_COUNT (PROPRIETARY_TLV_BASE_ID + 265) /* 0x0209 */
-/** TLV type : BGSCAN SETTING*/
-#define TLV_TYPE_ROM_BGSCAN (PROPRIETARY_TLV_BASE_ID + 266) /* 0x020a */
-/** TLV type : PARA RSSI*/
-#define TLV_TYPE_ROM_PARA_RSSI (PROPRIETARY_TLV_BASE_ID + 267) /* 0x020b */
 /** TLV type: management filter  */
 #define TLV_TYPE_MGMT_FRAME_WAKEUP (PROPRIETARY_TLV_BASE_ID + 278) /* 0x0216   \
 								    */
@@ -407,10 +391,6 @@
 #define TLV_TYPE_HS_ANTMODE (PROPRIETARY_TLV_BASE_ID + 281) /* 0x0219 */
 /** TLV type: robustcoex mode */
 #define TLV_TYPE_ROBUSTCOEX (PROPRIETARY_TLV_BASE_ID + 283) /* 0x021b */
-/** TLV type : BSSID blacklist*/
-#define TLV_TYPE_BLACKLIST_BSSID (PROPRIETARY_TLV_BASE_ID + 285) /* 0x021d */
-/** TLV type : BAND & RSSI*/
-#define TLV_TYPE_BAND_RSSI (PROPRIETARY_TLV_BASE_ID + 286) /* 0x021e */
 /** TLV type : beacon timeout */
 #define TLV_TYPE_BCN_TIMEOUT (PROPRIETARY_TLV_BASE_ID + 287) /* 0x021f */
 #ifdef UAP_SUPPORT
@@ -418,9 +398,6 @@
 #define TLV_TYPE_UAP_TX_BEACON_RATE (PROPRIETARY_TLV_BASE_ID + 288) /* 0x0220  \
 								     */
 #endif /* UAP_SUPPORT */
-/** TLV type : KEY params*/
-#define TLV_TYPE_ROAM_OFFLOAD_USER_SET_PMK                                     \
-	(PROPRIETARY_TLV_BASE_ID + 291) /* 0x0223 */
 /** TLV for RTT Range Request */
 #define TLV_TYPE_RTT_RANGE_REQUEST (PROPRIETARY_TLV_BASE_ID + 293) /* 0x0225   \
 								    */
@@ -461,7 +438,8 @@
 /** TLV type: fw cap info */
 #define TLV_TYPE_FW_CAP_INFO (PROPRIETARY_TLV_BASE_ID + 318) /* 0x023e */
 /** TLV type : TX RATE CFG, rename from TLV_TYPE_GI_LTF_SIZE to include CMD and
- * HE ER SU settings to this tlv */
+ * HE ER SU settings to this tlv
+ */
 #define TLV_TYPE_TX_RATE_CFG (PROPRIETARY_TLV_BASE_ID + 319) /* 0x023f */
 #ifdef UAP_SUPPORT
 #define TLV_TYPE_UAP_MAX_STA_CNT_PER_CHIP                                      \
@@ -507,7 +485,9 @@
 #define VENDOR_IE_OUIS_TLV_ID (PROPRIETARY_TLV_BASE_ID + 357) /* 0x0265 */
 #define TLV_TYPE_AP_INFO (PROPRIETARY_TLV_BASE_ID + 358) /* 0x0266 */
 #define TLV_TYPE_CSI_AGC_CONFIG (PROPRIETARY_TLV_BASE_ID + 363) /* 0x026b */
+#define NXP_VERSION_COMPONENTS_TLV_ID                                          \
+	(PROPRIETARY_TLV_BASE_ID + 364) /* 0x026c */
 #define TLV_TYPE_PER_BAND_TXPWR_CAP (PROPRIETARY_TLV_BASE_ID + 365) /* 0x026d  \
 								     */
-
+#define TLV_HOST_MAX_RX_BUF_SIZE (PROPRIETARY_TLV_BASE_ID + 367) /* 0x026f */
 #endif /* !MLAN_TLV_IDS_H_ */

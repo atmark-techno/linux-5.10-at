@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_uap_txrx.c
  *
  *  @brief This file contains AP mode transmit and receive functions
  *
  *
- *  Copyright 2009-2021, 2025 NXP
+ *  Copyright 2009-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -21,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    02/05/2009: initial version
-********************************************************/
+ * Change log:
+ * 02/05/2009: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_util.h"
@@ -38,8 +40,9 @@ Change log:
 #include "mlan_11n_rxreorder.h"
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function processes received packet and forwards it
@@ -58,6 +61,7 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
 #endif
 	PRxPD prx_pd;
+
 	ENTER();
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 
@@ -107,8 +111,9 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function fill the txpd for tx packet
  *
@@ -242,6 +247,7 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
 		mc_tx_ctrl *mc_ctrl =
 			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
+
 		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
 		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
 			ctrl->mc_cycle_start = MTRUE;
@@ -330,11 +336,10 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
 
-	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
+	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
 		endian_convert_RxPD_extra_header(
 			(rxpd_extra_info *)((t_u8 *)prx_pd +
 					    Rx_PD_SIZEOF(pmadapter)));
-	}
 
 	if (priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
@@ -367,8 +372,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) !=
 	    (t_u16)pmbuf->data_len) {
 		PRINTM(MERROR,
-		       "Wrong rx packet: len=%d,rx_pkt_offset=%d,"
-		       " rx_pkt_length=%d\n",
+		       "Wrong rx packet: len=%d,rx_pkt_offset=%d, rx_pkt_length=%d\n",
 		       pmbuf->data_len, prx_pd->rx_pkt_offset,
 		       prx_pd->rx_pkt_length);
 		pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
@@ -409,7 +413,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 			 * meant for monitor iface
 			 */
 			pmbuf2 = wlan_alloc_mlan_buffer(pmadapter,
-							MLAN_RX_DATA_BUF_SIZE,
+							pmadapter->rx_buf_size,
 							MLAN_RX_HEADER_LEN,
 							MOAL_ALLOC_MLAN_BUFFER);
 			if (!pmbuf2) {
@@ -571,9 +575,8 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	ret = mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num, prx_pd->priority,
 				     ta, (t_u8)prx_pd->rx_pkt_type,
 				     (void *)pmbuf);
-	if (ret || (rx_pkt_type == PKT_TYPE_BAR)) {
+	if (ret || (rx_pkt_type == PKT_TYPE_BAR))
 		pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-	}
 done:
 	LEAVE();
 	return ret;
@@ -809,9 +812,19 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 			}
 		}
 	} else {
-		if ((!(priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) &&
-		    (wlan_get_station_entry(priv,
-					    prx_pkt->eth803_hdr.dest_addr))) {
+		sta_node *dest_sta = wlan_get_station_entry(
+			priv, prx_pkt->eth803_hdr.dest_addr);
+		if ((!(priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) && dest_sta) {
+			if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
+				/* This is a 4-address frame from backhaul */
+				if (dest_sta && !dest_sta->is_multi_ap) {
+					/* Destination is a fronthaul client
+					 * (3-address mode) Clear EASYMESH flag
+					 * to convert 4-addr to 3-addr
+					 */
+					pmbuf->flags &= ~MLAN_BUF_FLAG_EASYMESH;
+				}
+			}
 			/* Forwarding Intra-BSS packet */
 #ifdef USB
 			if (IS_USB(pmadapter->card_type)) {
