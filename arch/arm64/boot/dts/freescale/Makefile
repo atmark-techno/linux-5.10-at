@@ -112,6 +112,7 @@ dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4.dtb
 DTC_FLAGS_armadillo_iotg_g4 := -@
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-at-dtweb.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-nousb.dtbo
+dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-nopci.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-sw1-wakeup.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-arducam.dtbo
 dtb-$(CONFIG_ARCH_MXC) += armadillo_iotg_g4-con10-imx219.dtbo

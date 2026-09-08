@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2026 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/* PCIe (WLAN) */
+&pcie {
+	status = "broken";
+};
+
+&pcie_ep {
+	status = "broken";
+};
+
+&pcie_phy {
+	status = "broken";
+};
+
+/*
+ * GPIO expander (FXL6408): only used with the M.2 connector for PCI enable,
+ * also disable here.
+ */
+&gpio_expander {
+	status = "broken";
+};
