@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2026 Atmark Techno, Inc. All Rights Reserved.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/* HDMI */
+&{/sound-hdmi} {
+	status = "broken";
+};
+
+&aud2htx {
+	status = "broken";
+};
+
+&irqsteer_hdmi {
+	status = "broken";
+};
+
+&hdmi_blk_ctrl {
+	status = "broken";
+};
+
+&hdmi_pavi {
+	status = "broken";
+};
+
+&hdmi {
+	status = "broken";
+};
+
+&hdmiphy {
+	status = "broken";
+};
+
+/* LVDS */
+&lvds_panel {
+	status = "broken";
+};
+
+&lvds_reset {
+	status = "broken";
+};
+
+&ldb {
+	status = "broken";
+
+	lvds-channel@0 {
+		status = "broken";
+	};
+};
+
+&ldb_phy {
+	status = "broken";
+};
+
+/* display controllers */
+&lcdif2 {
+	status = "broken";
+};
+
+&lcdif3 {
+	status = "broken";
+};
+
+/* VPU / GPU / NPU */
+&vpu_g1 {
+	status = "broken";
+};
+
+&vpu_g2 {
+	status = "broken";
+};
+
+&vpu_vc8000e {
+	status = "broken";
+};
+
+&vpu_v4l2 {
+	status = "broken";
+};
+
+&gpu_3d {
+	status = "broken";
+};
+
+&gpu_2d {
+	status = "broken";
+};
+
+&ml_vipsi {
+	status = "broken";
+};
+
+&mix_gpu_ml {
+	status = "broken";
+};
+
+&media_blk_ctrl {
+	status = "broken";
+};
